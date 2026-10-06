@@ -202,6 +202,28 @@ func (m *machine) run(dir string, args ...string) result {
 	return result{code, out.String(), errb.String()}
 }
 
+// runEnv is run with extra environment variables (secrets such as a token
+// variable the command reads by NAME).
+func (m *machine) runEnv(extra map[string]string, dir string, args ...string) result {
+	m.t.Helper()
+	cmd := exec.Command(binary, args...)
+	cmd.Dir = dir
+	cmd.Env = m.env()
+	for k, v := range extra {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	var out, errb bytes.Buffer
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, &out, &errb
+	err := cmd.Run()
+	code := 0
+	if ee, ok := err.(*exec.ExitError); ok {
+		code = ee.ExitCode()
+	} else if err != nil {
+		m.t.Fatalf("running gabitotl %v: %v", args, err)
+	}
+	return result{code, out.String(), errb.String()}
+}
+
 // ok runs and requires exit code 0.
 func (m *machine) ok(dir string, args ...string) result {
 	m.t.Helper()
