@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
@@ -50,14 +49,8 @@ func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths 
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("tui.apply.cancelled"))
 		return ExitError
 	}
-	ui.RenderResult(env.Stdout, m, out.Result, out.Inv, paths)
+	ui.RenderOutcome(env.Stdout, env.Stderr, m, out.Result, out.Inv, paths, out.Err)
 	if out.Err != nil {
-		var partial *installer.PartialError
-		key := "result.failed"
-		if errors.As(out.Err, &partial) {
-			key = "result.partial"
-		}
-		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format(key, "detail", out.Err.Error()))
 		return ExitError
 	}
 	return ExitOK

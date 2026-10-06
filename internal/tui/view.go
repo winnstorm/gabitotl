@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
@@ -43,9 +44,34 @@ func wrapped(lines []string, focus, width int) ([]string, int) {
 		if i == focus {
 			at = len(out)
 		}
-		out = append(out, strings.Split(lipgloss.Wrap(l, width, ""), "\n")...)
+		hang := hanging(l)
+		if hang == 0 || hang >= width/2 {
+			out = append(out, strings.Split(lipgloss.Wrap(l, width, ""), "\n")...)
+			continue
+		}
+		// Keep continuation lines aligned under the text, not under the symbol.
+		parts := strings.Split(lipgloss.Wrap(l, width, ""), "\n")
+		out = append(out, parts[0])
+		if len(parts) > 1 {
+			rest := strings.TrimSpace(strings.Join(parts[1:], " "))
+			for _, w := range strings.Split(lipgloss.Wrap(rest, width-hang, ""), "\n") {
+				out = append(out, strings.Repeat(" ", hang)+w)
+			}
+		}
 	}
 	return out, at
+}
+
+// hanging is how far the text of a "<spaces><symbol> text" line is indented.
+func hanging(l string) int {
+	plain := ansi.Strip(l)
+	trimmed := strings.TrimLeft(plain, " ")
+	for _, sym := range []string{ui.SymOK, ui.SymWarn, ui.SymTodo, ui.SymError} {
+		if strings.HasPrefix(trimmed, sym+" ") {
+			return len(plain) - len(trimmed) + 2
+		}
+	}
+	return 0
 }
 
 // head is the wrapped header; title and subtitle only matter for its height.
@@ -196,8 +222,10 @@ func (m *Model) menu(items []menuItem) (lines []string, focus int) {
 		} else {
 			lines = append(lines, "  "+it.label)
 		}
-		if it.desc != "" {
-			lines = append(lines, "    "+m.st.dim.Render(it.desc))
+		if it.desc != "" { // wrapped here so every continuation line keeps the indent
+			for _, l := range strings.Split(lipgloss.Wrap(it.desc, max(10, m.w-6), ""), "\n") {
+				lines = append(lines, "    "+m.st.dim.Render(l))
+			}
 		}
 	}
 	return lines, focus
@@ -317,12 +345,15 @@ func (m *Model) planBody() ([]string, int) {
 		body = append(body, m.st.line(ui.SymWarn, f("label.ojo")+": "+f(key, pairs...)), "")
 	}
 	for _, n := range m.plan.Notes {
+		if n.Code == installer.NotePersonaConflict && m.personaAsked {
+			continue // already asked and answered; the note only points at a CLI flag
+		}
 		body = append(body, m.st.line(ui.SymWarn, f("note."+n.Code, "detail", n.Detail)))
 	}
 	for _, w := range m.inv.Memory.Warnings {
 		body = append(body, m.st.line(ui.SymWarn, f("warn."+w.Code, "detail", w.Detail)))
 	}
-	if len(m.plan.Notes)+len(m.inv.Memory.Warnings) > 0 {
+	if len(body) > 0 && body[len(body)-1] != "" {
 		body = append(body, "")
 	}
 	groups := ui.PlanGroups(m.msg, m.plan, m.cfg.Paths)

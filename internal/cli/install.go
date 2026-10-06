@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -236,15 +235,8 @@ func execute(env Env, f installFlags, source string) int {
 	}
 	fmt.Fprintln(env.Stdout)
 	res, err := installer.Run(ctx, ienv, inv, plan, func(e installer.Event) { ui.RenderEvent(env.Stdout, m, e) }, hooks)
-	ui.RenderResult(env.Stdout, m, res, inv, paths)
+	ui.RenderOutcome(env.Stdout, env.Stderr, m, res, inv, paths, err)
 	if err != nil {
-		var partial *installer.PartialError
-		switch {
-		case errors.As(err, &partial):
-			fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("result.partial", "detail", err.Error()))
-		default:
-			fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("result.failed", "detail", err.Error()))
-		}
 		return ExitError
 	}
 	return ExitOK

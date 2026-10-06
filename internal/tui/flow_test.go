@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -381,5 +382,51 @@ func TestNoColorEmitsNoEscapeSequences(t *testing.T) {
 	}
 	if NoColor(func(k string) string { return map[string]string{"NO_COLOR": "1"}[k] }) != true || NoColor(func(string) string { return "" }) {
 		t.Fatal("NoColor must follow the NO_COLOR variable")
+	}
+}
+
+// killed stands in for a pipeline whose external command dies when the context
+// is cancelled: the error does not wrap context.Canceled.
+type killed struct{ Backend }
+
+func (killed) Run(ctx context.Context, _ installer.Inventory, _ installer.Plan, obs installer.Observer, _ installer.Hooks) (installer.Result, error) {
+	obs(installer.Event{Phase: installer.PhaseSnapshot, Status: "start"})
+	<-ctx.Done()
+	return installer.Result{}, errors.New("snapshot: engram export failed: signal: killed")
+}
+
+func TestCancelWhileTheSnapshotIsRunningSaysCancelledNotDone(t *testing.T) {
+	mc := newMachine(t)
+	cfg := mc.config(opts())
+	cfg.Backend = killed{cfg.Backend}
+	d := newDriver(t, cfg)
+	toPlan(t, d, "tui.persona.keep")
+	d.pick(lbl("tui.plan.apply"))
+	d.until("snapshot step", func() bool { return d.has(lbl("phase.snapshot")) })
+	d.key("ctrl+c")
+	d.until("result", func() bool { return d.m.screen == scrResult })
+	d.require(lbl("tui.apply.cancelled"))
+	if d.has(lbl("result.done")) || !d.m.Outcome().Cancelled {
+		t.Fatalf("a cancelled run must not say it is done:\n%s", d.view())
+	}
+}
+
+func TestFailedRunBeforeAnythingChangedShowsOnlyTheFailure(t *testing.T) {
+	var b strings.Builder
+	ui.RenderOutcome(&b, &b, msgs, installer.Result{}, installer.Inventory{}, ui.Paths{}, errors.New("snapshot: boom"))
+	if strings.Contains(b.String(), lbl("result.done")) || !strings.Contains(b.String(), "snapshot: boom") {
+		t.Fatalf("outcome = %q", b.String())
+	}
+}
+
+func TestContinuationLinesStayAlignedUnderTheText(t *testing.T) {
+	lines, _ := wrapped([]string{"  → una línea larguísima que se tiene que cortar en varias partes para entrar"}, -1, 30)
+	if len(lines) < 3 {
+		t.Fatalf("expected a wrapped line: %q", lines)
+	}
+	for _, l := range lines[1:] {
+		if !strings.HasPrefix(l, "    ") {
+			t.Fatalf("continuation not indented: %q", lines)
+		}
 	}
 }

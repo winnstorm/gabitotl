@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -92,7 +91,7 @@ func (m *Model) runtimeLabel(name string) string {
 func (m *Model) onDone(d doneMsg) {
 	m.settle()
 	m.ran, m.res, m.runErr = true, d.res, d.err
-	m.cancelled = m.cancelling && errors.Is(d.err, context.Canceled)
+	m.cancelled = m.cancelling && d.err != nil // a failure after the user asked to cancel is the cancel taking effect (a killed command is not a context error)
 	m.stream, m.retire, m.retiring = nil, nil, false
 	m.screen, m.scroll = scrResult, 0
 }
@@ -131,15 +130,7 @@ func (m *Model) resultLines() []string {
 		if m.cancelling && m.runErr == nil {
 			fmt.Fprintf(&b, "%s %s\n\n", ui.SymWarn, m.msg.Format("tui.apply.toolate"))
 		}
-		ui.RenderResult(&b, m.msg, m.res, m.inv, m.cfg.Paths)
-		if m.runErr != nil {
-			var partial *installer.PartialError
-			key := "result.failed"
-			if errors.As(m.runErr, &partial) {
-				key = "result.partial"
-			}
-			fmt.Fprintf(&b, "%s %s\n", ui.SymError, m.msg.Format(key, "detail", m.runErr.Error()))
-		}
+		ui.RenderOutcome(&b, &b, m.msg, m.res, m.inv, m.cfg.Paths, m.runErr)
 	}
 	return strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
 }

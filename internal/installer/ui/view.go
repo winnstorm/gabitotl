@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -207,6 +208,26 @@ func RenderResult(w io.Writer, m Messages, res installer.Result, inv installer.I
 	for _, wn := range res.Warnings {
 		fmt.Fprintf(w, "%s %s\n", SymWarn, m.Format("result.warning", "detail", wn))
 	}
+}
+
+// RenderOutcome prints the closing report of a run and, when it failed, the
+// failure line on errw. A run that failed before anything was configured and
+// was not rolled back (a failed snapshot, for example) prints only the failure:
+// there is no "Listo" to show.
+func RenderOutcome(w, errw io.Writer, m Messages, res installer.Result, inv installer.Inventory, paths Paths, err error) {
+	var partial *installer.PartialError
+	isPartial := errors.As(err, &partial)
+	if err == nil || res.RolledBack || isPartial {
+		RenderResult(w, m, res, inv, paths)
+	}
+	if err == nil {
+		return
+	}
+	key := "result.failed"
+	if isPartial {
+		key = "result.partial"
+	}
+	fmt.Fprintf(errw, "%s %s\n", SymError, m.Format(key, "detail", err.Error()))
 }
 
 // RenderSnapshots lists migration snapshots for `gabitotl restore`.
