@@ -488,3 +488,48 @@ func TestImportUnavailableIsAnHonestNote(t *testing.T) {
 		t.Fatalf("%+v %v", pl.Team.Import, pl.Notes)
 	}
 }
+
+func TestDoctorCoversTeamMemory(t *testing.T) {
+	r := newTeamRig(t)
+	o := hostOpts()
+	inv, pl, _ := r.plan(o)
+	if _, err := Run(context.Background(), r.env, inv, pl, nil, Hooks{}); err != nil {
+		t.Fatal(err)
+	}
+	r.doctor = func(gabitotl.MemoryConfig) memory.Report {
+		return memory.Report{Provider: "memory-mcp", Checks: []memory.Check{
+			{Name: "server", Status: memory.StatusOK, Message: "server answered"},
+			{Name: "authentication", Status: memory.StatusOK, Message: "the token was accepted"},
+			{Name: "server schema", Status: memory.StatusOK, Message: "schema version 3"},
+			{Name: "project", Status: memory.StatusError, Message: "not allowed"},
+		}}
+	}
+	before := treeHash(t, r.home, r.root)
+	d := Doctor(context.Background(), r.env)
+	var lines []Line
+	for _, s := range d.Sections {
+		if s.Name == "memory" {
+			lines = s.Lines
+		}
+	}
+	has := func(code, status, sub string) bool {
+		for _, l := range lines {
+			if l.Code == code && l.Status == status && strings.Contains(l.Detail, sub) {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(DocMemTeamOK, LineOK, "schema version 3") || !has(DocMemTeamOK, LineOK, "authentication") || !has(DocMemTeamBad, LineError, "project: not allowed") {
+		t.Fatalf("lines: %+v", lines)
+	}
+	if !has(DocMemTeamContainer, LineOK, "running yes") || !has(DocMemTeamContainer, LineOK, "ready yes") {
+		t.Fatalf("a host must show the managed container: %+v", lines)
+	}
+	if d.Errors() == 0 {
+		t.Fatal("a failing team check is an error")
+	}
+	if treeHash(t, r.home, r.root) != before {
+		t.Fatal("doctor is read-only")
+	}
+}

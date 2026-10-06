@@ -376,3 +376,71 @@ func TestHelperStdioServer(t *testing.T) {
 	_ = srv.ServeStdio(context.Background())
 	os.Exit(0)
 }
+
+func checkByName(rep memory.Report, name string) (memory.Check, bool) {
+	for _, c := range rep.Checks {
+		if c.Name == name {
+			return c, true
+		}
+	}
+	return memory.Check{}, false
+}
+
+func TestDoctorReportsAuthSchemaProjectAndReachability(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+
+	ok, _ := r.provider(t, r.token, "kraken")
+	rep := ok.Doctor(ctx)
+	for _, name := range []string{"connection", "server", "authentication", "project"} {
+		if c, found := checkByName(rep, name); !found || c.Status != memory.StatusOK {
+			t.Fatalf("%s must be ok: %+v", name, rep)
+		}
+	}
+	if c, found := checkByName(rep, "server schema"); found && c.Status == memory.StatusError {
+		t.Fatalf("schema: %+v", c)
+	}
+
+	// A token for another project: valid, but the project is not allowed.
+	scoped := mustScoped(t, r, "gonza", "shop")
+	p, _ := r.provider(t, scoped, "kraken")
+	if c, _ := checkByName(p.Doctor(ctx), "project"); c.Status != memory.StatusError || !strings.Contains(c.Message, "not allowed") {
+		t.Fatalf("an out-of-scope project must be an error: %+v", c)
+	}
+	p, _ = r.provider(t, scoped, "shop")
+	if c, _ := checkByName(p.Doctor(ctx), "project"); c.Status != memory.StatusOK {
+		t.Fatalf("an allowed project is ok: %+v", c)
+	}
+
+	// No project key in memory.md.
+	none, _ := r.provider(t, r.token, "")
+	if c, _ := checkByName(none.Doctor(ctx), "project"); c.Status != memory.StatusWarn {
+		t.Fatalf("a missing project key warns: %+v", c)
+	}
+
+	// A rejected token is an authentication error and nothing else is probed.
+	bad, _ := r.provider(t, "gbt_0000000000000000.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "kraken")
+	rep = bad.Doctor(ctx)
+	if c, found := checkByName(rep, "authentication"); !found || c.Status != memory.StatusError || rep.OK() {
+		t.Fatalf("%+v", rep)
+	}
+
+	// An unreachable server is a server error.
+	url := r.ts.URL + "/mcp"
+	r.ts.Close()
+	tr, _ := mcp.NewHTTPTransport(mcp.HTTPOptions{URL: url, TokenRef: "env:T", AllowInsecure: true, Timeout: 3 * time.Second, Getenv: func(string) string { return r.token }})
+	defer tr.Close()
+	dead, _ := mcp.New(mcp.Options{Transport: tr, ConnectionRef: "env:T", Project: "kraken", Getenv: func(string) string { return "x" }})
+	if c, found := checkByName(dead.Doctor(ctx), "server"); !found || c.Status != memory.StatusError || !strings.Contains(c.Message, "unreachable") {
+		t.Fatalf("%+v", c)
+	}
+}
+
+func mustScoped(t *testing.T, r *rig, user string, projects ...string) string {
+	t.Helper()
+	p, _, err := server.NewScopedToken(context.Background(), r.st, user, projects, false, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}

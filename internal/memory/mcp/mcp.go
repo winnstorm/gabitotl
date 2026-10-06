@@ -245,13 +245,39 @@ func (p *Provider) Doctor(ctx context.Context) memory.Report {
 		Checks []memory.Check `json:"checks"`
 	}
 	if err := p.call(ctx, p.tools.Health, struct{}{}, &remote); err != nil {
-		rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusError, Message: err.Error()})
+		switch {
+		case errors.Is(err, ErrAuth):
+			rep.Checks = append(rep.Checks, memory.Check{Name: "authentication", Status: memory.StatusError, Message: err.Error()})
+		case errors.Is(err, ErrUnreachable):
+			rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusError, Message: err.Error()})
+		case errors.Is(err, ErrSchema):
+			rep.Checks = append(rep.Checks, memory.Check{Name: "schema", Status: memory.StatusError, Message: err.Error()})
+		default:
+			rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusError, Message: err.Error()})
+		}
 		return rep
 	}
-	rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusOK, Message: "server answered"})
+	rep.Checks = append(rep.Checks,
+		memory.Check{Name: "server", Status: memory.StatusOK, Message: "server answered"},
+		memory.Check{Name: "authentication", Status: memory.StatusOK, Message: "the token was accepted"})
 	for _, c := range remote.Checks {
 		c.Name = "server " + c.Name
 		rep.Checks = append(rep.Checks, c)
 	}
+	// The project key must exist and the token must be allowed to use it. One
+	// read-only search of a single entry tells both.
+	if p.opt.Project == "" {
+		rep.Checks = append(rep.Checks, memory.Check{Name: "project", Status: memory.StatusWarn, Message: "no project_key in .gabitotl/memory.md"})
+		return rep
+	}
+	if _, err := p.Search(ctx, memory.Query{Text: "", Project: p.opt.Project, Limit: 1}); err != nil {
+		st, msg := memory.StatusWarn, err.Error()
+		if errors.Is(err, ErrForbidden) {
+			st, msg = memory.StatusError, "this token is not allowed to use project "+p.opt.Project+"; ask the server owner for a token that includes it"
+		}
+		rep.Checks = append(rep.Checks, memory.Check{Name: "project", Status: st, Message: msg})
+		return rep
+	}
+	rep.Checks = append(rep.Checks, memory.Check{Name: "project", Status: memory.StatusOK, Message: "project " + p.opt.Project + " is readable"})
 	return rep
 }

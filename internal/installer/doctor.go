@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/identity"
@@ -39,6 +40,10 @@ const (
 	DocMemMCP            = "doctor.memory.mcp"
 	DocMemMCPNone        = "doctor.memory.mcp-none"
 	DocMemMCPPending     = "doctor.memory.mcp-server-pending"
+	DocMemTeamOK         = "doctor.memory.team-ok"
+	DocMemTeamWarn       = "doctor.memory.team-warn"
+	DocMemTeamBad        = "doctor.memory.team-bad"
+	DocMemTeamContainer  = "doctor.memory.team-container"
 	DocRuntimeOK         = "doctor.runtime.ok"
 	DocRuntimeDrift      = "doctor.runtime.drift"
 	DocRuntimeTodo       = "doctor.runtime.todo"
@@ -62,7 +67,7 @@ var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "l
 var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
-	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocRuntimeOK, DocRuntimeDrift,
+	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocRuntimeOK, DocRuntimeDrift,
 	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 }
@@ -117,6 +122,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	// Project
 	var proj []Line
 	provider := gabitotl.MemoryEngram
+	var memCfg gabitotl.MemoryConfig
 	hasProject := false
 	switch {
 	case env.ProjectRoot == "":
@@ -138,7 +144,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		m, err := gabitotl.LoadMemory(l)
 		check("memory.md", err)
 		if err == nil {
-			provider = m.Provider
+			provider, memCfg = m.Provider, m
 		}
 		_, err = gabitotl.LoadRuntime(l)
 		check("runtime.md", err)
@@ -185,7 +191,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		mem = append(mem, L(LineWarn, "warn."+w.Code, w.Detail))
 	}
 	if provider == gabitotl.MemoryMemoryMCP {
-		mem = append(mem, L(LineWarn, DocMemMCPPending, ""))
+		mem = append(mem, teamDoctor(ctx, env, memCfg)...)
 	}
 
 	// Runtimes (also tells how many have the memory MCP connected)
@@ -270,4 +276,63 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	}
 	add("legacy", leg...)
 	return d
+}
+
+// teamDoctor is the read-only health check of team memory (provider
+// memory-mcp): the server (reachable, token accepted, schema version, project
+// key present and allowed) and, on the host, the managed container. It only
+// reads: one `memory_doctor` call, one tiny search and `docker inspect`-style
+// status queries.
+func teamDoctor(ctx context.Context, env Env, cfg gabitotl.MemoryConfig) []Line {
+	var out []Line
+	if cfg.URL == "" || cfg.Token == "" {
+		return append(out, Line{LineWarn, DocMemMCPPending, ""})
+	}
+	if env.OpenMemory == nil {
+		return append(out, Line{LineWarn, DocMemTeamWarn, "no memory client in this build"})
+	}
+	p, err := env.OpenMemory(cfg)
+	if err != nil {
+		return append(out, Line{LineError, DocMemTeamBad, err.Error()})
+	}
+	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	rep := p.Doctor(dctx)
+	for _, c := range rep.Checks {
+		st, code := LineOK, DocMemTeamOK
+		switch c.Status {
+		case "warning":
+			st, code = LineWarn, DocMemTeamWarn
+		case "error":
+			st, code = LineError, DocMemTeamBad
+		}
+		out = append(out, Line{st, code, strings.TrimSpace(c.Name + ": " + c.Message)})
+	}
+	if cfg.Role == gabitotl.RoleHost && env.Team.Manager != nil {
+		if m, err := env.Team.Manager("", "auto", 0); err == nil {
+			st, err := m.Status(dctx)
+			switch {
+			case err != nil:
+				out = append(out, Line{LineWarn, DocMemTeamContainer, err.Error()})
+			default:
+				yes := func(b bool) string {
+					if b {
+						return "yes"
+					}
+					return "no"
+				}
+				detail := "installed " + yes(st.Installed) + ", running " + yes(st.Running) + ", ready " + yes(st.Ready) +
+					", data volume " + yes(st.VolumeOK) + ", credentials " + yes(st.HasSecrets)
+				code := LineOK
+				if !st.Installed || !st.Ready {
+					code = LineWarn
+				}
+				out = append(out, Line{code, DocMemTeamContainer, detail})
+				for _, c := range st.Conflicts {
+					out = append(out, Line{LineError, DocMemTeamContainer, "CONFLICT: " + c})
+				}
+			}
+		}
+	}
+	return out
 }
