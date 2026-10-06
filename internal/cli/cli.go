@@ -71,7 +71,7 @@ func commands() map[string]Command {
 		{"uninstall", "Remove only what GabitoTL installed", runUninstall},
 		{"cleanup", "Offer to delete expired legacy snapshots (30 days)", runCleanup},
 		{"init", "Create .gabitotl/ in a project", runInit},
-		{"memory", "Memory provider tools (doctor, search)", runMemory},
+		{"memory", "Memory tools (doctor, search, server, serve, token)", runMemory},
 		{"scan", "Scan the project and print its map", runScan},
 		{"vcs", "Git status and provider (status)", runVCS},
 		{"backup", "Local file backups (create, list, restore, prune)", runBackup},
