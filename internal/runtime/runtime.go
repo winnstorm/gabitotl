@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/ownership"
 )
 
@@ -125,11 +126,43 @@ type MemoryMCP struct {
 	Args    []string // for example ["mcp"]
 }
 
+// Names of the memory MCP entries GabitoTL manages.
+const (
+	EntryEngram = "engram"
+	EntryBridge = "gabitotl-memory"
+)
+
+// MemoryFor returns the memory MCP entry to configure for a provider, and the
+// entries of the other provider that a switch must retire. engramPresent says
+// whether Engram is installed (a missing Engram is never wired).
+//
+//   - engram: `engram mcp`; retires the team bridge entry.
+//   - memory-mcp: `gabitotl memory mcp`, which forwards to the team server over
+//     HTTP; retires the engram entry. Runtimes only ever need this stdio command.
+func MemoryFor(provider string, engramPresent bool) (MemoryMCP, []string) {
+	switch provider {
+	case gabitotl.MemoryMemoryMCP:
+		return MemoryMCP{Name: EntryBridge, Command: "gabitotl", Args: []string{"memory", "mcp"}}, []string{EntryEngram}
+	case gabitotl.MemoryEngram:
+		if engramPresent {
+			return MemoryMCP{Name: EntryEngram, Command: "engram", Args: []string{"mcp"}}, []string{EntryBridge}
+		}
+		return MemoryMCP{}, []string{EntryBridge}
+	}
+	return MemoryMCP{}, nil
+}
+
 // Options drive Plan.
 type Options struct {
-	Scope            Scope
-	PersonaText      string
-	Memory           MemoryMCP
+	Scope       Scope
+	PersonaText string
+	Memory      MemoryMCP
+	// RetireMemory lists memory MCP entry names GabitoTL may have created earlier
+	// and that the requested Memory replaces (switching between Engram and the team
+	// bridge). An adapter plans their removal (REMOVE-AFTER-VERIFY) only when the
+	// ownership state says GabitoTL created that exact entry: an entry of the user
+	// is never touched.
+	RetireMemory     []string
 	Model            string // model chosen in runtime.md; adapters apply it only when set
 	MigrateGentleman bool   // allow removing the managed Gentleman/Gentle-AI persona block
 	Version          string // GabitoTL version recorded in state
@@ -152,7 +185,8 @@ const (
 	OpRemoveBlock   = "remove-foreign-block"
 	OpSetKey        = "set-key"
 	OpAddItem       = "add-item"
-	OpManual        = "manual" // nothing is written; the user must act
+	OpRemoveKey     = "remove-key" // remove a managed JSON key (REMOVE-AFTER-VERIFY)
+	OpManual        = "manual"     // nothing is written; the user must act
 )
 
 // Edit is the executable payload of an Action. Plan builds it, Apply runs it.

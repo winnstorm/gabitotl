@@ -90,14 +90,17 @@ func TestBuildPlanRejectsUnknownRuntimeAndHandlesMissingEngram(t *testing.T) {
 	}
 }
 
-func TestBuildPlanTeamMemoryWithoutMigratorIsHonest(t *testing.T) {
+func TestBuildPlanTeamMemoryConfiguresTheBridge(t *testing.T) {
 	f := newFixture(t)
 	_, pl := buildPlan(t, f, Options{Mode: "team"})
-	if pl.MemoryChoice != "memory-mcp" || !pl.HasNote(NoteNoMigrator) {
+	if pl.MemoryChoice != "memory-mcp" {
 		t.Fatalf("%+v", pl)
 	}
-	if pl.Memory.Command != "" {
-		t.Fatalf("no concrete memory MCP exists yet, none may be configured: %+v", pl.Memory)
+	if pl.Memory.Name != "gabitotl-memory" || pl.Memory.Command != "gabitotl" || strings.Join(pl.Memory.Args, " ") != "memory mcp" {
+		t.Fatalf("team mode registers ONE stdio entry running the bridge: %+v", pl.Memory)
+	}
+	if len(pl.RetireMemory) != 1 || pl.RetireMemory[0] != "engram" {
+		t.Fatalf("the engram entry is retired only if GabitoTL created it: %v", pl.RetireMemory)
 	}
 }
 

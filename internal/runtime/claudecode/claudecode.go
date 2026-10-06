@@ -128,6 +128,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		val, _ := json.Marshal(map[string]any{"type": "stdio", "command": m.Command, "args": m.Args})
 		plan = append(plan, engine.PlanServer(Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
+	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, opts.Memory.Name, opts.RetireMemory)...)
 	return plan, nil
 }
 

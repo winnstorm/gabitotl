@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -141,6 +142,39 @@ func PlanServer(runtime, path string, container []string, name string, value jso
 		}
 	}
 	return PlanKey(runtime, path, append(append([]string(nil), container...), name), value, false)
+}
+
+// PlanRetireServers plans the removal of MCP server entries that an earlier run
+// of GabitoTL created (the ownership state says so for this runtime, file and
+// exact key) and that are still present. keep is the entry that replaces them.
+// An entry the user created, or that GabitoTL merely adopted, is never planned.
+func PlanRetireServers(env rt.Env, runtime, path string, container []string, keep string, names []string) []rt.Action {
+	st, err := env.Store().Load()
+	if err != nil {
+		return nil
+	}
+	i, ok := st.Find(path)
+	if !ok || !containsStr(st.Entries[i].Runtimes, runtime) {
+		return nil
+	}
+	data, exists, err := readFile(path)
+	if err != nil || !exists {
+		return nil
+	}
+	var out []rt.Action
+	for _, name := range names {
+		key := append(append([]string(nil), container...), name)
+		if name == keep || !hasKey(st.Entries[i], key, "") {
+			continue
+		}
+		if _, present, err := ownership.Get(data, key); err != nil || !present {
+			continue
+		}
+		out = append(out, rt.Action{Kind: rt.RemoveAfterVerify, Runtime: runtime, Path: path, Target: "server " + name,
+			Detail: "replaced by the new memory entry; only the entry GabitoTL created is removed",
+			Edit:   rt.Edit{Op: rt.OpRemoveKey, Key: key}})
+	}
+	return out
 }
 
 // PlanItem plans a managed string item in a JSON array.
@@ -365,12 +399,63 @@ func Apply(env rt.Env, runtime, version string, plan []rt.Action) (rt.Result, er
 		if a.Kind != rt.RemoveAfterVerify {
 			continue
 		}
-		if err := removeForeign(a); err != nil {
+		var err error
+		if a.Edit.Op == rt.OpRemoveKey {
+			err = removeManagedKey(store, a)
+		} else {
+			err = removeForeign(a)
+		}
+		if err != nil {
 			return res, fmt.Errorf("%s: %w", a.Path, err)
 		}
 		res.Removed = append(res.Removed, a)
 	}
 	return res, nil
+}
+
+// removeManagedKey removes one managed JSON key the ownership state attributes
+// to GabitoTL (restoring the value the user had before, when we overwrote one)
+// and forgets it. A key that is no longer in the file, or no longer in the
+// state, is left alone: nothing that is not attributable is ever removed.
+func removeManagedKey(store ownership.Store, a rt.Action) error {
+	st, err := store.Load()
+	if err != nil {
+		return err
+	}
+	i, ok := st.Find(a.Path)
+	if !ok {
+		return nil
+	}
+	e := st.Entries[i]
+	ki := slices.IndexFunc(e.Keys, func(k ownership.Key) bool { return equalPath(k.Path, a.Edit.Key) && k.Item == "" })
+	if ki < 0 {
+		return nil
+	}
+	k := e.Keys[ki]
+	data, exists, err := readFile(a.Path)
+	if err != nil {
+		return err
+	}
+	if exists {
+		var out []byte
+		if len(k.Previous) > 0 {
+			out, _, err = ownership.Set(data, k.Path, k.Previous)
+		} else {
+			out, _, err = ownership.Remove(data, k.Path, k.Prune)
+		}
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(out, data) {
+			if err := writeAtomic(a.Path, out, false); err != nil {
+				return err
+			}
+			e.HashAfter = ownership.Hash(out)
+		}
+	}
+	e.Keys = slices.Delete(slices.Clone(e.Keys), ki, ki+1)
+	st.Entries[i] = e
+	return store.Save(st)
 }
 
 func removeForeign(a rt.Action) error {

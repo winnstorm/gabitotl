@@ -171,6 +171,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		val, _ := json.Marshal(map[string]any{"type": "local", "command": append([]string{m.Command}, m.Args...), "enabled": true})
 		plan = append(plan, engine.PlanServer(Name, cfg, []string{"mcp"}, name, val, sameServer(m)))
 	}
+	plan = append(plan, engine.PlanRetireServers(env, Name, cfg, []string{"mcp"}, opts.Memory.Name, opts.RetireMemory)...)
 	if opts.Model != "" { // the user chose it in runtime.md: replace the existing selection
 		val, _ := json.Marshal(opts.Model)
 		plan = append(plan, engine.PlanKey(Name, cfg, []string{"model"}, val, true))

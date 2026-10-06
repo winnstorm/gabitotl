@@ -63,8 +63,18 @@ func (r *run) retire(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("retire persona in %s: %w", name, err)
 		}
-		r.res.Retired.Personas = append(r.res.Retired.Personas, res.Removed...)
-		r.emit(PhaseRetire, "ok", "retire persona "+name, fmt.Sprintf("%d block(s)", len(res.Removed)))
+		blocks := 0
+		for _, rm := range res.Removed {
+			if rm.Edit.Op == rt.OpRemoveKey { // a memory entry replaced by the new provider's, not a persona
+				r.emit(PhaseRetire, "ok", "retire memory entry "+name, rm.Target)
+				continue
+			}
+			r.res.Retired.Personas = append(r.res.Retired.Personas, rm)
+			blocks++
+		}
+		if blocks > 0 {
+			r.emit(PhaseRetire, "ok", "retire persona "+name, fmt.Sprintf("%d block(s)", blocks))
+		}
 	}
 
 	// 2. Gentle-AI itself, with its own uninstall mechanism, never by hand. The

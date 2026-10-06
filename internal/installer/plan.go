@@ -96,6 +96,7 @@ type Plan struct {
 	RuntimeOrder []string
 	ProjectFiles []string // .gabitotl files Init would create (absolute paths)
 	Memory       rt.MemoryMCP
+	RetireMemory []string // memory MCP entries of the other provider that a switch retires
 	MemoryChoice string
 	GentleArgs   []string // gentle-ai uninstall arguments, nil when not retiring
 	Notes        []Note
@@ -198,10 +199,8 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		return pl, fmt.Errorf("--memory must be engram or memory-mcp, got %q", pl.MemoryChoice)
 	}
 	pl.Options.Memory = pl.MemoryChoice
-	switch {
-	case pl.MemoryChoice == gabitotl.MemoryEngram && inv.Memory.Present():
-		pl.Memory = rt.MemoryMCP{Name: "engram", Command: "engram", Args: []string{"mcp"}}
-	case pl.MemoryChoice == gabitotl.MemoryEngram:
+	pl.Memory, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.Present())
+	if pl.MemoryChoice == gabitotl.MemoryEngram && !inv.Memory.Present() {
 		pl.note(NoteEngramMissing, "")
 	}
 	if pl.MemoryChoice == gabitotl.MemoryMemoryMCP && inv.Memory.Present() {
@@ -233,7 +232,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: pl.Memory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: pl.Memory, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)

@@ -139,6 +139,7 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		val, _ := json.Marshal(map[string]any{"command": m.Command, "args": m.Args})
 		plan = append(plan, engine.PlanServer(c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
+	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, opts.Memory.Name, opts.RetireMemory)...)
 	return plan, nil
 }
 

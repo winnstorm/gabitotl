@@ -42,7 +42,7 @@ func (f *rtFlags) bind(fs *flag.FlagSet) {
 	fs.StringVar(&f.root, "root", "", "project root (default: Git top-level of the current directory)")
 	fs.StringVar(&f.runtimes, "runtime", "", "comma-separated runtimes (default for plan/detect: every detected one)")
 	fs.StringVar(&f.scope, "scope", "global", "where to configure: global or project")
-	fs.StringVar(&f.memory, "memory", "", "memory MCP to configure: engram or none (default: from .gabitotl/memory.md)")
+	fs.StringVar(&f.memory, "memory", "", "memory MCP to configure: engram, memory-mcp (the team bridge) or none (default: from .gabitotl/memory.md)")
 	fs.BoolVar(&f.migrate, "migrate-persona", false, "allow removing the managed Gentleman/Gentle-AI persona block (after GabitoTL is verified)")
 }
 
@@ -54,16 +54,13 @@ func projectRoot(env Env, flagRoot string) string {
 	return ""
 }
 
-func memoryMCP(root, choice string) rt.MemoryMCP {
+func memoryMCP(root, choice string) (rt.MemoryMCP, []string) {
 	if choice == "" && root != "" {
 		if m, err := gabitotl.LoadMemory(gabitotl.NewLayout(root)); err == nil {
 			choice = m.Provider
 		}
 	}
-	if choice == gabitotl.MemoryEngram {
-		return rt.MemoryMCP{Name: "engram", Command: "engram", Args: []string{"mcp"}}
-	}
-	return rt.MemoryMCP{} // no concrete Memory MCP server is selected yet
+	return rt.MemoryFor(choice, true)
 }
 
 // pick returns the adapters named in csv, or (when empty and detected is true)
@@ -101,7 +98,8 @@ func (f *rtFlags) setup(env Env, name string) (rt.Env, rt.Options, string, error
 	if err != nil {
 		return rt.Env{}, rt.Options{}, "", err
 	}
-	opts := rt.Options{Scope: rt.Scope(f.scope), PersonaText: persona.DefaultText(), Memory: memoryMCP(root, f.memory), MigrateGentleman: f.migrate}
+	mem, retire := memoryMCP(root, f.memory)
+	opts := rt.Options{Scope: rt.Scope(f.scope), PersonaText: persona.DefaultText(), Memory: mem, RetireMemory: retire, MigrateGentleman: f.migrate}
 	return renv, opts, root, nil
 }
 
