@@ -18,6 +18,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/memory/migrate` | `MemoryMigrator` + `Registry`. No concrete Engram to MCP migrator ships (only migrate with a proven adapter): `Lookup` returns `ErrNoTestedMigrator`. |
 | `internal/memory/providers` | Composition root: registers shipped providers in a `memory.Factory`. The only package that imports concrete providers. |
 | `internal/scanner` | Layered, bounded project scanner (structure with file cap and skip list, README/docs, manifests to stack and commands, recent `git log`, main modules). Read-only and deterministic; `ProjectMap.ToEntry()` yields the `project-map` memory entry, including open questions for what cannot be inferred. |
+| `internal/vcs` | Git layer behind a `Runner` interface (tests use temp repos and fakes, never a remote). Status and provider inference from `origin` (github, bitbucket, gitlab, azure-devops, git, local), task branches, Conventional Commits only (attribution trailers rejected, none added), push, and `Revert` (new commit; the only rollback). Every operation is gated by `VCSConfig.Permissions` (allow/ask/deny). History rewrite (force-push, `reset --hard`, amend, rebase) fails with `ErrHistoryRewrite` before reaching git. PRs go through `PRProvider`: `GitHub` (via `gh`) and a documented `Bitbucket` stub (`ErrNotImplemented`). |
 | `internal/adapters/<runtime>` | (Planned, T4.) Per-runtime installers and renderers. |
 
 ## Dependency rule
