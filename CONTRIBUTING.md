@@ -12,7 +12,7 @@ make build test      # needs Go (see go.mod) and Git
 ## Before you open a PR
 
 ```bash
-make fmt vet test    # gofmt, go vet, go test ./... (includes internal/e2e)
+make fmt vet test    # format, go vet, go test ./... (includes internal/e2e); `make check` is what CI runs
 ```
 
 - Tests never touch the real `$HOME`, a real remote or a real agent. Use temp dirs, fakes and
