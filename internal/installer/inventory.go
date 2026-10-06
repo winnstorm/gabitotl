@@ -37,6 +37,45 @@ type Inventory struct {
 	Runtimes  []RuntimeStatus `json:"runtimes"`
 	Memory    MemoryInfo      `json:"memory"`
 	Other     OtherHarness    `json:"other_harness"`
+	Server    ServerInfo      `json:"team_server"`
+}
+
+// ServerInfo is what the team setup needs to know about this machine. It is
+// found by looking for the binaries only: no daemon is contacted and nothing is
+// installed.
+type ServerInfo struct {
+	Engine       string `json:"container_engine,omitempty"` // docker | podman | "" (none found)
+	CanImport    bool   `json:"can_import_engram"`          // a tested Engram migrator is registered
+	HasTeamHooks bool   `json:"-"`
+}
+
+// DetectServer looks for a container engine and the tested migrator.
+func DetectServer(env Env) ServerInfo {
+	var s ServerInfo
+	if env.Team.Manager != nil {
+		s.HasTeamHooks = true
+		for _, e := range []string{"docker", "podman"} {
+			if _, ok := env.Look(e); ok {
+				s.Engine = e
+				break
+			}
+		}
+		if s.Engine == "" { // the manager may use its own lookup (tests, wrappers)
+			if m, err := env.Team.Manager("", "auto", 0); err == nil && m.LookPath != nil {
+				for _, e := range []string{"docker", "podman"} {
+					if _, err := m.LookPath(e); err == nil {
+						s.Engine = e
+						break
+					}
+				}
+			}
+		}
+	}
+	if env.Migrators != nil {
+		_, err := env.Migrators.Lookup("engram", "memory-mcp")
+		s.CanImport = err == nil
+	}
+	return s
 }
 
 // BuildInventory runs the detection phases in order (spec 5, steps 1 to 6).
@@ -56,6 +95,7 @@ func BuildInventory(ctx context.Context, env Env, obs Observer) Inventory {
 	}
 	obs.emit(PhaseOtherHarness, "start", "detect other harness", "")
 	inv.Other = DetectOtherHarness(env)
+	inv.Server = DetectServer(env)
 	obs.emit(PhaseInventory, "ok", "inventory built", "")
 	return inv
 }

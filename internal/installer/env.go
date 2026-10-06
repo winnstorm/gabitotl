@@ -73,6 +73,8 @@ type Env struct {
 	// OpenMemory builds the memory provider used to save imported knowledge.
 	// Nil means imports are only recorded in imports.md.
 	OpenMemory func(cfg gabitotl.MemoryConfig) (memory.Provider, error)
+	// Team holds the team-memory hooks (managed server, team database, tokens).
+	Team TeamEnv
 	// RenderReport renders the migration report for imports.md (the CLI injects
 	// the Spanish renderer). Nil uses Report.DefaultMarkdown.
 	RenderReport func(Report) string

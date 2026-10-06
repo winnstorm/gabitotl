@@ -35,6 +35,9 @@ type Request struct {
 	// personal notes must not land in memory the whole team can read.
 	IncludePersonal bool
 	DryRun          bool
+	// StoreInstance names the managed instance holding the target store (empty:
+	// the default one).
+	StoreInstance string
 }
 
 // Result summarizes a migration.

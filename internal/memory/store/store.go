@@ -161,6 +161,8 @@ type Store interface {
 	Doctor(ctx context.Context) memory.Report
 	Stats(ctx context.Context) (Stats, error)
 	TokenStore
+	// Importer is the import path used by migrations (see import.go).
+	Importer
 	Close()
 }
 

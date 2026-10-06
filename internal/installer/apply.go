@@ -14,7 +14,9 @@ import (
 	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/importer"
 	"github.com/winnstorm/gabitotl/internal/memory"
+	"github.com/winnstorm/gabitotl/internal/memory/migrate"
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/pgmanaged"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 )
 
@@ -22,6 +24,9 @@ import (
 var (
 	ErrVerifyFailed = errors.New("verification failed")
 	ErrNotVerified  = errors.New("refusing to retire: critical verification has not passed")
+	// ErrTeamBlocked means the managed server cannot be installed on this machine
+	// (no container engine, or a name collision); nothing was changed.
+	ErrTeamBlocked = errors.New("the team memory server cannot be installed here")
 )
 
 // Check is one verification line. Group is "memory", "project", "runtime" or
@@ -74,6 +79,10 @@ type Result struct {
 	Imports        []importer.Outcome
 	Checks         []Check
 	Retired        Retired
+	Team           *TeamResult
+	Server         *ServerResult
+	Tokens         []IssuedToken // teammate tokens, shown once and never stored
+	Import         *migrate.Report
 	RolledBack     bool
 	RolledBackWith []string // files restored by the rollback
 	Warnings       []string
@@ -90,6 +99,10 @@ type run struct {
 	snap    *Snapshot
 	log     *os.File
 	applied []string
+
+	secrets       secretBackup
+	serverMgr     *pgmanaged.Manager
+	serverCreated bool
 }
 
 func (r *run) phase(p Phase) {
@@ -126,6 +139,9 @@ func (r *run) ropts() rt.Options {
 // Gentle-AI and Engram intact.
 func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hooks Hooks) (Result, error) {
 	res := Result{Runtime: map[string]rt.Result{}}
+	if pl.Team != nil {
+		res.Team = &TeamResult{Role: pl.Team.Role, URL: pl.Team.URL, TokenEnv: pl.Team.TokenEnv, Project: inv.Project.Key}
+	}
 	r := &run{env: env, inv: inv, pl: pl, obs: obs, hooks: hooks, res: &res}
 	r.phase(PhasePlan)
 	if pl.Options.DryRun {
@@ -138,6 +154,9 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 	}
 	if pl.HasNote(NoteMemoryUnhealthy) {
 		return res, ErrMemoryUnhealthy
+	}
+	if b := pl.TeamBlocker(); b != "" && pl.teamNeedsServer() {
+		return res, fmt.Errorf("%w (%s)", ErrTeamBlocked, b) // nothing was changed
 	}
 
 	r.phase(PhaseSnapshot)
@@ -171,6 +190,9 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 
 // mutate runs every phase after the snapshot. An error means "revert".
 func (r *run) mutate(ctx context.Context) error {
+	if err := r.setupServer(ctx); err != nil {
+		return fmt.Errorf("%s: %w", PhaseServer, err)
+	}
 	if err := r.migrateKnowledge(ctx); err != nil {
 		return fmt.Errorf("%s: %w", PhaseMigrate, err)
 	}
@@ -259,6 +281,13 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 		}
 	}
 
+	if err := r.teamConfig(l); err != nil {
+		return err
+	}
+	if err := r.importEngram(ctx); err != nil {
+		return fmt.Errorf("import engram: %w", err)
+	}
+
 	// Import knowledge: read other harnesses, synthesize, record in imports.md.
 	opts := importer.Options{}
 	if cfg, err := gabitotl.LoadMemory(l); err == nil && r.env.OpenMemory != nil {
@@ -320,6 +349,7 @@ func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 		m, err := gabitotl.LoadMemory(gabitotl.NewLayout(r.env.ProjectRoot))
 		out = append(out, Check{Group: group, Name: "memory.md", OK: err == nil && m.Provider == r.pl.MemoryChoice, Detail: errText(err)})
 	}
+	out = append(out, r.verifyTeam(ctx, group)...)
 	return out
 }
 
@@ -385,6 +415,7 @@ func (r *run) verifyRuntimes(group string) []Check {
 // snapshot. Gentle-AI and Engram are never part of it.
 func (r *run) rollback(cause error) {
 	r.emit(PhaseReport, "error", "rollback", cause.Error())
+	r.rollbackTeam(context.Background())
 	renv := r.env.RT()
 	for i := len(r.applied) - 1; i >= 0; i-- {
 		a, _ := r.env.Runtimes.Get(r.applied[i])

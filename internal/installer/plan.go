@@ -39,6 +39,18 @@ type Options struct {
 	RemoveGentleAI bool     // run Gentle-AI's own uninstall after verify (destructive)
 	PreserveEngram bool     // informational: Engram is always adopted, never copied
 	DryRun         bool
+
+	// Team memory (see team.go). Only meaningful with Memory memory-mcp.
+	MemoryRole     string   // host | client
+	MemoryURL      string   // client: the server endpoint; host: the endpoint teammates will use
+	MemoryTokenEnv string   // NAME of the variable that holds the token (default GABITOTL_MEMORY_TOKEN)
+	StoreToken     bool     // client: copy the token from the environment variable into the 0600 secrets file
+	TokenSecret    string   `json:"-"` // client: a token typed in the TUI, stored in the 0600 file; never printed or persisted elsewhere
+	Invites        []string // host: teammates to create a token for (shown once)
+	ServerEngine   string   // host: docker | podman | auto
+	ServerPort     int      // host: published loopback port (0: automatic)
+	ServerInstance string   // host: named instance of the managed server
+	ImportEngram   bool     // host: import the Engram memory into the team memory (needs the safety export)
 }
 
 // Note is something presenters must tell the user about the plan.
@@ -97,6 +109,7 @@ type Plan struct {
 	ProjectFiles []string // .gabitotl files Init would create (absolute paths)
 	Memory       rt.MemoryMCP
 	RetireMemory []string // memory MCP entries of the other provider that a switch retires
+	Team         *TeamPlan
 	MemoryChoice string
 	GentleArgs   []string // gentle-ai uninstall arguments, nil when not retiring
 	Notes        []Note
@@ -199,11 +212,14 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		return pl, fmt.Errorf("--memory must be engram or memory-mcp, got %q", pl.MemoryChoice)
 	}
 	pl.Options.Memory = pl.MemoryChoice
+	if err := planTeam(ctx, env, inv, opts, &pl); err != nil {
+		return pl, err
+	}
 	pl.Memory, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.Present())
 	if pl.MemoryChoice == gabitotl.MemoryEngram && !inv.Memory.Present() {
 		pl.note(NoteEngramMissing, "")
 	}
-	if pl.MemoryChoice == gabitotl.MemoryMemoryMCP && inv.Memory.Present() {
+	if pl.MemoryChoice == gabitotl.MemoryMemoryMCP && inv.Memory.Present() && env.Migrators != nil {
 		if _, err := env.Migrators.Lookup("engram", "memory-mcp"); err != nil {
 			pl.note(NoteNoMigrator, "")
 		}
@@ -222,6 +238,10 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	if env.ProjectRoot != "" {
 		for _, f := range projectFiles(l) {
 			if _, err := os.Stat(f); err == nil {
+				if f == l.Memory() && pl.Team != nil { // the team settings are written into the existing memory.md
+					pl.Items = append(pl.Items, PlanItem{Kind: rt.Modify, Target: f, Detail: "team memory settings (references only)"})
+					continue
+				}
 				pl.add(rt.Preserve, f, WhyExists)
 				continue
 			}
@@ -326,7 +346,7 @@ func GentleUninstallArgs(g GentleAI, selected []string) (args []string, manual b
 // wording for; a test in package ui keeps the messages file complete.
 var (
 	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone}
-	NoteCodes    = []string{NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
+	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
 
@@ -334,7 +354,7 @@ var (
 // snapshot itself. A plan that does not mutate is an idempotent re-run: nothing
 // to apply, no new snapshot.
 func (p Plan) Mutates() bool {
-	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI {
+	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || p.Team != nil {
 		return true
 	}
 	for _, it := range p.Items {

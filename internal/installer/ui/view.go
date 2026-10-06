@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -174,12 +175,13 @@ func RenderResult(w io.Writer, m Messages, res installer.Result, inv installer.I
 		fmt.Fprintln(w, m.Format(KeyPlanDryDone))
 	default:
 		fmt.Fprintf(w, "\n%s\n\n%s\n%s %s\n", m.Format("result.done"), m.Format("result.gabitotl"), SymOK, m.Format("result.configured"))
-		if inv.Memory.Present() {
+		if inv.Memory.Present() && res.Team == nil {
 			fmt.Fprintf(w, "\n%s\n%s %s\n", m.Format("result.memory"), SymOK, m.Format("result.memory.reused"))
 			if inv.Memory.Observations > 0 {
 				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.memory.preserved", "count", strconv.Itoa(inv.Memory.Observations)))
 			}
 		}
+		renderTeam(w, m, res, paths)
 		if len(res.Applied) > 0 {
 			fmt.Fprintf(w, "\n%s\n", m.Format("result.runtimes"))
 			for _, n := range res.Applied {
@@ -355,4 +357,45 @@ func titleOf(source string) string {
 		return "Gentle-AI"
 	}
 	return strings.ToUpper(source[:1]) + source[1:]
+}
+
+// renderTeam prints the team-memory part of the result: what the host set up,
+// how teammates connect, the one-time tokens and the import outcome. Tokens
+// appear here once and nowhere else.
+func renderTeam(w io.Writer, m Messages, res installer.Result, paths Paths) {
+	t := res.Team
+	if t == nil {
+		return
+	}
+	fmt.Fprintf(w, "\n%s\n", m.Format("result.team"))
+	switch t.Role {
+	case "host":
+		if sv := res.Server; sv != nil {
+			fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.host", "port", strconv.Itoa(sv.Port)))
+			if sv.Created {
+				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.host_created"))
+			} else {
+				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.host_reused"))
+			}
+		}
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.token_stored"))
+		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.serve"))
+		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.connect", "url", t.URL, "env", t.TokenEnv, "project", t.Project))
+		if len(res.Tokens) > 0 {
+			fmt.Fprintf(w, "\n%s %s\n", SymWarn, m.Format("result.team.invites"))
+			for _, tk := range res.Tokens {
+				fmt.Fprintf(w, "  %s  %s\n", tk.User, tk.Token)
+			}
+		}
+	case "client":
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.client", "url", t.URL, "env", t.TokenEnv))
+	}
+	if im := res.Import; im != nil {
+		sample := fmt.Sprintf("%d/%d", im.SampleOK, im.SampleChecked)
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.import", "imported", strconv.Itoa(im.Imported), "already", strconv.Itoa(im.AlreadyPresent), "sample", sample))
+		if res.Snapshot != nil {
+			fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.import_report", "path", paths.Short(filepath.Join(res.Snapshot.Dir, "memory", "import-report.json"))))
+		}
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.import_note"))
+	}
 }

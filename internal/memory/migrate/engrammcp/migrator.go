@@ -50,7 +50,7 @@ const (
 
 // Opener opens the import side of the team memory store. The returned func
 // closes it. It is only called for a real run (never for a dry run).
-type Opener func(ctx context.Context) (store.Importer, func(), error)
+type Opener func(ctx context.Context, instance string) (store.Importer, func(), error)
 
 // Migrator implements migrate.MemoryMigrator for Engram to the team memory.
 type Migrator struct {
@@ -320,7 +320,7 @@ func (m *Migrator) Migrate(ctx context.Context, req migrate.Request) (migrate.Re
 	if m.Open == nil {
 		return res, errors.New("engram migration: no memory store is available (the team server database must be reachable from this machine)")
 	}
-	imp, closeFn, err := m.Open(ctx)
+	imp, closeFn, err := m.Open(ctx, req.StoreInstance)
 	if err != nil {
 		return res, fmt.Errorf("engram migration: cannot open the team memory store: %w", err)
 	}

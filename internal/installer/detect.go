@@ -39,7 +39,7 @@ const (
 // PhaseOrder lists every phase in order.
 var PhaseOrder = []Phase{
 	PhasePlatform, PhaseProject, PhaseRuntimes, PhaseMemory, PhaseOtherHarness, PhaseInventory,
-	PhasePlan, PhaseSnapshot, PhaseMigrate, PhaseConfigure, PhaseVerifyMemory, PhaseVerifyProject,
+	PhasePlan, PhaseSnapshot, PhaseServer, PhaseMigrate, PhaseConfigure, PhaseVerifyMemory, PhaseVerifyProject,
 	PhaseRetire, PhaseReport,
 }
 

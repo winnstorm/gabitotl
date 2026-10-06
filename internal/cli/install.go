@@ -15,6 +15,10 @@ import (
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/memory/migrate"
+	"github.com/winnstorm/gabitotl/internal/memory/migrate/engrammcp"
+	"github.com/winnstorm/gabitotl/internal/memory/server"
+	"github.com/winnstorm/gabitotl/internal/memory/store"
+	"github.com/winnstorm/gabitotl/internal/pgmanaged"
 	"github.com/winnstorm/gabitotl/internal/version"
 )
 
@@ -30,12 +34,49 @@ var (
 		return installer.Env{
 			Home: renv.Home, ProjectRoot: root, GOOS: renv.GOOS, GOARCH: goruntime.GOARCH,
 			Getenv: renv.Getenv, Environ: os.Environ, LookPath: renv.LookPath, Runner: installerRunnerFn(), Now: renv.Now,
-			Runtimes: registryFn(), Migrators: migrate.NewRegistry(), Version: version.Version,
+			Runtimes: registryFn(), Migrators: migratorRegistry(), Version: version.Version, Team: teamEnv(),
 			OpenMemory:   func(cfg gabitotl.MemoryConfig) (memory.Provider, error) { return newProvider(cfg) },
 			RenderReport: ui.ReportRenderer(m),
 		}, nil
 	}
 )
+
+// migratorRegistry holds the tested memory migrators: Engram to the team memory.
+func migratorRegistry() *migrate.Registry {
+	reg := migrate.NewRegistry()
+	_ = reg.Register(engrammcp.New(func(ctx context.Context, instance string) (store.Importer, func(), error) {
+		st, err := openServerStore(ctx, defaultDSNRef, instance)
+		if err != nil {
+			return nil, nil, err
+		}
+		return st, st.Close, nil
+	}))
+	return reg
+}
+
+// teamEnv wires the installer's team-memory hooks to the managed PostgreSQL, the
+// team database and the token minting of the memory server.
+func teamEnv() installer.TeamEnv {
+	return installer.TeamEnv{
+		Manager: func(instance, engine string, port int) (*pgmanaged.Manager, error) {
+			if engine == "" {
+				engine = "auto"
+			}
+			return serverManager(serverFlags{engine: engine, instance: instance, port: port})
+		},
+		OpenStore: func(ctx context.Context, instance string) (store.Store, func(), error) {
+			st, err := openServerStore(ctx, defaultDSNRef, instance)
+			if err != nil {
+				return nil, nil, err
+			}
+			return st, st.Close, nil
+		},
+		NewToken: func(ctx context.Context, ts store.TokenStore, user string, projects []string) (string, error) {
+			plain, _, err := server.NewScopedToken(ctx, ts, user, projects, false, time.Now())
+			return plain, err
+		},
+	}
+}
 
 const installTimeout = 10 * time.Minute
 
@@ -54,6 +95,12 @@ type installFlags struct {
 	dryRun, yes, noTUI                      bool
 	tui                                     bool // the caller allows the full-screen interface
 	migratePersona, removeGentle, preserveE bool
+
+	// Team memory (flags of the plain flow; the TUI asks the same things).
+	memoryRole, memoryURL, memoryTokenEnv, memoryEngine, memoryInstance string
+	memoryPort                                                          int
+	memoryStoreToken, importEngram                                      bool
+	memoryInvites                                                       listFlag
 }
 
 func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
@@ -66,6 +113,15 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.BoolVar(&f.yes, "yes", false, "do not ask; required when there is no terminal")
 	fs.BoolVar(&f.noTUI, "no-tui", false, "use the plain text flow even on a terminal")
 	fs.BoolVar(&f.migratePersona, "migrate-persona", false, "retire the managed Gentleman/Gentle-AI persona block after verification")
+	fs.StringVar(&f.memoryRole, "memory-role", "", "team memory role with --memory memory-mcp: host (this machine runs the server) or client (connect to one)")
+	fs.StringVar(&f.memoryURL, "memory-url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client; host: the URL teammates use)")
+	fs.StringVar(&f.memoryTokenEnv, "memory-token-env", "", "NAME of the environment variable that holds your token (default "+installer.DefaultTokenEnv+"); never the token itself")
+	fs.BoolVar(&f.memoryStoreToken, "memory-store-token", false, "client: copy your token from that variable into the 0600 secrets file of your user")
+	fs.Var(&f.memoryInvites, "memory-invite", "host: create a token for this teammate id (repeatable; shown once at the end)")
+	fs.StringVar(&f.memoryEngine, "memory-engine", "auto", "host: container engine, docker, podman or auto")
+	fs.IntVar(&f.memoryPort, "memory-port", 0, "host: loopback port of the managed PostgreSQL (default: automatic)")
+	fs.StringVar(&f.memoryInstance, "memory-instance", "", "host: named instance of the managed server")
+	fs.BoolVar(&f.importEngram, "import-engram", false, "host: import the Engram memory into the team memory (safety export first; Engram stays intact)")
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
 	if migrate {
 		fs.BoolVar(&f.preserveE, "preserve-engram", false, "keep using the existing Engram memory (always the case: Engram is adopted, never copied)")
@@ -185,6 +241,9 @@ func execute(env Env, f installFlags, source string) int {
 	opts := installer.Options{
 		Source: source, Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
 		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun,
+		MemoryRole: f.memoryRole, MemoryURL: f.memoryURL, MemoryTokenEnv: f.memoryTokenEnv, StoreToken: f.memoryStoreToken,
+		Invites: f.memoryInvites, ServerEngine: f.memoryEngine, ServerPort: f.memoryPort, ServerInstance: f.memoryInstance,
+		ImportEngram: f.importEngram,
 	}
 	if opts.UserName == "" {
 		opts.UserName = f.user

@@ -30,7 +30,7 @@ func TestMigrationAgainstPostgreSQL(t *testing.T) {
 	if _, err := pg.Save(ctx, memory.Entry{Type: memory.TypeDecision, Title: "Team", Content: "ours", Project: "shop", Actor: "gonza", TopicKey: "arch/db"}); err != nil {
 		t.Fatal(err)
 	}
-	m := New(func(context.Context) (store.Importer, func(), error) { return pg, func() {}, nil })
+	m := New(func(context.Context, string) (store.Importer, func(), error) { return pg, func() {}, nil })
 	r1, err := m.Migrate(ctx, migrateReq(export, filepath.Join(dir, "r.json")))
 	if err != nil || r1.Report.Imported != 6 || !r1.Report.Verified || r1.Report.TopicKeysDropped != 1 {
 		t.Fatalf("first run: %+v %v", r1.Report, err)

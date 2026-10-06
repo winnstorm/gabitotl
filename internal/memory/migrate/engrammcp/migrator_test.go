@@ -91,7 +91,7 @@ func newRig(t *testing.T) *rig {
 	r := &rig{dir: t.TempDir(), st: memstore.New()}
 	r.export = filepath.Join(r.dir, "engram-export.json")
 	writeJSON(t, r.export, fixture())
-	r.m = New(func(context.Context) (store.Importer, func(), error) { r.opens++; return r.st, func() {}, nil })
+	r.m = New(func(context.Context, string) (store.Importer, func(), error) { r.opens++; return r.st, func() {}, nil })
 	return r
 }
 
@@ -271,7 +271,7 @@ func TestInterruptedRunResumes(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
 	fl := &flaky{Store: r.st, left: 3}
-	r.m = New(func(context.Context) (store.Importer, func(), error) { return fl, func() {}, nil })
+	r.m = New(func(context.Context, string) (store.Importer, func(), error) { return fl, func() {}, nil })
 	res, err := r.m.Migrate(ctx, r.req())
 	if err == nil || !strings.Contains(err.Error(), "resume") || res.Report.Status != "interrupted" || res.Report.Imported != 3 {
 		t.Fatalf("want an interrupted run, got %+v %v", res.Report, err)
@@ -284,7 +284,7 @@ func TestInterruptedRunResumes(t *testing.T) {
 	// A cancelled context interrupts too.
 	cctx, cancel := context.WithCancel(ctx)
 	cancel()
-	r.m = New(func(context.Context) (store.Importer, func(), error) { return r.st, func() {}, nil })
+	r.m = New(func(context.Context, string) (store.Importer, func(), error) { return r.st, func() {}, nil })
 	if _, err := r.m.Migrate(cctx, r.req()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled: %v", err)
 	}
