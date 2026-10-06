@@ -18,6 +18,11 @@
 // file (gabitotl-persona.md) referenced from "instructions", the memory server
 // is one "mcp" entry, and "model" is written only when the user chose it in
 // runtime.md. Providers and every other key are never touched.
+//
+// Attribution: no option that controls commit or pull request attribution is
+// documented on https://opencode.ai/docs/config/ (fetched 2026-10), so none is
+// written. The authorship guard relies on the Git hooks and the persona rule
+// instead (docs/GUARD.md).
 package opencode
 
 import (

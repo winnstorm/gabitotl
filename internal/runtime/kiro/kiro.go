@@ -23,6 +23,11 @@
 // install locations per platform (macOS /Applications/Kiro.app, Windows
 // %LOCALAPPDATA%\Programs\Kiro, Linux a "kiro" launcher or /opt/Kiro); the name
 // of the model key inside cli.json, so the adapter never writes a model.
+//
+// Attribution: no setting that controls commit or pull request attribution was
+// found in the Kiro documentation pages fetched (2026-10, https://kiro.dev/docs/cli/),
+// so none is written. The authorship guard relies on the Git hooks and the persona
+// rule instead (docs/GUARD.md).
 package kiro
 
 import (
