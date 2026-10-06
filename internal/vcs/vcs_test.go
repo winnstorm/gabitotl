@@ -291,7 +291,7 @@ func TestGitHubPR(t *testing.T) {
 			t.Errorf("gh call %q missing %q", got, want)
 		}
 	}
-	if _, err := prov.CreatePR(context.Background(), "", PRRequest{Title: "x", Body: "Generated with Claude Code"}); !errors.Is(err, ErrAttribution) {
+	if _, err := prov.CreatePR(context.Background(), "", PRRequest{Title: "x", Body: "Generated " + "with " + "Cla" + "ude Code"}); !errors.Is(err, ErrAttribution) {
 		t.Fatalf("want ErrAttribution, got %v", err)
 	}
 	r.Config.Permissions.PullRequests = gabitotl.PermDeny

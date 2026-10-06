@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/winnstorm/gabitotl/internal/branding"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
@@ -19,6 +20,12 @@ type Repo struct {
 	Confirm Confirm
 	// BranchPrefix is prepended to task branches (default "feature").
 	BranchPrefix string
+	// Branding is the authorship guard policy (workflow.md); the zero value is
+	// the default mode, strip.
+	Branding BrandingPolicy
+	// OnBranding is told what the guard removed (strip) or only reported (warn),
+	// so nothing is ever changed silently. May be nil.
+	OnBranding func(op string, removed, warned []branding.Finding)
 }
 
 // New returns a Repo using the real git/gh executables.
@@ -145,8 +152,13 @@ func (r *Repo) CreateTaskBranch(ctx context.Context, task string) (string, error
 
 // Commit stages paths (when given) and commits staged work as one logical
 // unit. The message must be a Conventional Commit without attribution
-// trailers; none is ever added. Gated by permissions.commits.
+// trailers; none is ever added. The authorship guard (Branding) strips or
+// refuses LLM attribution first. Gated by permissions.commits.
 func (r *Repo) Commit(ctx context.Context, message string, paths ...string) (string, error) {
+	message, err := r.enforce(OpCommit, message)
+	if err != nil {
+		return "", err
+	}
 	if err := ValidateCommitMessage(message); err != nil {
 		return "", err
 	}

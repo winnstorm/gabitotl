@@ -92,9 +92,18 @@ func ProviderFor(name string, run Runner) (PRProvider, error) {
 	return nil, fmt.Errorf("%w: no pull request support for provider %q", ErrNotImplemented, name)
 }
 
-// OpenPR opens a pull request through prov. Gated by permissions.pull_requests.
+// OpenPR opens a pull request through prov after the authorship guard has
+// stripped or refused LLM attribution in the title and body. Gated by
+// permissions.pull_requests.
 func (r *Repo) OpenPR(ctx context.Context, prov PRProvider, req PRRequest) (PR, error) {
 	if err := Gate(r.Config.Permissions, OpPullRequest, "open pull request: "+req.Title, r.Confirm); err != nil {
+		return PR{}, err
+	}
+	var err error
+	if req.Title, err = r.enforce(OpPullRequest, req.Title); err != nil {
+		return PR{}, err
+	}
+	if req.Body, err = r.enforce(OpPullRequest, req.Body); err != nil {
 		return PR{}, err
 	}
 	return prov.CreatePR(ctx, r.Dir, req)
