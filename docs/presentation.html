@@ -6,373 +6,445 @@
 <title>GabitoTL — Presentación</title>
 <style>
   :root {
-    --bg: #0b1020; --bg2: #121a33; --card: #172044; --card2: #1d2756;
-    --text: #eaf0ff; --muted: #9fb0d9; --line: #2b3a74;
-    --accent: #5eead4; --accent2: #818cf8; --warn: #fbbf24; --ok: #34d399; --bad: #fb7185;
-    --grad: linear-gradient(135deg, #5eead4 0%, #818cf8 55%, #c084fc 100%);
+    --bg: #070b18; --bg2: #0e1530; --card: rgba(255,255,255,.055); --card-b: rgba(255,255,255,.13);
+    --text: #f1f5ff; --muted: #a3b2d8; --teal: #2dd4bf; --indigo: #818cf8; --pink: #f472b6; --amber: #fbbf24; --ok: #34d399;
+    --grad: linear-gradient(120deg, #2dd4bf 0%, #818cf8 50%, #f472b6 100%);
+    --chat: #050814; --shadow: 0 10px 40px rgba(0,0,0,.35);
   }
   :root[data-theme="light"] {
-    --bg: #f5f7ff; --bg2: #e9edff; --card: #ffffff; --card2: #f0f3ff;
-    --text: #131a3a; --muted: #55608a; --line: #cdd5f5;
-    --accent: #0d9488; --accent2: #4f46e5; --warn: #b45309; --ok: #059669; --bad: #be123c;
-    --grad: linear-gradient(135deg, #0d9488 0%, #4f46e5 60%, #9333ea 100%);
-  }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --bg: #f5f7ff; --bg2: #e9edff; --card: #ffffff; --card2: #f0f3ff;
-      --text: #131a3a; --muted: #55608a; --line: #cdd5f5;
-      --accent: #0d9488; --accent2: #4f46e5; --warn: #b45309; --ok: #059669; --bad: #be123c;
-      --grad: linear-gradient(135deg, #0d9488 0%, #4f46e5 60%, #9333ea 100%);
-    }
+    --bg: #f4f6ff; --bg2: #e6eaff; --card: rgba(255,255,255,.8); --card-b: rgba(40,50,120,.16);
+    --text: #121836; --muted: #50598a; --teal: #0d9488; --indigo: #4f46e5; --pink: #db2777; --amber: #b45309; --ok: #059669;
+    --grad: linear-gradient(120deg, #0d9488 0%, #4f46e5 55%, #db2777 100%);
+    --chat: #121836; --shadow: 0 10px 30px rgba(40,50,120,.15);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
-  body {
-    background: radial-gradient(1200px 700px at 80% -10%, var(--bg2), var(--bg));
-    color: var(--text);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    overflow: hidden;
-  }
-  .deck { position: relative; height: 100vh; width: 100vw; }
-  .slide {
-    position: absolute; inset: 0; padding: 5vh 6vw 9vh;
-    display: flex; flex-direction: column; justify-content: center; gap: 2.2vh;
-    opacity: 0; transform: translateX(40px); pointer-events: none;
-    transition: opacity .45s ease, transform .45s ease; overflow-y: auto;
-  }
+  html { font-size: clamp(9px, min(2.3vh, 1.38vw), 26px); height: 100%; }
+  body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+         font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  /* animated backdrop */
+  .bgfx { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .bgfx i { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .5; animation: float 14s ease-in-out infinite alternate; }
+  .bgfx i:nth-child(1) { width: 44vmax; height: 44vmax; background: #3b4cca; left: -12vmax; top: -14vmax; }
+  .bgfx i:nth-child(2) { width: 36vmax; height: 36vmax; background: #0f9d8f; right: -10vmax; bottom: -14vmax; animation-delay: -4s; }
+  .bgfx i:nth-child(3) { width: 26vmax; height: 26vmax; background: #b23a86; right: 18vw; top: -10vmax; opacity: .3; animation-delay: -8s; }
+  .bgfx::after { content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 3.2rem 3.2rem; mask-image: radial-gradient(ellipse at center, #000 30%, transparent 78%); }
+  :root[data-theme="light"] .bgfx i { opacity: .22; }
+  @keyframes float { to { transform: translate(4vmax, 3vmax) scale(1.12); } }
+
+  .deck { position: relative; z-index: 1; height: 100%; width: 100%; }
+  .slide { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 4.2vh 5.2vw 0;
+           opacity: 0; transform: translateY(1.2rem) scale(.985); pointer-events: none; transition: opacity .5s ease, transform .5s ease; }
   .slide.active { opacity: 1; transform: none; pointer-events: auto; }
-  .slide.past { transform: translateX(-40px); }
-  h1 { font-size: clamp(2.4rem, 6vw, 5rem); line-height: 1.05; letter-spacing: -.02em; }
-  h2 { font-size: clamp(1.7rem, 3.4vw, 2.8rem); letter-spacing: -.01em; }
-  h3 { font-size: 1.1rem; }
+  .slide .in { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1.1rem; justify-content: center; padding-bottom: 4.4rem; }
+
+  h1 { font-size: 6.4rem; line-height: .95; letter-spacing: -.035em; font-weight: 900; }
+  h2 { font-size: 2.7rem; line-height: 1.05; letter-spacing: -.025em; font-weight: 850; }
+  h3 { font-size: 1.12rem; font-weight: 750; }
   .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .kicker { color: var(--accent); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: .8rem; }
-  .lead { color: var(--muted); font-size: clamp(1rem, 1.6vw, 1.35rem); max-width: 60ch; line-height: 1.5; }
-  .grid { display: grid; gap: 14px; }
-  .g2 { grid-template-columns: repeat(2, 1fr); }
-  .g3 { grid-template-columns: repeat(3, 1fr); }
-  .g4 { grid-template-columns: repeat(4, 1fr); }
-  .card {
-    background: linear-gradient(180deg, var(--card), var(--card2));
-    border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px;
-    transition: transform .2s ease, border-color .2s ease;
-  }
-  .card:hover { transform: translateY(-3px); border-color: var(--accent); }
-  .card .ico { font-size: 1.8rem; margin-bottom: 6px; }
-  .card p { color: var(--muted); font-size: .92rem; line-height: 1.45; margin-top: 4px; }
-  .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700;
-          border: 1px solid var(--line); color: var(--muted); }
-  .pill.ok { color: var(--ok); border-color: var(--ok); }
-  .pill.wip { color: var(--warn); border-color: var(--warn); }
-  .ojo, .tip { border-radius: 12px; padding: 10px 14px; font-size: .92rem; line-height: 1.45; }
-  .ojo { border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
-  .tip { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  .ojo b { color: var(--warn); } .tip b { color: var(--accent); }
-  .chat { background: #0a0f1f; color: #e6edff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; line-height: 1.55; }
-  .chat .u { color: #9fb0d9; } .chat .g { color: #5eead4; } .chat .o { color: #fbbf24; } .chat .t { color: #86efac; }
-  svg { width: 100%; height: auto; max-height: 52vh; }
+  .kicker { display: inline-flex; align-items: center; gap: .6rem; color: var(--teal); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; font-size: .78rem; }
+  .kicker b { display: inline-grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: .6rem; background: var(--grad); color: #07101f; font-size: .85rem; letter-spacing: 0; }
+  .lead { color: var(--muted); font-size: 1.2rem; line-height: 1.45; max-width: 52rem; }
+  code { font-family: ui-monospace, Menlo, monospace; background: rgba(129,140,248,.18); padding: .05em .4em; border-radius: .35rem; font-size: .9em; }
+
+  .grid { display: grid; gap: .9rem; }
+  .g2 { grid-template-columns: repeat(2, 1fr); } .g3 { grid-template-columns: repeat(3, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { position: relative; background: var(--card); border: 1px solid var(--card-b); border-radius: 1.1rem; padding: 1.05rem 1.15rem;
+          backdrop-filter: blur(10px); box-shadow: var(--shadow); overflow: hidden; }
+  .card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: .22rem; background: var(--c, var(--grad)); }
+  .card p { color: var(--muted); font-size: .88rem; line-height: 1.4; margin-top: .3rem; }
+  .chip { display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: .85rem; font-size: 1.4rem; margin-bottom: .55rem;
+          background: var(--c, var(--grad)); box-shadow: 0 6px 18px color-mix(in srgb, var(--c, #818cf8) 45%, transparent); }
+  .t { --c: linear-gradient(135deg,#2dd4bf,#0ea5e9); } .i { --c: linear-gradient(135deg,#818cf8,#6366f1); }
+  .p { --c: linear-gradient(135deg,#f472b6,#e11d48); } .a { --c: linear-gradient(135deg,#fbbf24,#f97316); }
+  .pill { display: inline-flex; align-items: center; gap: .35rem; padding: .22rem .75rem; border-radius: 999px; font-size: .74rem; font-weight: 750; border: 1px solid var(--card-b); color: var(--muted); background: var(--card); }
+  .pill.ok { color: var(--ok); border-color: var(--ok); } .pill.wip { color: var(--amber); border-color: var(--amber); }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+  .ojo, .tip { border-radius: .9rem; padding: .6rem .9rem; font-size: .86rem; line-height: 1.4; }
+  .ojo { border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 11%, transparent); }
+  .tip { border: 1px solid var(--teal); background: color-mix(in srgb, var(--teal) 10%, transparent); }
+  .ojo b { color: var(--amber); } .tip b { color: var(--teal); }
+
+  .stat { text-align: center; padding: .7rem; }
+  .stat .n { font-size: 3rem; font-weight: 900; line-height: 1; }
+  .stat small { display: block; color: var(--muted); font-size: .8rem; margin-top: .25rem; }
+
+  .chat { background: var(--chat); color: #e6edff; border: 1px solid var(--card-b); border-radius: 1rem; padding: .8rem 1rem; box-shadow: var(--shadow);
+          font-family: ui-monospace, Menlo, monospace; font-size: .92rem; line-height: 1.5; position: relative; }
+  .chat::before { content: "●●●"; position: absolute; top: .45rem; right: .8rem; letter-spacing: .15rem; font-size: .5rem; color: #475588; }
+  .chat .u { color: #93a4d4; } .chat .g { color: #5eead4; } .chat .o { color: #fbbf24; } .chat .k { color: #86efac; }
+  .benefit { display: flex; gap: .7rem; align-items: center; }
+  .benefit .chip { margin: 0; flex: none; }
+  .benefit p { margin: 0; font-size: 1rem; line-height: 1.35; }
+
+  /* flow steps */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; position: relative; }
+  .step { position: relative; background: var(--card); border: 1px solid var(--card-b); border-radius: 1rem; padding: .9rem .7rem .7rem; text-align: center; font-size: .88rem; font-weight: 700; box-shadow: var(--shadow); }
+  .step .n { position: absolute; top: -.85rem; left: 50%; transform: translateX(-50%); width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--grad); color: #07101f; display: grid; place-items: center; font-weight: 900; font-size: .85rem; }
+  .step small { display: block; color: var(--muted); font-weight: 500; font-size: .76rem; margin-top: .2rem; }
+  .truth { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; }
+  .truth div { padding: .55rem .5rem; border-radius: .7rem; text-align: center; font-size: .78rem; font-weight: 750; color: #07101f; }
+  .truth small { display: block; font-weight: 600; opacity: .8; font-size: .68rem; }
+
+  .svgbox { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .svgbox svg { max-width: 100%; max-height: 100%; width: auto; height: 100%; }
   svg text { fill: var(--text); font-family: system-ui, sans-serif; }
-  svg .box { fill: var(--card); stroke: var(--line); stroke-width: 1.5; }
-  svg .hl { fill: var(--card2); stroke: var(--accent); stroke-width: 2; }
-  svg .arrow { stroke: var(--accent2); stroke-width: 2; fill: none; marker-end: url(#ah); }
-  svg .dash { stroke-dasharray: 5 5; }
-  svg .sub { fill: var(--muted); font-size: 12px; }
-  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .92rem; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-  th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-  th { background: var(--card2); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  td:first-child { color: var(--muted); font-weight: 600; width: 22%; }
+  svg .box { fill: var(--card); stroke: var(--card-b); stroke-width: 1.5; }
+  svg .hl { fill: color-mix(in srgb, var(--indigo) 20%, transparent); stroke: var(--indigo); stroke-width: 2; }
+  svg .arrow { stroke: var(--indigo); stroke-width: 2.2; fill: none; marker-end: url(#ah); }
+  svg .dash { stroke-dasharray: 5 5; } svg .sub { fill: var(--muted); font-size: 12px; }
+
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .84rem; border: 1px solid var(--card-b); border-radius: 1rem; overflow: hidden; background: var(--card); }
+  th, td { padding: .5rem .8rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--card-b); line-height: 1.3; }
+  th { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: rgba(255,255,255,.04); }
+  th.gt { color: var(--teal); }
+  td:first-child { color: var(--muted); font-weight: 700; width: 17%; }
+  td.g { color: var(--text); background: color-mix(in srgb, var(--teal) 8%, transparent); }
   tr:last-child td { border-bottom: 0; }
-  td.g { color: var(--accent); }
-  .nav { position: fixed; bottom: 2.4vh; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 14px; z-index: 5; }
-  .nav button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; font-size: .9rem; }
-  .nav button:hover { border-color: var(--accent); }
-  .dots { display: flex; gap: 6px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); cursor: pointer; border: 0; padding: 0; }
-  .dot.on { background: var(--accent); transform: scale(1.3); }
-  .bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--grad); width: 0; transition: width .4s ease; z-index: 6; }
-  .theme { position: fixed; top: 14px; right: 16px; z-index: 6; background: var(--card); border: 1px solid var(--line); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
-  .row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-  .flow { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; }
-  .step { flex: 1 1 130px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; font-size: .88rem; position: relative; }
-  .step .n { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; background: var(--grad); color: #07101f; font-weight: 800; align-items: center; justify-content: center; margin-bottom: 6px; }
-  .step small { display: block; color: var(--muted); margin-top: 3px; font-size: .78rem; }
-  .arr { align-self: center; color: var(--accent2); font-weight: 800; }
-  .hero-mascot { width: min(300px, 38vw); }
-  @media (max-width: 860px) {
-    .g2, .g3, .g4 { grid-template-columns: 1fr; }
-    .slide { padding: 4vh 5vw 11vh; justify-content: flex-start; }
-    .arr { display: none; }
-  }
-  @media (prefers-reduced-motion: reduce) { .slide, .card { transition: none; } }
+
+  /* cover */
+  .cover { flex-direction: row !important; align-items: center; justify-content: space-between !important; gap: 2rem; padding-bottom: 4.4rem !important; }
+  .cover .txt { display: flex; flex-direction: column; gap: 1.2rem; max-width: 52%; }
+  .cover .art { flex: 1; min-height: 0; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+  .cover .art svg { height: 92%; width: auto; max-width: 100%; filter: drop-shadow(0 18px 40px rgba(0,0,0,.45)); }
+  .float { animation: bob 5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+  .float.d2 { animation-delay: -1.5s; } .float.d3 { animation-delay: -3s; }
+  @keyframes bob { to { transform: translateY(-9px) rotate(2deg); } }
+  .avatar { width: 8.5rem; height: 8.5rem; border-radius: 50%; flex: none; background: var(--grad); padding: .28rem; box-shadow: 0 10px 40px rgba(129,140,248,.5); }
+  .avatar svg { width: 100%; height: 100%; border-radius: 50%; background: #1b2150; display: block; }
+  .traits { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .traits span { padding: .3rem .8rem; border-radius: 999px; font-size: .8rem; font-weight: 700; border: 1px solid var(--card-b); background: var(--card); }
+
+  .reveal { opacity: 0; transform: translateY(.9rem); }
+  .active .reveal { animation: up .55s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: calc(var(--d, 0) * 70ms + 120ms); }
+  @keyframes up { to { opacity: 1; transform: none; } }
+
+  .hud { position: fixed; z-index: 10; bottom: .9rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .55rem;
+         padding: .25rem .55rem; border-radius: 999px; background: color-mix(in srgb, var(--bg) 70%, transparent); border: 1px solid var(--card-b); backdrop-filter: blur(8px); opacity: .8; transition: opacity .2s; }
+  .hud:hover { opacity: 1; }
+  .hud button { all: unset; cursor: pointer; width: 1.35rem; height: 1.35rem; display: grid; place-items: center; border-radius: 50%; color: var(--muted); font-size: .85rem; }
+  .hud button:hover { color: var(--text); background: var(--card-b); }
+  .hud .dots { display: flex; gap: .28rem; }
+  .hud .dot { width: .38rem; height: .38rem; border-radius: 50%; background: var(--card-b); width: .38rem; }
+  .hud .dot.on { background: var(--teal); width: .9rem; border-radius: 99px; transition: width .25s; }
+  .hud .cnt { font-size: .66rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.2rem; text-align: center; }
+  .bar { position: fixed; top: 0; left: 0; height: .2rem; background: var(--grad); width: 0; transition: width .4s ease; z-index: 11; }
+  .theme { position: fixed; z-index: 10; top: .8rem; right: 1rem; all: unset; position: fixed; cursor: pointer; font-size: .85rem; opacity: .6; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: 50%; }
+  .theme:hover { opacity: 1; background: var(--card-b); }
+  @media (prefers-reduced-motion: reduce) { .slide, .reveal, .float, .bgfx i { animation: none !important; transition: none !important; } .reveal { opacity: 1; transform: none; } }
 </style>
 </head>
 <body>
+<div class="bgfx" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="bar" id="bar"></div>
-<button class="theme" id="theme" aria-label="Cambiar tema">🌓</button>
+<button class="theme" id="theme" aria-label="Cambiar tema">◐</button>
+
+<!-- Shared illustration: geek with glasses and pompadour (jopo) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#818cf8"/></marker>
+    <linearGradient id="hood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b4030"/><stop offset="1" stop-color="#2b1d16"/></linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset=".5" stop-color="#818cf8"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+    <symbol id="geek" viewBox="0 0 300 340">
+      <!-- body / hoodie -->
+      <path d="M26 340 C30 268 84 236 150 236 C216 236 270 268 274 340 Z" fill="url(#hood)"/>
+      <path d="M118 238 L150 292 L182 238" fill="#1e1b4b" opacity=".55"/>
+      <path d="M118 238 Q150 262 182 238" fill="none" stroke="#c7d2fe" stroke-width="3" opacity=".7"/>
+      <rect x="196" y="282" width="52" height="26" rx="13" fill="#0f172a" opacity=".85"/>
+      <text x="222" y="300" text-anchor="middle" font-size="15" font-weight="900" fill="#2dd4bf" style="fill:#2dd4bf">TL</text>
+      <!-- neck -->
+      <rect x="126" y="196" width="48" height="50" rx="16" fill="#e2a883"/>
+      <!-- ears -->
+      <ellipse cx="92" cy="146" rx="11" ry="17" fill="#eab08b"/><ellipse cx="208" cy="146" rx="11" ry="17" fill="#eab08b"/>
+      <!-- head -->
+      <ellipse cx="150" cy="140" rx="58" ry="68" fill="#f4c7a4"/>
+      <!-- cheeks -->
+      <ellipse cx="116" cy="170" rx="12" ry="7" fill="#f2a28f" opacity=".45"/><ellipse cx="184" cy="170" rx="12" ry="7" fill="#f2a28f" opacity=".45"/>
+      <!-- pompadour (jopo) -->
+      <path d="M88 126 C78 92 92 70 118 62 C122 28 190 8 236 36 C256 50 250 80 228 90 C214 96 206 102 210 128 C198 106 178 96 150 96 C122 96 102 104 88 126 Z" fill="url(#hair)"/>
+      <path d="M126 58 C150 30 196 22 226 42" stroke="#8a634a" stroke-width="4" fill="none" stroke-linecap="round" opacity=".75"/>
+      <path d="M112 78 C140 52 184 46 216 62" stroke="#8a634a" stroke-width="3" fill="none" stroke-linecap="round" opacity=".5"/>
+      <!-- eyebrows -->
+      <path d="M104 118 Q122 108 140 116" stroke="#2b1d16" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M160 116 Q178 108 196 118" stroke="#2b1d16" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <!-- glasses -->
+      <path d="M96 138 L104 134 M196 134 L204 138" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+      <rect x="102" y="124" width="42" height="34" rx="10" fill="#7dd3fc" fill-opacity=".28" stroke="url(#rim)" stroke-width="5"/>
+      <rect x="156" y="124" width="42" height="34" rx="10" fill="#7dd3fc" fill-opacity=".28" stroke="url(#rim)" stroke-width="5"/>
+      <path d="M144 138 Q150 133 156 138" stroke="url(#rim)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M110 130 L120 130 M164 130 L174 130" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+      <circle cx="124" cy="143" r="5.5" fill="#1e293b"/><circle cx="178" cy="143" r="5.5" fill="#1e293b"/>
+      <circle cx="126" cy="141" r="1.8" fill="#fff"/><circle cx="180" cy="141" r="1.8" fill="#fff"/>
+      <!-- nose + smile -->
+      <path d="M150 150 Q146 166 152 170" stroke="#d29a78" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <path d="M126 184 Q150 204 176 184" stroke="#9b4b3a" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <path d="M134 187 Q150 198 168 187 Q150 193 134 187 Z" fill="#fff" opacity=".9"/>
+    </symbol>
+  </defs>
+</svg>
 
 <main class="deck" id="deck">
 
 <!-- 1. PORTADA -->
-<section class="slide">
-  <div class="row" style="justify-content:space-between;flex-wrap:nowrap">
-    <div style="display:flex;flex-direction:column;gap:2.2vh">
-      <span class="kicker">Agent harness para programar</span>
-      <h1>Gabito<span class="grad">TL</span></h1>
-      <p class="lead">Un Technical Leader senior que vive dentro de tu coding agent: conoce tu proyecto, recuerda lo que ya decidieron y te cuenta sólo lo importante.</p>
-      <div class="row">
-        <span class="pill ok">Go · binario único</span>
-        <span class="pill ok">Claude Code</span>
-        <span class="pill ok">OpenCode</span>
-        <span class="pill ok">Kiro CLI / IDE</span>
-        <span class="pill">MIT</span>
-      </div>
+<section class="slide"><div class="in cover">
+  <div class="txt">
+    <span class="kicker reveal" style="--d:0">Agent harness para programar</span>
+    <h1 class="reveal" style="--d:1">Gabito<span class="grad">TL</span></h1>
+    <p class="lead reveal" style="--d:2">Un Technical Leader senior dentro de tu coding agent: conoce tu proyecto, recuerda lo que ya decidieron y te cuenta sólo lo importante.</p>
+    <div class="row reveal" style="--d:3">
+      <span class="pill ok">Go · binario único</span><span class="pill ok">Claude Code</span><span class="pill ok">OpenCode</span><span class="pill ok">Kiro</span><span class="pill">MIT</span>
     </div>
-    <svg class="hero-mascot" viewBox="0 0 220 220" role="img" aria-label="Ilustración de Gabito, un asistente TL">
-      <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset=".6" stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs>
-      <circle cx="110" cy="110" r="100" fill="url(#g1)" opacity=".16"/>
-      <circle cx="110" cy="110" r="70" fill="none" stroke="url(#g1)" stroke-width="3" stroke-dasharray="6 8"/>
-      <rect x="60" y="64" width="100" height="92" rx="24" fill="#172044" stroke="url(#g1)" stroke-width="4"/>
-      <circle cx="90" cy="105" r="9" fill="#5eead4"/><circle cx="130" cy="105" r="9" fill="#5eead4"/>
-      <path d="M90 133 Q110 148 130 133" stroke="#eaf0ff" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <rect x="104" y="40" width="12" height="24" rx="6" fill="url(#g1)"/><circle cx="110" cy="36" r="8" fill="#fbbf24"/>
-      <text x="110" y="190" text-anchor="middle" font-size="15" font-weight="700" fill="#eaf0ff">¡Dale, lo vemos!</text>
+  </div>
+  <div class="art reveal" style="--d:2">
+    <svg viewBox="-60 -10 420 360" role="img" aria-label="Ilustración de Gabito: una persona geek con lentes y pelo con jopo">
+      <circle cx="150" cy="170" r="165" fill="url(#hood)" opacity=".18"/>
+      <circle cx="150" cy="170" r="140" fill="none" stroke="url(#rim)" stroke-width="2.5" stroke-dasharray="3 9" stroke-linecap="round"/>
+      <use href="#geek" x="0" y="0" width="300" height="340"/>
+      <g class="float" ><rect x="-34" y="50" width="76" height="36" rx="12" fill="#0f172a" stroke="#2dd4bf" stroke-width="2"/><text x="4" y="74" text-anchor="middle" font-size="18" font-weight="800" style="fill:#2dd4bf">&lt;/&gt;</text></g>
+      <g class="float d2"><rect x="268" y="96" width="80" height="36" rx="12" fill="#0f172a" stroke="#f472b6" stroke-width="2"/><text x="308" y="120" text-anchor="middle" font-size="15" font-weight="800" style="fill:#f472b6">git ⎇ main</text></g>
+      <g class="float d3"><rect x="-26" y="200" width="70" height="36" rx="12" fill="#0f172a" stroke="#fbbf24" stroke-width="2"/><text x="9" y="224" text-anchor="middle" font-size="16" font-weight="800" style="fill:#fbbf24">🧠 mem</text></g>
+      <g class="float"><rect x="262" y="218" width="72" height="36" rx="12" fill="#0f172a" stroke="#818cf8" stroke-width="2"/><text x="298" y="242" text-anchor="middle" font-size="16" font-weight="800" style="fill:#818cf8">✓ tests</text></g>
     </svg>
   </div>
-</section>
+</div></section>
 
-<!-- 2. QUÉ ES / PARA QUÉ SIRVE -->
-<section class="slide">
-  <span class="kicker">01 · Qué es y para qué sirve</span>
-  <h2>No es otro LLM. Es la <span class="grad">capa que ordena el trabajo</span>.</h2>
-  <p class="lead">Configura y acompaña a los coding agents que ya usás, mantiene memoria del proyecto y le da continuidad entre sesiones.</p>
+<!-- 2. QUÉ ES -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>01</b> Qué es y para qué sirve</span>
+  <h2 class="reveal" style="--d:1">No es otro LLM. Es la <span class="grad">capa que ordena el trabajo</span>.</h2>
+  <p class="lead reveal" style="--d:2">Configura y acompaña a los coding agents que ya usás, mantiene memoria del proyecto y le da continuidad entre sesiones.</p>
   <div class="grid g4">
-    <div class="card"><div class="ico">🧠</div><h3>Memoria siempre presente</h3><p>Consulta lo relevante antes de trabajar y guarda solo lo que importa después. Nunca tenés que decir “guardá esto”.</p></div>
-    <div class="card"><div class="ico">🧭</div><h3>Criterio de TL senior</h3><p>Investiga antes de opinar, cuestiona decisiones riesgosas y no complica lo simple.</p></div>
-    <div class="card"><div class="ico">🔌</div><h3>Runtime y modelo separados</h3><p>Cambiás de Claude a OpenCode o de modelo sin perder persona, memoria ni estado.</p></div>
-    <div class="card"><div class="ico">🧾</div><h3>Todo trazable</h3><p>Usuario → tarea → branch → cambio → verificación → commit → PR.</p></div>
+    <div class="card t reveal" style="--d:3"><div class="chip">🧠</div><h3>Memoria siempre presente</h3><p>Consulta lo relevante antes de trabajar y guarda lo importante después. Nunca pedís “guardá esto”.</p></div>
+    <div class="card i reveal" style="--d:4"><div class="chip">🧭</div><h3>Criterio de TL senior</h3><p>Investiga antes de opinar, cuestiona decisiones riesgosas y no complica lo simple.</p></div>
+    <div class="card p reveal" style="--d:5"><div class="chip">🔌</div><h3>Runtime y modelo aparte</h3><p>Cambiás de Claude a OpenCode o de modelo sin perder persona, memoria ni estado.</p></div>
+    <div class="card a reveal" style="--d:6"><div class="chip">🧾</div><h3>Todo trazable</h3><p>Usuario → tarea → branch → cambio → verificación → commit → PR.</p></div>
   </div>
   <div class="grid g3">
-    <div class="card"><div class="ico">1️⃣</div><h3>Un solo orquestador</h3><p>Sin enjambres de agentes. Como máximo un auxiliar, nunca en paralelo.</p></div>
-    <div class="card"><div class="ico">📁</div><h3>El proyecto recuerda cómo trabajar</h3><p>La carpeta <code>.gabitotl/</code> guarda la configuración estable; la memoria guarda la historia.</p></div>
-    <div class="card"><div class="ico">🗣️</div><h3>Habla simple y corto</h3><p>Español argentino, ejemplos cotidianos y respuestas breves.</p></div>
+    <div class="card stat reveal" style="--d:7"><div class="n grad">1</div><small>orquestador, sin enjambres</small></div>
+    <div class="card stat reveal" style="--d:8"><div class="n grad">4</div><small>runtimes: Claude Code, OpenCode, Kiro CLI e IDE</small></div>
+    <div class="card stat reveal" style="--d:9"><div class="n grad">2</div><small>memorias: Engram (personal) y Memory MCP + PostgreSQL (equipo)</small></div>
   </div>
-</section>
+</div></section>
 
-<!-- 3. CÓMO FUNCIONA (flujo) -->
-<section class="slide">
-  <span class="kicker">02 · Cómo funciona</span>
-  <h2>El ciclo de cada pedido</h2>
-  <div class="flow">
-    <div class="step"><span class="n">1</span>Leer <code>.gabitotl</code><small>config y usuario</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">2</span>Consultar memoria<small>sólo lo relevante</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">3</span>Investigar código<small>el código manda</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">4</span>¿Riesgo?<small>pregunta u <b>Ojo</b></small></div>
+<!-- 3. PERSONA -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>02</b> La persona</span>
+  <div class="row" style="gap:1.6rem;flex-wrap:nowrap;align-items:center">
+    <div class="avatar reveal" style="--d:1"><svg viewBox="58 28 184 196" aria-hidden="true"><use href="#geek" width="300" height="340"/></svg></div>
+    <div>
+      <h2 class="reveal" style="--d:1">Gabito TL es la persona que <span class="grad">ya conocés</span>.</h2>
+      <p class="lead reveal" style="--d:2" >El Gabi TL del grupo: <b style="color:var(--text)">habla y aconseja como si fuese él.</b> Directo, cercano y pragmático, de TL a TL.</p>
+    </div>
   </div>
-  <div class="flow">
-    <div class="step"><span class="n">5</span>Backup <code>.bak</code><small>sólo archivos a tocar</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">6</span>Modificar y verificar<small>nunca “listo” sin probar</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">7</span>Guardar memoria<small>y estado de la tarea</small></div><span class="arr">→</span>
-    <div class="step"><span class="n">8</span>Commit / PR<small>según lo autorizado</small></div>
+  <div class="traits reveal" style="--d:3">
+    <span>🗣️ Español argentino natural</span><span>🧩 Ejemplos de la vida cotidiana</span><span>🔎 Investiga antes de opinar</span><span>🤨 Cuestiona cuando hay riesgo</span><span>✂️ Va al grano</span><span>✅ Verifica antes de decir “listo”</span>
   </div>
-  <svg viewBox="0 0 900 190" role="img" aria-label="Prioridad de la fuente de verdad">
-    <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#818cf8"/></marker></defs>
-    <text x="450" y="22" text-anchor="middle" font-size="14" font-weight="700">Fuente de verdad (de mayor a menor prioridad)</text>
-    <rect class="hl" x="20"  y="45" width="160" height="70" rx="12"/><text x="100" y="75" text-anchor="middle" font-weight="700">1 · Código actual</text><text class="sub" x="100" y="97" text-anchor="middle">siempre gana</text>
-    <rect class="box" x="195" y="45" width="160" height="70" rx="12"/><text x="275" y="75" text-anchor="middle" font-weight="700">2 · .gabitotl</text><text class="sub" x="275" y="97" text-anchor="middle">config explícita</text>
-    <rect class="box" x="370" y="45" width="160" height="70" rx="12"/><text x="450" y="75" text-anchor="middle" font-weight="700">3 · Git</text><text class="sub" x="450" y="97" text-anchor="middle">historia trazable</text>
-    <rect class="box" x="545" y="45" width="160" height="70" rx="12"/><text x="625" y="75" text-anchor="middle" font-weight="700">4 · Memoria</text><text class="sub" x="625" y="97" text-anchor="middle">se corrige si contradice</text>
-    <rect class="box" x="720" y="45" width="160" height="70" rx="12"/><text x="800" y="75" text-anchor="middle" font-weight="700">5 · Docs importadas</text><text class="sub" x="800" y="97" text-anchor="middle">contexto histórico</text>
-    <path class="arrow" d="M180 80 H195"/><path class="arrow" d="M355 80 H370"/><path class="arrow" d="M530 80 H545"/><path class="arrow" d="M705 80 H720"/>
-    <text class="sub" x="450" y="150" text-anchor="middle">Si la memoria dice una cosa y el código otra, el código gana y la memoria se actualiza.</text>
-  </svg>
-</section>
+  <div class="grid g3">
+    <div class="chat reveal" style="--d:4"><div class="k">Qué hice:</div><div class="u">Terminé el login y cubrí los errores principales.</div><div class="k" style="margin-top:.35rem">Progreso:</div><div class="u">Auth lista; falta logout y recuperación.</div><div class="k" style="margin-top:.35rem">Qué sigue:</div><div class="u">Voy con logout.</div></div>
+    <div class="chat reveal" style="--d:5"><div class="o">Ojo:</div><div class="u">Hay dos formas distintas de validar sesiones. Conviene unificarlas antes de sumar MFA.</div><div class="u" style="margin-top:.4rem;color:#fbbf24">→ un riesgo que tenés que conocer ahora</div></div>
+    <div class="chat reveal" style="--d:6"><div class="g">TIP:</div><div class="u">Después de logout, cerraría recuperación de contraseña para completar el flujo básico.</div><div class="u" style="margin-top:.4rem;color:#5eead4">→ una idea para el próximo paso</div></div>
+  </div>
+</div></section>
 
-<!-- 4. ARQUITECTURA -->
-<section class="slide">
-  <span class="kicker">03 · Arquitectura</span>
-  <h2>Cinco conceptos que nunca se mezclan</h2>
-  <svg viewBox="0 0 900 400" role="img" aria-label="Diagrama de arquitectura de GabitoTL">
-    <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#818cf8"/></marker></defs>
-    <rect class="box" x="360" y="10" width="180" height="46" rx="23"/><text x="450" y="39" text-anchor="middle" font-weight="700">👤 Usuario</text>
-    <path class="arrow" d="M450 56 V80"/>
-    <rect class="hl" x="330" y="82" width="240" height="64" rx="16"/><text x="450" y="110" text-anchor="middle" font-weight="800" font-size="17">🧭 Gabito · orquestador TL</text><text class="sub" x="450" y="130" text-anchor="middle">persona + reglas + workflow</text>
-    <path class="arrow" d="M380 146 L170 186"/><path class="arrow" d="M450 146 V186"/><path class="arrow" d="M520 146 L730 186"/>
-    <rect class="box" x="60"  y="188" width="220" height="86" rx="14"/><text x="170" y="215" text-anchor="middle" font-weight="700">📁 .gabitotl/</text><text class="sub" x="170" y="236" text-anchor="middle">configuración estable</text><text class="sub" x="170" y="254" text-anchor="middle">en Git · sin secretos</text>
-    <rect class="box" x="340" y="188" width="220" height="86" rx="14"/><text x="450" y="215" text-anchor="middle" font-weight="700">🧠 Memoria</text><text class="sub" x="450" y="236" text-anchor="middle">Engram (personal)</text><text class="sub" x="450" y="254" text-anchor="middle">Memory MCP + PostgreSQL (equipo)</text>
-    <rect class="box" x="620" y="188" width="220" height="86" rx="14"/><text x="730" y="215" text-anchor="middle" font-weight="700">💻 Proyecto</text><text class="sub" x="730" y="236" text-anchor="middle">código actual + Git</text><text class="sub" x="730" y="254" text-anchor="middle">worktree por desarrollador</text>
-    <path class="arrow dash" d="M170 274 L330 318"/><path class="arrow dash" d="M450 274 V318"/><path class="arrow dash" d="M730 274 L570 318"/>
-    <rect class="box" x="130" y="320" width="640" height="60" rx="14"/>
-    <text x="450" y="346" text-anchor="middle" font-weight="700">🔌 Runtime (adapter) → 🤖 Modelo</text>
-    <text class="sub" x="450" y="366" text-anchor="middle">Claude Code · OpenCode · Kiro CLI · Kiro IDE — el core nunca hace “if claude / if kiro”</text>
-  </svg>
-  <div class="tip"><b>Por qué importa:</b> cambiar de modelo o de runtime no cambia la persona, la memoria ni el estado del proyecto.</div>
-</section>
+<!-- 4. CÓMO FUNCIONA -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>03</b> Cómo funciona</span>
+  <h2 class="reveal" style="--d:1">El ciclo de <span class="grad">cada pedido</span></h2>
+  <div class="flow" style="margin-top:.6rem">
+    <div class="step reveal" style="--d:2"><span class="n">1</span>Leer <code>.gabitotl</code><small>config y usuario</small></div>
+    <div class="step reveal" style="--d:3"><span class="n">2</span>Consultar memoria<small>sólo lo relevante</small></div>
+    <div class="step reveal" style="--d:4"><span class="n">3</span>Investigar el código<small>el código manda</small></div>
+    <div class="step reveal" style="--d:5"><span class="n">4</span>¿Riesgo?<small>pregunta u <b>Ojo</b></small></div>
+  </div>
+  <div class="flow" style="margin-top:.6rem">
+    <div class="step reveal" style="--d:6"><span class="n">5</span>Backup <code>.bak</code><small>sólo lo que va a tocar</small></div>
+    <div class="step reveal" style="--d:7"><span class="n">6</span>Modificar y verificar<small>nunca “listo” sin probar</small></div>
+    <div class="step reveal" style="--d:8"><span class="n">7</span>Guardar memoria<small>y estado de la tarea</small></div>
+    <div class="step reveal" style="--d:9"><span class="n">8</span>Commit / PR<small>según lo autorizado</small></div>
+  </div>
+  <h3 class="reveal" style="--d:10;margin-top:.5rem;color:var(--muted)">Fuente de verdad, de mayor a menor prioridad</h3>
+  <div class="truth reveal" style="--d:11">
+    <div style="background:#2dd4bf">1 · Código actual<small>siempre gana</small></div>
+    <div style="background:#60a5fa">2 · .gabitotl<small>config explícita</small></div>
+    <div style="background:#818cf8">3 · Git<small>historia trazable</small></div>
+    <div style="background:#c084fc">4 · Memoria<small>se corrige si contradice</small></div>
+    <div style="background:#f472b6">5 · Docs importadas<small>contexto histórico</small></div>
+  </div>
+</div></section>
 
-<!-- 5. FEATURES -->
-<section class="slide">
-  <span class="kicker">04 · Features</span>
-  <h2>Lo que trae la V1</h2>
+<!-- 5. ARQUITECTURA -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>04</b> Arquitectura</span>
+  <h2 class="reveal" style="--d:1">Cinco conceptos que <span class="grad">nunca se mezclan</span></h2>
+  <div class="svgbox reveal" style="--d:2">
+    <svg viewBox="0 0 900 340" role="img" aria-label="Diagrama de arquitectura de GabitoTL">
+      <rect class="box" x="370" y="4" width="160" height="38" rx="19"/><text x="450" y="29" text-anchor="middle" font-weight="700">👤 Usuario</text>
+      <path class="arrow" d="M450 42 V62"/>
+      <rect class="hl" x="320" y="64" width="260" height="58" rx="16"/><text x="450" y="90" text-anchor="middle" font-weight="800" font-size="17">🧭 Gabito · orquestador TL</text><text class="sub" x="450" y="110" text-anchor="middle">persona + reglas + workflow</text>
+      <path class="arrow" d="M380 122 L170 156"/><path class="arrow" d="M450 122 V156"/><path class="arrow" d="M520 122 L730 156"/>
+      <rect class="box" x="50"  y="158" width="240" height="80" rx="14"/><text x="170" y="184" text-anchor="middle" font-weight="700">📁 .gabitotl/</text><text class="sub" x="170" y="205" text-anchor="middle">configuración estable</text><text class="sub" x="170" y="222" text-anchor="middle">en Git · sin secretos</text>
+      <rect class="box" x="330" y="158" width="240" height="80" rx="14"/><text x="450" y="184" text-anchor="middle" font-weight="700">🧠 Memoria</text><text class="sub" x="450" y="205" text-anchor="middle">Engram (personal)</text><text class="sub" x="450" y="222" text-anchor="middle">Memory MCP + PostgreSQL (equipo)</text>
+      <rect class="box" x="610" y="158" width="240" height="80" rx="14"/><text x="730" y="184" text-anchor="middle" font-weight="700">💻 Proyecto</text><text class="sub" x="730" y="205" text-anchor="middle">código actual + Git</text><text class="sub" x="730" y="222" text-anchor="middle">worktree por desarrollador</text>
+      <path class="arrow dash" d="M170 238 L330 272"/><path class="arrow dash" d="M450 238 V272"/><path class="arrow dash" d="M730 238 L570 272"/>
+      <rect class="box" x="120" y="274" width="660" height="58" rx="14"/>
+      <text x="450" y="299" text-anchor="middle" font-weight="700">🔌 Runtime (adapter) → 🤖 Modelo</text>
+      <text class="sub" x="450" y="318" text-anchor="middle">Claude Code · OpenCode · Kiro CLI · Kiro IDE — el core nunca hace “if claude / if kiro”</text>
+    </svg>
+  </div>
+  <div class="tip reveal" style="--d:3"><b>Por qué importa:</b> cambiar de modelo o de runtime no cambia la persona, la memoria ni el estado del proyecto.</div>
+</div></section>
+
+<!-- 6. FEATURES -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>05</b> Features</span>
+  <h2 class="reveal" style="--d:1">Todo lo que trae, <span class="grad">de fábrica</span></h2>
   <div class="grid g4">
-    <div class="card"><div class="ico">🚀</div><h3>Onboarding inteligente</h3><p>Detecta proyecto nuevo o existente, lo investiga por capas y arma el mapa inicial en memoria.</p></div>
-    <div class="card"><div class="ico">🪪</div><h3>Identidad</h3><p>Sabe quién sos. Cada cambio queda atribuido: “Gabi cambió auth”.</p></div>
-    <div class="card"><div class="ico">🛟</div><h3>Backups locales</h3><p>Copia sólo lo que va a modificar, con manifest y retención configurable.</p></div>
-    <div class="card"><div class="ico">🌿</div><h3>Git trazable</h3><p>Branch por tarea, commits convencionales, PR (GitHub) y revert seguro. Nunca reescribe historia compartida.</p></div>
-    <div class="card"><div class="ico">👥</div><h3>Equipo sin pisarse</h3><p>Un worktree por persona y soft locks: avisa si Gonza toca el mismo módulo.</p></div>
-    <div class="card"><div class="ico">📏</div><h3>Monitor de contexto</h3><p>Al ~75% guarda estado y próximo paso, y te avisa que podés abrir un chat nuevo.</p></div>
-    <div class="card"><div class="ico">📥</div><h3>Importadores</h3><p>Lee Kiro, Gentle-AI y Engram sin modificar lo ajeno ni reimportar lo que no cambió.</p></div>
-    <div class="card"><div class="ico">🔐</div><h3>Sin secretos</h3><p>Un guard rechaza passwords y tokens en <code>.gabitotl</code>; sólo referencias <code>env:</code>.</p></div>
+    <div class="card t reveal" style="--d:2"><div class="chip">🚀</div><h3>Onboarding inteligente</h3><p>Detecta si el proyecto es nuevo o existente, lo investiga por capas y arma el mapa en memoria.</p></div>
+    <div class="card i reveal" style="--d:3"><div class="chip">🪪</div><h3>Identidad</h3><p>Sabe quién sos. Cada cambio queda atribuido: “Gabi cambió auth”.</p></div>
+    <div class="card p reveal" style="--d:4"><div class="chip">🛟</div><h3>Backups locales</h3><p>Copia sólo lo que va a modificar, con manifest y retención configurable.</p></div>
+    <div class="card a reveal" style="--d:5"><div class="chip">🌿</div><h3>Git trazable</h3><p>Branch por tarea, commits convencionales, PR y revert seguro. Nunca reescribe historia compartida.</p></div>
+    <div class="card a reveal" style="--d:6"><div class="chip">👥</div><h3>Equipo sin pisarse</h3><p>Un worktree por persona y soft locks: avisa si Tincho toca el mismo módulo.</p></div>
+    <div class="card p reveal" style="--d:7"><div class="chip">📏</div><h3>Monitor de contexto</h3><p>Al ~75% guarda estado y próximo paso, y te avisa que podés abrir un chat nuevo.</p></div>
+    <div class="card i reveal" style="--d:8"><div class="chip">📥</div><h3>Importadores</h3><p>Lee Kiro, Gentle-AI y Engram sin modificar lo ajeno ni reimportar lo que no cambió.</p></div>
+    <div class="card t reveal" style="--d:9"><div class="chip">🔐</div><h3>Sin secretos</h3><p>Un guard rechaza passwords y tokens en <code>.gabitotl</code>; sólo referencias <code>env:</code>.</p></div>
   </div>
-  <div class="row">
-    <span class="pill ok">✓ Instalador con --dry-run, rollback, doctor, restore</span>
-    <span class="pill wip">⏳ TUI Bubble Tea (en construcción)</span>
-    <span class="pill wip">⏳ Memory MCP + PostgreSQL propio (en diseño)</span>
+  <div class="row reveal" style="--d:10">
+    <span class="pill ok">✓ Instalador: --dry-run, rollback, doctor, restore</span>
+    <span class="pill ok">✓ TUI con Bubble Tea</span>
+    <span class="pill ok">✓ Servidor Memory MCP + PostgreSQL propio y aislado</span>
+    <span class="pill wip">⏳ Cliente, migrador Engram e instalador de memoria de equipo (en curso)</span>
   </div>
-</section>
+</div></section>
 
-<!-- 6. EJEMPLOS DE MEJORA -->
-<section class="slide">
-  <span class="kicker">05 · Qué mejora para vos</span>
-  <h2>Ejemplos del día a día</h2>
+<!-- 7. EJEMPLOS -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>06</b> Qué mejora para vos</span>
+  <h2 class="reveal" style="--d:1">Ejemplos del <span class="grad">día a día</span></h2>
   <div class="grid g2">
-    <div class="chat">
-      <div class="u">Vos: Sigamos con recuperación de contraseña</div>
-      <div class="g">Gabito: Retomo lo de ayer: login listo, falta logout.</div>
-      <div class="g">&nbsp;&nbsp;(consultó memoria de auth, no releyó el repo)</div>
-      <div class="t">Qué hice: base del reset con token de un solo uso.</div>
-      <div class="t">Progreso: login + reset listos; falta logout.</div>
-      <div class="t">Qué sigue: logout.</div>
+    <div class="reveal" style="--d:2;display:flex;flex-direction:column;gap:.5rem">
+      <div class="chat"><div class="u">Vos: Sigamos con recuperación de contraseña</div><div class="g">Gabito: Retomo lo de ayer: login listo, falta logout.</div><div class="k">Qué hice: base del reset con token de un solo uso.</div><div class="k">Qué sigue: logout.</div></div>
+      <div class="benefit"><div class="chip t">⏱️</div><p><b>Sin repetir contexto.</b> Antes cada chat arrancaba de cero; ahora el estado y el próximo paso ya están guardados.</p></div>
     </div>
-    <div class="card"><div class="ico">⏱️</div><h3>Sin repetir contexto</h3><p><b>Antes:</b> cada chat nuevo arrancaba de cero y volvías a explicar el proyecto.<br><b>Ahora:</b> el estado, las decisiones y el próximo paso ya están guardados.</p></div>
-    <div class="chat">
-      <div class="u">Vos: Borrá el cliente de la base</div>
-      <div class="o">Ojo: borrar el cliente físicamente rompe el historial de facturas.</div>
-      <div class="g">Lo desactivaría en vez de eliminarlo. ¿Vamos por ahí?</div>
+    <div class="reveal" style="--d:3;display:flex;flex-direction:column;gap:.5rem">
+      <div class="chat"><div class="u">Vos: Borrá el cliente de la base</div><div class="o">Ojo: borrar el cliente físicamente rompe el historial de facturas.</div><div class="g">Lo desactivaría en vez de eliminarlo. ¿Vamos por ahí?</div></div>
+      <div class="benefit"><div class="chip p">🛡️</div><p><b>Evita errores caros.</b> Pregunta sólo cuando importa: datos, seguridad, decisiones difíciles de revertir.</p></div>
     </div>
-    <div class="card"><div class="ico">🛡️</div><h3>Evita errores caros</h3><p>Pregunta sólo cuando importa: datos, seguridad, decisiones difíciles de revertir. Lo menor lo resuelve solo.</p></div>
-    <div class="chat">
-      <div class="o">Ojo: Gonza está trabajando ahora sobre el mismo módulo de usuarios. Conviene coordinar antes de que los dos cambiemos esa parte.</div>
+    <div class="reveal" style="--d:4;display:flex;flex-direction:column;gap:.5rem">
+      <div class="chat"><div class="o">Ojo: Tincho está trabajando ahora sobre el mismo módulo de usuarios. Conviene coordinar antes de que los dos cambiemos esa parte.</div></div>
+      <div class="benefit"><div class="chip a">🤝</div><p><b>Equipos sin sorpresas.</b> El aviso llega <i>antes</i> del merge, no durante el conflicto.</p></div>
     </div>
-    <div class="card"><div class="ico">🤝</div><h3>Equipos sin conflictos sorpresa</h3><p>La memoria compartida registra trabajo activo; el aviso llega <i>antes</i> del merge, no durante.</p></div>
-    <div class="chat">
-      <div class="g">Listo. Corregí la validación y quedó cubierta con un test.</div>
-      <div class="t">TIP: el mismo caso aparece en importación; después conviene unificar esa regla.</div>
+    <div class="reveal" style="--d:5;display:flex;flex-direction:column;gap:.5rem">
+      <div class="chat"><div class="g">Listo. Corregí la validación y quedó cubierta con un test.</div><div class="k">TIP: el mismo caso aparece en importación; después conviene unificar esa regla.</div></div>
+      <div class="benefit"><div class="chip i">✂️</div><p><b>Respuestas cortas, menos tokens.</b> Persona chica, memoria por relevancia y sin agentes en paralelo.</p></div>
     </div>
-    <div class="card"><div class="ico">✂️</div><h3>Respuestas cortas, menos tokens</h3><p>Persona chica (~950 tokens), memoria por relevancia, sin agentes en paralelo y sin explicar cada comando.</p></div>
   </div>
-</section>
+</div></section>
 
-<!-- 7. VS GENTLE-AI -->
-<section class="slide">
-  <span class="kicker">06 · GabitoTL y Gentle-AI</span>
-  <h2>Enfoques distintos, <span class="grad">misma memoria</span></h2>
-  <table>
-    <tr><th></th><th>Gentle-AI (el que usás hoy)</th><th>GabitoTL</th></tr>
+<!-- 8. VS GENTLE-AI -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>07</b> GabitoTL y Gentle-AI</span>
+  <h2 class="reveal" style="--d:1">Enfoques distintos, <span class="grad">misma memoria</span></h2>
+  <table class="reveal" style="--d:2">
+    <tr><th></th><th>Gentle-AI (el que usás hoy)</th><th class="gt">GabitoTL</th></tr>
     <tr><td>Enfoque</td><td>Configura agentes con persona, skills, MCP y un workflow SDD con sub-agentes.</td><td class="g">TL con un solo orquestador; como máximo un auxiliar secuencial.</td></tr>
-    <tr><td>Persona</td><td>Gentleman</td><td class="g">Gabito: TL argentino, directo y breve.</td></tr>
-    <tr><td>Config del proyecto</td><td>Instrucciones y assets en cada agente</td><td class="g"><code>.gabitotl/</code> versionada en Git, separada de la memoria.</td></tr>
+    <tr><td>Persona</td><td>Gentleman</td><td class="g">Gabito TL: el Gabi TL del grupo, directo y breve.</td></tr>
+    <tr><td>Config del proyecto</td><td>Instrucciones y assets dentro de cada agente</td><td class="g"><code>.gabitotl/</code> versionada en Git, separada de la memoria.</td></tr>
     <tr><td>Memoria</td><td>Engram</td><td class="g">Engram (personal) o Memory MCP + PostgreSQL (equipo), tras una misma interfaz.</td></tr>
     <tr><td>Equipo</td><td>Memoria local por persona</td><td class="g">Identidad, worktrees, soft locks y atribución por actor.</td></tr>
-    <tr><td>Seguridad de cambios</td><td>Según el flujo configurado</td><td class="g">Backup <code>.bak</code> antes de modificar + Git trazable.</td></tr>
-    <tr><td>Salida</td><td>Según persona/estilo</td><td class="g">Qué hice / Progreso / Qué sigue + Ojo y TIP sólo si aportan.</td></tr>
+    <tr><td>Cambios seguros</td><td>Según el flujo configurado</td><td class="g">Backup <code>.bak</code> antes de modificar + Git trazable.</td></tr>
+    <tr><td>Salida</td><td>Según persona y estilo</td><td class="g">Qué hice / Progreso / Qué sigue + Ojo y TIP sólo si aportan.</td></tr>
   </table>
-  <div class="tip"><b>Nota honesta:</b> la columna de Gentle-AI resume lo que usamos y vimos en tu instalación; no es una comparación exhaustiva de todas sus capacidades. No es mejor ni peor: GabitoTL optimiza para trabajo en equipo, trazabilidad y respuestas cortas.</div>
-</section>
+  <div class="tip reveal" style="--d:3"><b>Nota honesta:</b> la columna de Gentle-AI resume lo que usamos y vimos en tu instalación; no es una comparación exhaustiva. No es mejor ni peor: GabitoTL optimiza el trabajo en equipo, la trazabilidad y las respuestas cortas.</div>
+</div></section>
 
-<!-- 8. MIGRACIÓN -->
-<section class="slide">
-  <span class="kicker">07 · Migración sin perder nada</span>
-  <h2>Aterrizaje suave desde Gentle-AI</h2>
-  <svg viewBox="0 0 900 250" role="img" aria-label="Flujo de migración segura desde Gentle-AI">
-    <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#818cf8"/></marker></defs>
-    <g font-size="13" font-weight="700" text-anchor="middle">
-      <rect class="box" x="10"  y="20" width="120" height="64" rx="12"/><text x="70"  y="48">1 Detectar</text><text class="sub" x="70"  y="68">state.json · Engram</text>
-      <rect class="box" x="150" y="20" width="120" height="64" rx="12"/><text x="210" y="48">2 Respaldar</text><text class="sub" x="210" y="68">export + snapshot</text>
-      <rect class="box" x="290" y="20" width="120" height="64" rx="12"/><text x="350" y="48">3 Adoptar</text><text class="sub" x="350" y="68">mismo Engram</text>
-      <rect class="box" x="430" y="20" width="120" height="64" rx="12"/><text x="490" y="48">4 Importar</text><text class="sub" x="490" y="68">conocimiento útil</text>
-      <rect class="box" x="570" y="20" width="120" height="64" rx="12"/><text x="630" y="48">5 Configurar</text><text class="sub" x="630" y="68">runtimes</text>
-      <rect class="hl"  x="710" y="20" width="120" height="64" rx="12"/><text x="770" y="48">6 Verificar</text><text class="sub" x="770" y="68">todo debe pasar</text>
-    </g>
-    <path class="arrow" d="M130 52 H150"/><path class="arrow" d="M270 52 H290"/><path class="arrow" d="M410 52 H430"/><path class="arrow" d="M550 52 H570"/><path class="arrow" d="M690 52 H710"/>
-    <path class="arrow" d="M770 84 V130 H700"/>
-    <rect class="box" x="520" y="108" width="180" height="46" rx="12"/><text x="610" y="136" text-anchor="middle" font-weight="700">7 ¿Retirar Gentle-AI?</text>
-    <text class="sub" x="610" y="176" text-anchor="middle">sólo después de verificar · con su propio uninstall</text>
-    <rect class="box" x="40" y="108" width="440" height="110" rx="14"/>
-    <text x="260" y="136" text-anchor="middle" font-weight="700">Garantías</text>
-    <text class="sub" x="60" y="160">✓ Nunca se borra Engram ni su base de datos</text>
-    <text class="sub" x="60" y="180">✓ Rollback automático si algo falla antes de retirar</text>
-    <text class="sub" x="60" y="200">✓ Sólo se retira lo atribuible a Gentle-AI</text>
-  </svg>
-  <div class="grid g3">
-    <div class="card"><div class="ico">🔍</div><h3>--dry-run</h3><p>Muestra CREATE / MODIFY / PRESERVE / REMOVE sin tocar nada.</p></div>
-    <div class="card"><div class="ico">⏪</div><h3>restore</h3><p>Volvés al estado anterior desde el snapshot de migración.</p></div>
-    <div class="card"><div class="ico">🩺</div><h3>doctor</h3><p>Revisa todo en modo sólo lectura: core, memoria, runtimes, Git y legado.</p></div>
+<!-- 9. MIGRACIÓN -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>08</b> Migración sin perder nada</span>
+  <h2 class="reveal" style="--d:1">Aterrizaje suave desde <span class="grad">Gentle-AI</span></h2>
+  <div class="svgbox reveal" style="--d:2">
+    <svg viewBox="0 0 900 190" role="img" aria-label="Flujo de migración segura desde Gentle-AI">
+      <g font-size="13" font-weight="700" text-anchor="middle">
+        <rect class="box" x="6"   y="14" width="130" height="62" rx="12"/><text x="71"  y="42">1 Detectar</text><text class="sub" x="71"  y="62">state.json · Engram</text>
+        <rect class="box" x="154" y="14" width="130" height="62" rx="12"/><text x="219" y="42">2 Respaldar</text><text class="sub" x="219" y="62">export + snapshot</text>
+        <rect class="box" x="302" y="14" width="130" height="62" rx="12"/><text x="367" y="42">3 Adoptar</text><text class="sub" x="367" y="62">mismo Engram</text>
+        <rect class="box" x="450" y="14" width="130" height="62" rx="12"/><text x="515" y="42">4 Importar</text><text class="sub" x="515" y="62">conocimiento útil</text>
+        <rect class="box" x="598" y="14" width="130" height="62" rx="12"/><text x="663" y="42">5 Configurar</text><text class="sub" x="663" y="62">runtimes</text>
+        <rect class="hl"  x="746" y="14" width="130" height="62" rx="12"/><text x="811" y="42">6 Verificar</text><text class="sub" x="811" y="62">todo debe pasar</text>
+      </g>
+      <path class="arrow" d="M136 45 H154"/><path class="arrow" d="M284 45 H302"/><path class="arrow" d="M432 45 H450"/><path class="arrow" d="M580 45 H598"/><path class="arrow" d="M728 45 H746"/>
+      <path class="arrow" d="M811 76 V118 H760"/>
+      <rect class="box" x="560" y="98" width="200" height="40" rx="12"/><text x="660" y="123" text-anchor="middle" font-weight="700" font-size="13">7 ¿Retirar Gentle-AI?</text>
+      <text class="sub" x="660" y="160" text-anchor="middle">sólo después de verificar · con su propio uninstall</text>
+      <rect class="box" x="6" y="98" width="520" height="80" rx="14"/>
+      <text x="26" y="124" font-weight="700" font-size="13">Garantías</text>
+      <text class="sub" x="26" y="146">✓ Nunca se borra Engram ni su base · ✓ Rollback automático si algo falla antes de retirar</text>
+      <text class="sub" x="26" y="166">✓ Sólo se retira lo atribuible a Gentle-AI</text>
+    </svg>
   </div>
-</section>
+  <div class="grid g3">
+    <div class="card t reveal" style="--d:3"><div class="chip">🔍</div><h3>--dry-run</h3><p>Muestra CREATE / MODIFY / PRESERVE / REMOVE sin tocar nada.</p></div>
+    <div class="card i reveal" style="--d:4"><div class="chip">⏪</div><h3>restore</h3><p>Volvés al estado anterior desde el snapshot de migración.</p></div>
+    <div class="card p reveal" style="--d:5"><div class="chip">🩺</div><h3>doctor</h3><p>Revisa todo en sólo lectura: core, memoria, runtimes, Git y legado.</p></div>
+  </div>
+</div></section>
 
-<!-- 9. ESTADO -->
-<section class="slide">
-  <span class="kicker">08 · Estado y próximos pasos</span>
-  <h2>Dónde estamos</h2>
+<!-- 10. ESTADO -->
+<section class="slide"><div class="in">
+  <span class="kicker reveal"><b>09</b> Estado y próximos pasos</span>
+  <h2 class="reveal" style="--d:1">Dónde <span class="grad">estamos</span></h2>
   <div class="grid g3">
-    <div class="card"><span class="pill ok">Listo</span><h3 style="margin-top:8px">Core V1</h3><p>.gabitotl, identidad, memoria (Engram), scanner, VCS, backups, worktrees, persona, monitor de contexto, adapters, importadores, instalador con rollback, CI y tests e2e.</p></div>
-    <div class="card"><span class="pill wip">En curso</span><h3 style="margin-top:8px">TUI + Memory MCP propio</h3><p>TUI con Bubble Tea. Servidor Memory MCP con un PostgreSQL gestionado por GabitoTL, aislado del que ya tengas, opcional y recomendado para equipos.</p></div>
-    <div class="card"><span class="pill">Después</span><h3 style="margin-top:8px">Verificación y extras</h3><p>Prueba real con Kiro, migrador Engram → Memory MCP, update/upgrade, GitLab y Azure DevOps completos, dashboard de memoria.</p></div>
+    <div class="card t reveal" style="--d:2"><span class="pill ok">Listo</span><h3 style="margin-top:.55rem">Core V1 + TUI + servidor de memoria</h3><p>.gabitotl, identidad, Engram, scanner, VCS, backups, worktrees, persona, monitor de contexto, adapters, importadores, instalador con rollback, TUI Bubble Tea, servidor Memory MCP con PostgreSQL aislado, CI y tests e2e.</p></div>
+    <div class="card a reveal" style="--d:3"><span class="pill wip">En curso</span><h3 style="margin-top:.55rem">Memoria de equipo, de punta a punta</h3><p>Cliente y puente para los runtimes, tokens por proyecto, migrador Engram → Memory MCP y el paso opcional (recomendado) en el instalador, sin tocar el PostgreSQL que ya tengas.</p></div>
+    <div class="card i reveal" style="--d:4"><span class="pill">Después</span><h3 style="margin-top:.55rem">Verificación real y extras</h3><p>Prueba con Kiro instalado, Podman, update/upgrade, GitLab y Azure DevOps completos y un dashboard de memoria.</p></div>
   </div>
-  <div class="ojo"><b>Ojo:</b> los formatos de configuración de Claude Code y Kiro están validados contra documentación; falta un smoke test con las herramientas reales.</div>
-  <div class="tip"><b>Probalo sin riesgo:</b> <code>gabitotl install --dry-run</code> no cambia nada.</div>
-</section>
+  <div class="ojo reveal" style="--d:5"><b>Ojo:</b> los formatos de configuración de Claude Code y Kiro están validados contra documentación; falta un smoke test con las herramientas reales.</div>
+  <div class="tip reveal" style="--d:6"><b>Probalo sin riesgo:</b> <code>gabitotl install --dry-run</code> no cambia nada.</div>
+</div></section>
 
 </main>
 
-<div class="nav">
-  <button id="prev" aria-label="Anterior">←</button>
+<nav class="hud" aria-label="Navegación">
+  <button id="prev" aria-label="Anterior">‹</button>
   <div class="dots" id="dots"></div>
-  <button id="next" aria-label="Siguiente">→</button>
-</div>
+  <span class="cnt" id="cnt"></span>
+  <button id="next" aria-label="Siguiente">›</button>
+</nav>
 
 <script>
 (function () {
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
-  var dots = document.getElementById('dots');
-  var bar = document.getElementById('bar');
+  var dots = document.getElementById('dots'), bar = document.getElementById('bar'), cnt = document.getElementById('cnt');
   var i = 0;
   slides.forEach(function (_, n) {
-    var d = document.createElement('button');
-    d.className = 'dot'; d.setAttribute('aria-label', 'Ir a la slide ' + (n + 1));
-    d.onclick = function () { go(n); };
-    dots.appendChild(d);
+    var d = document.createElement('button'); d.className = 'dot'; d.setAttribute('aria-label', 'Slide ' + (n + 1));
+    d.onclick = function () { go(n); }; dots.appendChild(d);
   });
   function go(n) {
     i = Math.max(0, Math.min(slides.length - 1, n));
-    slides.forEach(function (s, k) {
-      s.classList.toggle('active', k === i);
-      s.classList.toggle('past', k < i);
-    });
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
     Array.prototype.forEach.call(dots.children, function (d, k) { d.classList.toggle('on', k === i); });
     bar.style.width = ((i + 1) / slides.length * 100) + '%';
+    cnt.textContent = (i + 1) + ' / ' + slides.length;
     try { history.replaceState(null, '', '#' + (i + 1)); } catch (e) {}
   }
   document.getElementById('prev').onclick = function () { go(i - 1); };
   document.getElementById('next').onclick = function () { go(i + 1); };
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); go(i + 1); }
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(i - 1); }
-    if (e.key === 'Home') go(0);
-    if (e.key === 'End') go(slides.length - 1);
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].indexOf(e.key) >= 0) { e.preventDefault(); go(i + 1); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].indexOf(e.key) >= 0) { e.preventDefault(); go(i - 1); }
+    else if (e.key === 'Home') go(0); else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); }
   });
   var tx = null;
   document.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, { passive: true });
   document.addEventListener('touchend', function (e) {
-    if (tx === null) return;
-    var dx = e.changedTouches[0].clientX - tx;
-    if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1));
-    tx = null;
+    if (tx === null) return; var dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1)); tx = null;
   }, { passive: true });
   document.getElementById('theme').onclick = function () {
-    var root = document.documentElement;
-    var light = getComputedStyle(root).getPropertyValue('--bg').trim() === '#f5f7ff';
-    root.setAttribute('data-theme', light ? 'dark' : 'light');
+    var r = document.documentElement; r.setAttribute('data-theme', r.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
   };
   var start = parseInt((location.hash || '').replace('#', ''), 10);
   go(isNaN(start) ? 0 : start - 1);
