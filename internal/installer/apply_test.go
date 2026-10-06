@@ -273,3 +273,49 @@ func TestRunNeverLeaksSecretsIntoGabitoTLFiles(t *testing.T) {
 		t.Fatalf("expected one log file, got %v", logs)
 	}
 }
+
+// cancelAt returns an observer that cancels the run when the given phase starts.
+func cancelAt(phase Phase, cancel context.CancelFunc) Observer {
+	return func(e Event) {
+		if e.Phase == phase && e.Status == "start" {
+			cancel()
+		}
+	}
+}
+
+func TestCancellationBetweenPhasesRollsBack(t *testing.T) {
+	for _, phase := range []Phase{PhaseMigrate, PhaseConfigure, PhaseVerifyProject} {
+		t.Run(string(phase), func(t *testing.T) {
+			f := newFixture(t)
+			claudeMD := slurp(t, f.home+"/.claude/CLAUDE.md")
+			rootBefore := treeHash(t, f.root)
+			inv, pl := buildPlan(t, f, Options{Runtimes: []string{"claude-code", "opencode"}, User: "gabi", UserName: "Gabi", MigratePersona: true})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			res, err := Run(ctx, f.env, inv, pl, cancelAt(phase, cancel), Hooks{})
+			if !errors.Is(err, context.Canceled) || !res.RolledBack {
+				t.Fatalf("err=%v rolledBack=%v", err, res.RolledBack)
+			}
+			if slurp(t, f.home+"/.claude/CLAUDE.md") != claudeMD || treeHash(t, f.root) != rootBefore {
+				t.Fatal("a cancelled run must leave the machine as it was")
+			}
+			if f.runner.Count("gentle-ai") != 0 {
+				t.Fatal("legacy must not be retired by a cancelled run")
+			}
+		})
+	}
+}
+
+func TestCancellationDuringRetirementDoesNotKillTheUninstall(t *testing.T) {
+	f := newFixture(t)
+	inv, pl := buildPlan(t, f, Options{Source: SourceGentleAI, Runtimes: []string{"claude-code", "opencode", "kiro-ide"}, User: "gabi", UserName: "Gabi", RemoveGentleAI: true, MigratePersona: true})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	res, err := Run(ctx, f.env, inv, pl, cancelAt(PhaseRetire, cancel), Hooks{})
+	if err != nil || res.RolledBack {
+		t.Fatalf("retirement must finish: err=%v rolledBack=%v", err, res.RolledBack)
+	}
+	if len(res.Retired.Personas) == 0 {
+		t.Fatal("the persona block was not retired")
+	}
+}

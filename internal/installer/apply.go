@@ -174,6 +174,9 @@ func (r *run) mutate(ctx context.Context) error {
 	if err := r.migrateKnowledge(ctx); err != nil {
 		return fmt.Errorf("%s: %w", PhaseMigrate, err)
 	}
+	if err := ctx.Err(); err != nil { // cancelled: revert before touching any runtime
+		return fmt.Errorf("%s: %w", PhaseMigrate, err)
+	}
 	if err := r.configure(ctx); err != nil {
 		return fmt.Errorf("%s: %w", PhaseConfigure, err)
 	}
@@ -185,6 +188,14 @@ func (r *run) mutate(ctx context.Context) error {
 	if bad := Failed(r.res.Checks); len(bad) > 0 {
 		return fmt.Errorf("%w: %s", ErrVerifyFailed, bad[0].Name+": "+bad[0].Detail)
 	}
+	// Cancellation is honored until verification ends, so a cancelled run is
+	// reverted completely. Retirement is the point of no return: it runs to the
+	// end even if the context is cancelled meanwhile, because killing Gentle-AI's
+	// own uninstall half way would leave a state nobody can describe.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("%s: %w", PhaseVerifyProject, err)
+	}
+	ctx = context.WithoutCancel(ctx)
 	if err := r.retire(ctx); err != nil {
 		return err
 	}
