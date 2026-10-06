@@ -1,0 +1,64 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/installer/ui"
+	"github.com/winnstorm/gabitotl/internal/tui"
+)
+
+// tuiRunFn runs the full-screen interface; tests replace it.
+var tuiRunFn = tui.Run
+
+// executeTUI is the interactive install on a real terminal. It only wires the
+// flags and the injected Env into the TUI; detection, questions-to-ask, plan and
+// apply all come from internal/installer.
+func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths ui.Paths) int {
+	m := ui.Default()
+	ctx := context.Background()
+	opts := installer.Options{
+		Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
+		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE,
+	}
+	if opts.UserName == "" {
+		opts.UserName = f.user
+	}
+	cfg := tui.Config{
+		Backend: tui.NewBackend(ienv), Messages: m, Paths: paths, Options: opts,
+		Need: func(inv installer.Inventory, o installer.Options) ui.Need {
+			return openQuestions(root, inv, o)
+		},
+		SuggestedName: suggestName(ctx, ienv, root),
+		NoColor:       tui.NoColor(os.Getenv),
+		Timeout:       installTimeout,
+	}
+	out, err := tuiRunFn(cfg, env.Stdin, env.Stdout)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
+		return ExitError
+	}
+	if !out.Ran {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("tui.quit.nothing"))
+		return ExitOK
+	}
+	// The screen is gone now: print the same closing report the plain flow prints.
+	if out.Cancelled {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("tui.apply.cancelled"))
+		return ExitError
+	}
+	ui.RenderResult(env.Stdout, m, out.Result, out.Inv, paths)
+	if out.Err != nil {
+		var partial *installer.PartialError
+		key := "result.failed"
+		if errors.As(out.Err, &partial) {
+			key = "result.partial"
+		}
+		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format(key, "detail", out.Err.Error()))
+		return ExitError
+	}
+	return ExitOK
+}

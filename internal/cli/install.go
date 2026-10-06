@@ -52,7 +52,8 @@ func (l *listFlag) Set(v string) error {
 type installFlags struct {
 	root, memory, user, name                string
 	runtimes                                listFlag
-	dryRun, yes                             bool
+	dryRun, yes, noTUI                      bool
+	tui                                     bool // the caller allows the full-screen interface
 	migratePersona, removeGentle, preserveE bool
 }
 
@@ -64,6 +65,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.StringVar(&f.name, "name", "", "how Gabito should call you (default: the --user id)")
 	fs.BoolVar(&f.dryRun, "dry-run", false, "show the plan and change nothing")
 	fs.BoolVar(&f.yes, "yes", false, "do not ask; required when there is no terminal")
+	fs.BoolVar(&f.noTUI, "no-tui", false, "use the plain text flow even on a terminal")
 	fs.BoolVar(&f.migratePersona, "migrate-persona", false, "retire the managed Gentleman/Gentle-AI persona block after verification")
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
 	if migrate {
@@ -83,6 +85,7 @@ func runInstall(env Env, args []string) int {
 		fmt.Fprintf(env.Stderr, "gabitotl install: unexpected argument %q\n", fs.Arg(0))
 		return ExitUsage
 	}
+	f.tui = !f.noTUI
 	return execute(env, f, installer.SourceInstall)
 }
 
@@ -116,6 +119,17 @@ func suggestName(ctx context.Context, ienv installer.Env, root string) string {
 	return ""
 }
 
+// openQuestions is what cannot be detected and so must still be asked: the name
+// when no identity is active, solo or team and Git automation for a new project.
+func openQuestions(root string, inv installer.Inventory, opts installer.Options) ui.Need {
+	_, activeErr := identity.Active(root)
+	return ui.Need{
+		Name: opts.UserName == "" && activeErr != nil,
+		Mode: opts.Memory == "" && !inv.Project.Exists,
+		Git:  !inv.Project.Exists,
+	}
+}
+
 // execute is the shared install/migrate flow: detect, ask only what cannot be
 // detected, show the plan, and (unless --dry-run) apply it.
 func execute(env Env, f installFlags, source string) int {
@@ -138,6 +152,9 @@ func execute(env Env, f installFlags, source string) int {
 	defer cancel()
 	paths := ui.Paths{Home: ienv.Home, Root: root}
 	interactive := env.IsTTY && !f.yes && !f.dryRun
+	if interactive && f.tui && env.IsOutTTY && source == installer.SourceInstall {
+		return executeTUI(env, f, ienv, root, paths)
+	}
 	var pr *ui.Prompter
 	if interactive {
 		pr = ui.NewPrompter(env.Stdin, env.Stdout, m)
@@ -175,13 +192,7 @@ func execute(env Env, f installFlags, source string) int {
 	}
 
 	if interactive {
-		_, activeErr := identity.Active(root)
-		need := ui.Need{
-			Name: opts.UserName == "" && activeErr != nil,
-			Mode: opts.Memory == "" && !inv.Project.Exists,
-			Git:  !inv.Project.Exists,
-		}
-		pr.Onboard(&opts, need, suggestName(ctx, ienv, root))
+		pr.Onboard(&opts, openQuestions(root, inv, opts), suggestName(ctx, ienv, root))
 	}
 
 	if source == installer.SourceGentleAI {

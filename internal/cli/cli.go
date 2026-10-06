@@ -27,6 +27,9 @@ type Env struct {
 	Getwd func() (string, error)
 	// IsTTY reports whether Stdin is an interactive terminal.
 	IsTTY bool
+	// IsOutTTY reports whether Stdout is an interactive terminal. The full-screen
+	// interface needs both; anything else gets the plain flow.
+	IsOutTTY bool
 }
 
 // DefaultEnv builds an Env bound to the real process streams.
@@ -36,7 +39,7 @@ func DefaultEnv() Env {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Getwd:  os.Getwd,
-		IsTTY:  isTerminal(os.Stdin),
+		IsTTY:  isTerminal(os.Stdin), IsOutTTY: isTerminal(os.Stdout),
 	}
 }
 

@@ -25,6 +25,8 @@ func runHome(env Env) int {
 		printHelp(env.Stdout)
 		fmt.Fprintf(env.Stdout, "\n%s\n", m.Format("home.not_project"))
 		return ExitOK
+	case env.IsTTY && env.IsOutTTY:
+		return execute(env, installFlags{root: root, tui: true}, "install")
 	case !gabitotl.Exists(root):
 		if !env.IsTTY { // onboarding asks questions; it cannot without a terminal
 			printHelp(env.Stdout)
