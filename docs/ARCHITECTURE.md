@@ -17,6 +17,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/memory/mcp` | Abstract Memory MCP + PostgreSQL provider over a thin `Transport` (call a named tool with JSON args). Configurable tool-name mapping; connection by `env:NAME` reference only, resolved at runtime and never persisted. Ships an in-memory `FakeTransport`; no concrete server or PostgreSQL access (server not selected yet). |
 | `internal/memory/migrate` | `MemoryMigrator` + `Registry`. No concrete Engram to MCP migrator ships (only migrate with a proven adapter): `Lookup` returns `ErrNoTestedMigrator`. |
 | `internal/memory/providers` | Composition root: registers shipped providers in a `memory.Factory`. The only package that imports concrete providers. |
+| `internal/scanner` | Layered, bounded project scanner (structure with file cap and skip list, README/docs, manifests to stack and commands, recent `git log`, main modules). Read-only and deterministic; `ProjectMap.ToEntry()` yields the `project-map` memory entry, including open questions for what cannot be inferred. |
 | `internal/adapters/<runtime>` | (Planned, T4.) Per-runtime installers and renderers. |
 
 ## Dependency rule
