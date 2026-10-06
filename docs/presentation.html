@@ -314,7 +314,7 @@
     <span class="pill ok">✓ Instalador: --dry-run, rollback, doctor, restore</span>
     <span class="pill ok">✓ TUI con Bubble Tea</span>
     <span class="pill ok">✓ Servidor Memory MCP + PostgreSQL propio y aislado</span>
-    <span class="pill wip">⏳ Cliente, migrador Engram e instalador de memoria de equipo (en curso)</span>
+    <span class="pill ok">✓ Memoria de equipo: cliente, puente, migrador Engram e instalador</span>
   </div>
 </div></section>
 
@@ -395,9 +395,9 @@
   <span class="kicker reveal"><b>09</b> Estado y próximos pasos</span>
   <h2 class="reveal" style="--d:1">Dónde <span class="grad">estamos</span></h2>
   <div class="grid g3">
-    <div class="card t reveal" style="--d:2"><span class="pill ok">Listo</span><h3 style="margin-top:.55rem">Core V1 + TUI + servidor de memoria</h3><p>.gabitotl, identidad, Engram, scanner, VCS, backups, worktrees, persona, monitor de contexto, adapters, importadores, instalador con rollback, TUI Bubble Tea, servidor Memory MCP con PostgreSQL aislado, CI y tests e2e.</p></div>
-    <div class="card a reveal" style="--d:3"><span class="pill wip">En curso</span><h3 style="margin-top:.55rem">Memoria de equipo, de punta a punta</h3><p>Cliente y puente para los runtimes, tokens por proyecto, migrador Engram → Memory MCP y el paso opcional (recomendado) en el instalador, sin tocar el PostgreSQL que ya tengas.</p></div>
-    <div class="card i reveal" style="--d:4"><span class="pill">Después</span><h3 style="margin-top:.55rem">Verificación real y extras</h3><p>Prueba con Kiro instalado, Podman, update/upgrade, GitLab y Azure DevOps completos y un dashboard de memoria.</p></div>
+    <div class="card t reveal" style="--d:2"><span class="pill ok">Listo</span><h3 style="margin-top:.55rem">Core V1, TUI y memoria de equipo</h3><p>.gabitotl, identidad, Engram, scanner, VCS, backups, worktrees, persona, monitor de contexto, adapters, importadores, instalador con rollback, TUI Bubble Tea, servidor Memory MCP con PostgreSQL aislado, tokens por proyecto, puente para los runtimes y migrador Engram → Memory MCP.</p></div>
+    <div class="card a reveal" style="--d:3"><span class="pill wip">Pendiente de validar</span><h3 style="margin-top:.55rem">Pruebas con herramientas reales</h3><p>Todo está cubierto por tests automáticos. Falta probarlo a mano con Kiro instalado, con un PostgreSQL de equipo real y compartido entre varias personas, y con Podman.</p></div>
+    <div class="card i reveal" style="--d:4"><span class="pill">Después</span><h3 style="margin-top:.55rem">Extras</h3><p>update/upgrade, GitLab y Azure DevOps completos, más importadores y un dashboard de memoria.</p></div>
   </div>
   <div class="ojo reveal" style="--d:5"><b>Ojo:</b> los formatos de configuración de Claude Code y Kiro están validados contra documentación; falta un smoke test con las herramientas reales.</div>
   <div class="tip reveal" style="--d:6"><b>Probalo sin riesgo:</b> <code>gabitotl install --dry-run</code> no cambia nada.</div>
