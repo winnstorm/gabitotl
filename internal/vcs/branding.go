@@ -11,7 +11,9 @@ import (
 
 // BrandingPolicy is the authorship guard configuration a Repo enforces on the
 // text it sends to Git and to pull requests (workflow.md: branding_guard and
-// branding_extra_terms). The zero value means the default mode, strip.
+// branding_extra_terms). The zero value is block, the behavior the library has
+// always had (attribution is refused); the CLI always passes the configured mode,
+// whose default is strip.
 type BrandingPolicy struct {
 	Mode       string
 	ExtraTerms []string
@@ -24,7 +26,7 @@ func PolicyFromWorkflow(wf gabitotl.WorkflowConfig) BrandingPolicy {
 
 func (p BrandingPolicy) mode() string {
 	if p.Mode == "" {
-		return gabitotl.GuardStrip
+		return gabitotl.GuardBlock
 	}
 	return p.Mode
 }

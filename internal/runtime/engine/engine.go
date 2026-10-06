@@ -622,7 +622,10 @@ func removeEntry(e ownership.Entry) error {
 		s, _ := ownership.RemoveSection(string(out), name)
 		out = []byte(s)
 	}
-	for _, k := range e.Keys {
+	// Last in, first out: a parent object that the first key created is pruned
+	// only after the keys added next to it are gone.
+	for i := len(e.Keys) - 1; i >= 0; i-- {
+		k := e.Keys[i]
 		switch {
 		case k.Item != "":
 			out, _, err = ownership.ArrayRemove(out, k.Path, k.Item, k.Prune)

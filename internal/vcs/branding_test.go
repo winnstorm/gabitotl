@@ -19,6 +19,7 @@ var (
 
 func TestCommitStripsAttribution(t *testing.T) {
 	r := newRepo(t)
+	r.Branding.Mode = gabitotl.GuardStrip
 	var op string
 	var removed []branding.Finding
 	r.OnBranding = func(o string, rem, _ []branding.Finding) { op, removed = o, rem }
@@ -53,6 +54,7 @@ func TestCommitBlockMode(t *testing.T) {
 
 func TestCommitStripRefusesWhenLineHasContent(t *testing.T) {
 	r := newRepo(t)
+	r.Branding.Mode = gabitotl.GuardStrip
 	write(t, r.Dir, "b.txt", "b")
 	_, err := r.Commit(context.Background(), "feat: b\n\nThanks, generated "+"with "+llm, "b.txt")
 	if _, ok := IsBranding(err); !ok {
@@ -80,6 +82,7 @@ func TestCommitWarnAndOffModes(t *testing.T) {
 
 func TestCommitExtraTerms(t *testing.T) {
 	r := newRepo(t)
+	r.Branding.Mode = gabitotl.GuardStrip
 	write(t, r.Dir, "b.txt", "b")
 	msg := "feat: b\n\nCreated with AcmeLLM"
 	if _, err := r.Commit(context.Background(), msg, "b.txt"); err != nil {
@@ -103,14 +106,14 @@ func TestPolicyFromWorkflow(t *testing.T) {
 	if p.Mode != gabitotl.GuardBlock || len(p.ExtraTerms) != 1 {
 		t.Fatalf("policy = %+v", p)
 	}
-	if (BrandingPolicy{}).mode() != gabitotl.GuardStrip {
-		t.Fatal("zero policy must be strip")
+	if (BrandingPolicy{}).mode() != gabitotl.GuardBlock {
+		t.Fatal("zero policy must keep the library behavior: refuse")
 	}
 }
 
 func TestOpenPRStripsAndBlocks(t *testing.T) {
 	fr := &fakeRunner{out: "https://github.com/acme/app/pull/9"}
-	r := &Repo{Dir: t.TempDir(), Config: allowAll()}
+	r := &Repo{Dir: t.TempDir(), Config: allowAll(), Branding: BrandingPolicy{Mode: gabitotl.GuardStrip}}
 	var seen string
 	r.OnBranding = func(op string, rem, _ []branding.Finding) { seen = op + ":" + string(rune('0'+len(rem))) }
 	prov, _ := ProviderFor("github", fr)

@@ -105,7 +105,7 @@ func TestApplyIdempotentAndRemoveRestoresUserContent(t *testing.T) {
 	plan, _ := a.Plan(env, o)
 	res, err := a.Apply(env, plan)
 	must(t, err)
-	if len(res.Applied) != 2 || len(res.Removed) != 1 {
+	if len(res.Applied) != 5 || len(res.Removed) != 1 { // persona, memory MCP and the three attribution keys
 		t.Fatalf("%+v", res)
 	}
 	got := read(t, md)

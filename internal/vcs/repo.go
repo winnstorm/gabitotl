@@ -20,8 +20,8 @@ type Repo struct {
 	Confirm Confirm
 	// BranchPrefix is prepended to task branches (default "feature").
 	BranchPrefix string
-	// Branding is the authorship guard policy (workflow.md); the zero value is
-	// the default mode, strip.
+	// Branding is the authorship guard policy (workflow.md); the zero value
+	// refuses attribution (block).
 	Branding BrandingPolicy
 	// OnBranding is told what the guard removed (strip) or only reported (warn),
 	// so nothing is ever changed silently. May be nil.
