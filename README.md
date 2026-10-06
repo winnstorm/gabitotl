@@ -10,8 +10,9 @@ coordination, so a project "remembers how to work" across chats, models and peop
 - **What you get:** one orchestrator persona (Gabito, a pragmatic Technical Leader),
   invisible-but-always-present memory, a local backup before every modification,
   Conventional Commits without AI attribution, and one worktree per developer.
-- **What it never does:** run an agent swarm, own a database (it adopts Engram or a Memory
-  MCP), store secrets, or take over config files it did not create.
+- **What it never does:** run an agent swarm, touch a PostgreSQL you already run, store
+  secrets, or take over config files it did not create. Solo, it adopts your Engram; for a
+  team it can run its own Memory MCP server on an isolated, labeled PostgreSQL container.
 
 > Status: V1 core. Licensed under the [MIT License](LICENSE).
 > See [Status and limitations](#status-and-limitations) before relying on it.
@@ -36,8 +37,11 @@ On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
 
 1. what was detected (`✓` ready, `!` needs attention, `→` will be configured, `×` error);
 2. what to do (migrate Gentle-AI, install without touching it, review details, quit);
-3. "Tu memoria está segura" (reuse Engram, or shared memory with its honest limitation);
+3. "Tu memoria está segura" (reuse Engram, or go to shared team memory);
 4. only the questions that cannot be detected (name, solo or team, commits and PRs), one at a time;
+   for a team: "Memoria compartida (recomendado para equipos)" with two roles, host and client
+   (see [Team memory](#team-memory)), and, if Engram has memory, import it, keep it as history
+   or start empty;
 5. which coding agents to configure (detected ones preselected; nothing is installed);
 6. the plan (CREATE / MODIFY / PRESERVE / IMPORT / REMOVE AFTER VERIFY / NO ACTION), with the
    exact persona block that would be retired, and an `Aplicar` button;
@@ -58,7 +62,7 @@ pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
 | **Runtime** | The tool that runs the agent: `claude-code`, `opencode`, `kiro-cli`, `kiro-ide`. Only adapters know its file formats. |
 | **Model** | Which LLM the runtime uses. Chosen in `runtime.md`; changing it never touches persona, memory or workflow. |
 | **Persona** | Gabito: Argentine Spanish, short answers, "Qué hice / Progreso / Qué sigue", `OJO` and `TIP` only when they apply. |
-| **Memory** | Provider-agnostic contract. Engram (CLI) today; a Memory MCP/PostgreSQL provider exists behind an interface. |
+| **Memory** | Provider-agnostic contract. Engram (CLI) for one person; GabitoTL's own Memory MCP server over a managed PostgreSQL for a team. |
 | **Project** | Your repository plus `.gabitotl/`. |
 
 These five are independent on purpose: swap any one without rewriting the others.
@@ -89,7 +93,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | Command | What it does |
 |---------|--------------|
 | `gabitotl` | On a terminal in a project: the installer screen. Piped: onboard a project without `.gabitotl/`, otherwise a short status. Never starts an agent. |
-| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`. |
+| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`; team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below). |
 | `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
@@ -97,7 +101,12 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `cleanup` | Offer to delete expired snapshots and legacy copies (30 days). |
 | `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--vcs`. |
 | `scan [--json]` | Read-only project map (structure, stack, commands, recent history). |
-| `memory doctor \| search` | Memory provider health and relevance search. |
+| `memory doctor \| search` | Memory provider health (team mode: server, token, schema, project, managed container) and relevance search. |
+| `memory server install \| start \| stop \| status \| logs \| backup \| remove` | The managed, isolated PostgreSQL of team memory. |
+| `memory serve --http ADDR \| --stdio` | Run the Memory MCP server. |
+| `memory token create \| list \| revoke` | Per-user, project-scoped bearer tokens. |
+| `memory mcp` | The stdio bridge runtimes use in team mode (forwards to the server over HTTP). |
+| `memory migrate engram` | Import an Engram export into the team memory (idempotent, verified, Engram untouched). |
 | `vcs status \| branch --task ID` | Git state, provider, permissions; task branch `feature/<id>`. |
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
@@ -106,6 +115,36 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `version`, `help` | |
+
+## Team memory
+
+Engram is the simple choice for one person. For a team, GabitoTL ships its own Memory MCP
+server (Go, official MCP SDK) over a PostgreSQL that **it creates and labels itself**: a
+dedicated container, volume and network on `127.0.0.1`, never your PostgreSQL, never removed
+along with your data. Runtimes only ever need a stdio command: `gabitotl memory mcp`, which
+forwards every call to the server with your token.
+
+```text
+gabitotl install --memory memory-mcp --memory-role host --user gabi        # montar el servidor
+gabitotl memory serve --http 127.0.0.1:8765                                # run it (behind TLS for a network)
+gabitotl memory token create --user gonza --projects shop                  # one scoped token per teammate
+
+gabitotl install --memory memory-mcp --memory-role client \
+    --memory-url https://memoria.example.com/mcp --memory-token-env GABITOTL_MEMORY_TOKEN   # conectarme
+```
+
+- The actor of every write is the owner of the token; a request naming someone else is rejected.
+- A token is limited to the projects it was created for (`--projects a,b`); `--all-projects`
+  is an explicit, warned opt-in.
+- `.gabitotl/memory.md` holds references only (`url`, `token: env:NAME`); the token itself lives in
+  your environment or a 0600 file under `~/.gabitotl/secrets/`.
+- With no Docker or Podman the installer says so and offers the client role or Engram; it never
+  installs Docker.
+- An existing Engram memory can be imported (`--import-engram` on the host, or
+  `gabitotl memory migrate engram`): a safety export first, no duplicates on re-runs, original
+  timestamps kept, unknown authors recorded as `legacy`, Engram never modified.
+
+Operator guide, security model and troubleshooting: [docs/MEMORY_SERVER.md](docs/MEMORY_SERVER.md).
 
 ## The Gabito persona
 
@@ -169,8 +208,12 @@ Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
 V1 is deliberately small. Known gaps (details in [docs/ROADMAP.md](docs/ROADMAP.md)):
 
 - The TUI covers `gabitotl` and `gabitotl install`; `migrate`, `restore`, `uninstall` and `cleanup` still use plain numbered prompts.
-- No concrete Memory MCP server is selected; the abstract provider and a fake transport exist.
-- No Engram -> Memory MCP migrator (the export is kept and the plan says so).
+- Team memory runs on Docker (the managed PostgreSQL was tested with Docker; Podman is supported by
+  the code but untested). The server process is started by you (`memory serve`); there is no
+  service manager integration yet.
+- The Engram import is tested against hand-built fixtures that follow the upstream export schema
+  (see `internal/memory/migrate/engrammcp`), not against exports of every Engram version.
+- Kiro has not been smoke-tested against the real tool; no `gabitotl update`/`upgrade` yet.
 - Bitbucket PRs are a documented stub (`ErrNotImplemented`); GitLab/Azure DevOps have no PR support.
 - Kiro and Claude Code config formats are partly assumed; each assumption is listed in the
   package docs (`internal/runtime/claudecode`, `internal/runtime/opencode`, `internal/runtime/kiro`).

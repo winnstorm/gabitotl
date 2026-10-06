@@ -135,3 +135,47 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   address is refused unless `--allow-insecure-remote` declares a TLS-terminating proxy.
 - **Consequence:** adds `pgx/v5` and `go-sdk` (14 modules in `go.sum`, two of them test-only helpers of pgx). Default tests never need Docker; Docker and PostgreSQL
   suites are opt-in (`GABITOTL_TEST_DOCKER=1`, `GABITOTL_TEST_PG_DSN`).
+
+## D20. Runtimes get one stdio entry; a bridge forwards to the server
+- **Decision:** in team mode every runtime registers ONE managed MCP entry that runs `gabitotl memory mcp`. That
+  command is a stdio MCP server built from the same tool descriptors as the real server; it forwards each call over
+  streamable HTTP with the developer's token (read from an `env:NAME` reference at call time, with the 0600
+  `memory-client.env` as fallback for runtimes that do not inherit the shell environment).
+- **Why:** the three runtimes differ in how they configure remote MCP servers, auth headers and environment
+  expansion; a stdio command is the one shape all of them support, and the token never has to be written into a
+  runtime config. The bridge has no identity or store of its own, so the server stays the only authority.
+- **Switching providers:** an adapter plans the removal of the other provider's entry (REMOVE-AFTER-VERIFY) only
+  when the ownership state says GabitoTL created that exact key; entries the user wrote are never touched.
+- **Consequence:** `gabitotl` must be on the PATH the runtime uses; the bridge resolves its URL and token from the
+  project's `memory.md` (or `--url`/`--token-env`).
+
+## D21. Tokens are project-scoped; "no scope" is never "everything"
+- **Decision:** a token carries either an explicit project allowlist (`--projects a,b`) or an explicit all-projects flag
+  (`--all-projects`, warned); creating one with neither is a usage error. The server enforces it on every tool.
+  Tokens created before the change stay all-project (schema migration 0002); there is no in-place edit.
+- **Why:** the first server version trusted anyone with a token on every project and told operators to run one
+  server per trust boundary. Scoping makes one server per team workable. Failing closed on an unreadable scope and on an
+  update that names no project (the store would match any project) keeps the check unbypassable.
+- **Proxy:** the per-address authentication throttle can trust one header (`--trusted-proxy-header`, off by default,
+  last entry wins) because behind a proxy every client otherwise shares one address.
+
+## D22. The Engram migrator writes through the store; the actor is never invented
+- **Decision:** `engrammcp` imports the official export through a store-level `Importer` keyed by a stable source
+  reference. It requires a non-empty safety export, skips deleted and personal-scope observations, never overwrites a
+  taken `topic_key`, verifies counts and a content-hash sample, and keeps its report free of content. The actor is the
+  author recorded by a GabitoTL trailer, else `legacy` (`source: engram/gentle-ai`).
+- **Why through the store:** `legacy` can never authenticate (D19), and a re-runnable import needs an idempotency key and
+  the original timestamps, which the tools deliberately do not accept. Personal-scope notes would otherwise become
+  visible to the whole team.
+- **Pair name:** the migrator is registered for (`engram`, `memory-mcp`): `memory-mcp` is the provider name in
+  `memory.md` and, since D19, it means this repository's own server.
+- **Schema honesty:** the export schema was read from the upstream source (summarized by the fetch tool) and the
+  installed `engram` binary was not inspected; what is verified and what is assumed is listed in the package doc.
+
+## D23. Team memory is set up by the installer, and a rollback never deletes data
+- **Decision:** the host role runs the managed PostgreSQL plan inside the installer pipeline (snapshot first, verify,
+  roll back). A rollback removes only the container and network the run itself created and keeps the volume and the
+  credentials; a pre-existing server is left alone. No container engine means the plan says so and offers the client
+  role or Engram; GabitoTL never installs Docker.
+- **Why:** a failed install must be retryable without losing data, and the isolation promise ("never touch a PostgreSQL
+  you already run") holds only if rollback is as careful as install.

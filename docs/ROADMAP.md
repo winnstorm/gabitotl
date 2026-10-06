@@ -6,14 +6,22 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 
 ## Deferred on purpose in V1
 
-- **Engram to Memory MCP/PostgreSQL migrator.** `internal/memory/migrate` has the
-  `MemoryMigrator` interface and an empty registry. A migrator ships only when the
-  Memory MCP server is chosen and the adapter is tested against it. Until then the
-  installer keeps the Engram export and says so.
-- **Concrete Memory MCP server.** The abstract provider exists; no server or
-  PostgreSQL access is wired.
+- Done since V1: the Memory MCP server, the managed PostgreSQL, the client transport and stdio bridge,
+  project-scoped tokens, the tested Engram migrator and the team memory installer (TUI and flags).
+
+## Still open in team memory
+
+- A service-manager integration for `memory serve` (today you start the process; docs show how to run it
+  behind TLS) and a `memory server upgrade` for new PostgreSQL images.
+- Podman is supported by the engine code but untested; the managed PostgreSQL was exercised with Docker only.
+- The Engram migrator is tested against hand-built fixtures that follow the upstream schema; run it with
+  `--dry-run` against your own export first. Relations and the original Engram type are stored in `meta`
+  but not yet exposed by the tools.
+- Token scope cannot be edited in place (create a scoped token, revoke the old one).
 
 ## Installer and distribution
+
+- Smoke test of the Kiro adapter against the real tool (its formats are verified against documentation only).
 
 - TUI for `migrate`, `restore`, `uninstall` and `cleanup` (V1 ships the TUI for `gabitotl` and
   `gabitotl install`; those commands keep the plain prompts), and a dry-run entry inside the TUI.

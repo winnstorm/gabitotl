@@ -15,14 +15,144 @@ For a solo user on one machine the host and the client are the same person and
 Engram is still the simpler choice. A team host can also be a plain PostgreSQL
 you already run: skip `memory server install` and point `--dsn env:NAME` at it.
 
+## Installer (both roles in one step)
+
+`gabitotl install` (TUI or flags) sets either role up through the same pipeline as everything
+else: detect, snapshot first, apply, verify, roll back on failure.
+
+```text
+# host: this machine runs the server (needs Docker or Podman; never installed for you)
+gabitotl install --memory memory-mcp --memory-role host --user gabi [--memory-invite gonza] [--import-engram] --dry-run
+gabitotl install --memory memory-mcp --memory-role host --user gabi [--memory-invite gonza] [--import-engram]
+
+# client: connect to an existing server (URL + the NAME of the variable holding your token)
+gabitotl install --memory memory-mcp --memory-role client --memory-url https://memoria.example.com/mcp \
+    --memory-token-env GABITOTL_MEMORY_TOKEN [--memory-store-token]
+```
+
+- **Host.** Installs the managed PostgreSQL (below), creates your token (scoped to this project,
+  stored in `~/.gabitotl/secrets/memory-client.env`, mode 0600) and one token per `--memory-invite`
+  (printed once at the end, never stored), writes `.gabitotl/memory.md` (`mode: team`,
+  `provider: memory-mcp`, `role: host`, `url`, `token: env:NAME`: references only) and registers the
+  bridge in the selected runtimes. It does **not** start the server process: the result tells you to
+  run `gabitotl memory serve --http 127.0.0.1:8765` (put it behind TLS to reach it over a network).
+  Rollback after a failure removes the container and network this run created and **keeps the data
+  volume and the credentials**; a server that already existed is never touched by a rollback.
+- **Client.** Writes `memory.md` (`role: client`), registers the bridge and validates with
+  `memory doctor` (a server that does not answer rolls the install back; a token that is simply not
+  exported yet only warns). `--memory-store-token` copies the token from the variable into the 0600
+  file (the TUI offers to take it from a password prompt instead); the token is never put in a
+  command line, the repo, a log or a report.
+- **No container engine.** The plan says so and nothing changes: choose the client role or stay
+  with Engram. GabitoTL never installs Docker.
+- **Engram memory.** With the host role, `--import-engram` runs the tested migrator over the
+  snapshot's safety export (see "Migrating from Engram"). A client cannot import: it has no database
+  access, so the host does it.
+
+## Client role
+
+A developer needs two things: the server URL (`https://host:port/mcp`; plain `http://` is accepted
+only for `127.0.0.1`/`localhost`) and a token. The runtime config gets ONE managed entry that
+runs `gabitotl memory mcp`; switching a project between Engram and team memory retires the old
+managed entry (only an entry GabitoTL created, recorded in `~/.gabitotl/state.json`) and never
+touches entries you wrote yourself.
+
+The token is read **at call time** from the variable named in `memory.md` (`token: env:NAME`), then,
+for runtimes launched without your shell environment, from `~/.gabitotl/secrets/memory-client.env`.
+Errors are mapped to something you can act on: *authentication failed* (token rejected or not set),
+*server unreachable*, *does not match this client's contract* (wrong endpoint or version), *rate
+limited*, *not allowed to use that project*. Reads are retried once on a transport failure; writes
+never are.
+
+## The stdio bridge (`gabitotl memory mcp`)
+
+A stdio MCP server that exposes exactly the server's tools (same names, descriptions and input
+schemas, taken from the same definitions) and forwards each call over HTTP. Flags:
+`--url`, `--token-env NAME`, `--project`, `--root`, `--allow-insecure`; all default to the
+`.gabitotl/memory.md` of the project it is started in. It fills a missing `project` from
+`project_key`. It has no store and no identity of its own: the server authenticates the token, so
+scope and actor rules apply unchanged. Logs go to stderr and never contain tokens or entry content.
+
+## Scoped tokens
+
+```text
+gabitotl memory token create --user gonza --projects shop,kraken   # explicit allowlist
+gabitotl memory token create --user root --all-projects            # explicit opt-in (warned)
+gabitotl memory token list                                          # shows the scope of each token
+```
+
+A token must say which one it is (neither flag is a usage error: "no scope" is never read as
+"everything"). The server enforces the allowlist on every tool: `memory_search`, `memory_save`,
+`memory_update` (a scoped token must name a project, so an update cannot reach another one),
+`memory_session_summary` and `memory_active_work` answer *not allowed to use project*; `memory_current_project`
+hides a default project the token cannot use and `memory_doctor` omits the cross-project counts.
+
+**Migration note.** Schema migration 0002 adds the columns. Every token that existed before it keeps
+working on every project (`all projects` in `token list`); there is no in-place scope edit: create a
+scoped token and revoke the old one.
+
+## Behind a proxy
+
+The authentication throttle (ten failed attempts per minute) is per client address. Behind a reverse
+proxy every request comes from the proxy, so by default it throttles the proxy as a whole. Opt in:
+
+```text
+gabitotl memory serve --http 127.0.0.1:8765 --trusted-proxy-header X-Forwarded-For
+```
+
+The throttle and the access log then use the **last** entry of that header (the address the nearest
+proxy appended; leading entries are client-supplied and ignored); an absent or invalid value falls
+back to the TCP peer. Off by default, because anyone who can reach the server directly could forge the
+header: only enable it when the server is reachable exclusively through your proxy.
+
+## Migrating from Engram
+
+```text
+gabitotl memory migrate engram --project shop --export ~/engram-export.json --dry-run   # counts only
+gabitotl memory migrate engram --project shop --export ~/engram-export.json --yes       # import + verify
+gabitotl memory migrate engram --project shop --yes                                     # makes the safety export first
+```
+
+Run it on the machine that can reach the database (the host). Input is the **official**
+`engram export` JSON (without `--export` it runs `engram export` for you, the only command GabitoTL
+ever runs against Engram besides `doctor` and `projects list`). Rules:
+
+- **Safety.** It refuses to run unless a backup export exists, is a regular non-empty file and
+  looks like an export (`--backup`, default the export itself). Engram's database and files are only
+  read; nothing is modified or deleted there.
+- **Idempotent and resumable.** Every observation is keyed by a stable source id (`engram:<sync_id>`,
+  or a content hash for exports without ids). Re-running never duplicates, never overwrites, never
+  resurrects an entry that was deleted afterwards; an interrupted run is simply re-run (the report
+  checkpoint says `resumed`).
+- **What is kept.** Project, type, content, `topic_key`, original created/updated timestamps; the
+  original Engram type, session and relations go to the entry's `meta` (stored, not shown by the tools);
+  session summaries become session summaries.
+- **Actor.** The original author when the content carries a GabitoTL `**Actor**` trailer (entries
+  GabitoTL itself saved); otherwise `legacy` with `source: engram/gentle-ai`. Engram records no author,
+  so an actor is never invented. `legacy` cannot authenticate: imports write through the store.
+- **What is skipped (and reported).** Soft-deleted observations; **personal-scope** ones (they would
+  become visible to the whole team; `--include-personal` opts in); other projects (with `--project`);
+  empty ones. Prompts are counted but not imported.
+- **Type mapping.** GabitoTL types pass through; `architecture`->`decision`, `pattern`->`convention`,
+  `learning`/`manual`->`discovery`, `session_summary`->`progress`, anything else ->`discovery`, always
+  with the original kept in `meta` and listed in the report.
+- **Topic keys never overwrite team memory.** A `topic_key` already used by a live entry of the project is
+  dropped from the imported entry (recorded in `meta`) and counted in the report.
+- **Verification.** Counts must add up and a deterministic sample of up to 25 entries is compared
+  by content hash, project, type and creation time. The report (`import-report.json`, mode 0600, counts and
+  reasons only, no content) is kept under `~/.gabitotl/migrations/<id>_memory-import/`.
+
+The export schema this is built on, with what was verified and what is assumed, is in the package doc of
+`internal/memory/migrate/engrammcp`.
+
 ## Quick start (host)
 
 ```text
 gabitotl memory server install --dry-run     # shows exactly what would be created
 gabitotl memory server install               # network + volume + container, waits until ready
 gabitotl memory serve --http 127.0.0.1:8765  # the MCP server (reads the managed credentials)
-gabitotl memory token create --user gabi     # prints the token ONCE
-gabitotl memory token create --user gonza
+gabitotl memory token create --user gabi --projects shop     # prints the token ONCE
+gabitotl memory token create --user gonza --projects shop,kraken
 ```
 
 `serve` resolves its connection through `--dsn env:NAME` (default
@@ -80,15 +210,14 @@ rejects any overlap and no other network is inspected.
 - **Tokens.** Created with `memory token create --user ID`, shown once, stored as a
   SHA-256 hash, compared in constant time; a wrong id and a wrong secret are
   indistinguishable. `memory token revoke --user ID [--id TOKEN_ID]` takes effect on
-  the next request. Tokens are not scoped to a project: anyone with a token can read
-  and write every project on that server, so run one server per trust boundary.
+  the next request. Tokens carry a project allowlist (see "Scoped tokens"); an
+  `--all-projects` token can use every project on the server.
 - **Limits.** Request body 1 MiB (413 above), title 300 B, content 64 KiB, other
   fields 8 KiB, 200 files, search capped at 20 results (default 8) and always scoped
   to one project, 20 s per tool call, 10 s to read headers.
 - **Rate limiting.** 20 requests/s per user (burst 40); ten failed authentications per
   minute per client address, after which that address gets 429 until the window
-  refills. Behind a proxy the address is the proxy's: the throttle then applies to
-  the proxy as a whole, so keep it in front of the server only if you accept that.
+  refills. Behind a proxy see "Behind a proxy" (`--trusted-proxy-header`, off by default).
 - **TLS.** Optional: `--tls-cert FILE --tls-key FILE`. Plain HTTP on a non-loopback
   address is refused, because bearer tokens would cross the network unencrypted.
   Put the server behind a TLS-terminating proxy and pass `--allow-insecure-remote`
@@ -151,5 +280,6 @@ Default `go test ./...` never needs Docker. Opt-in suites:
   `gabitotl-test-<random>-pg` (own volume and network, labeled, removed at the end)
   for the PostgreSQL conformance and engine tests. `GABITOTL_TEST_PG_IMAGE` overrides
   the image.
+- `GABITOTL_TEST_DOCKER=1` also runs the client transport and the Engram migrator against the real store.
 - `GABITOTL_TEST_PG_DSN=postgres://...` points the PostgreSQL tests at a throwaway
   database instead; each test creates and drops its own `gtl_test_*` schema.
