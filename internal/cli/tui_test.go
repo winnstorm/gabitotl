@@ -82,3 +82,31 @@ func TestTUIConfigCarriesFlagsAndNeverAsksWhatWasGiven(t *testing.T) {
 		t.Fatalf("name and memory were given, so they are not asked: %+v", need)
 	}
 }
+
+func TestBareCommandShowsStatusInAConfiguredProject(t *testing.T) {
+	f := newCfix(t)
+	r := runIn(t, "", false, t.TempDir(), "init", "--root", f.root, "--name", "Shop", "--kind", "new",
+		"--user-id", "gabi", "--user-name", "Gabi", "--yes")
+	if r.code != 0 {
+		t.Fatalf("init: %s", r.err)
+	}
+	before := chash(t, f.home, f.root)
+	for _, tty := range []bool{true, false} {
+		res, calls := f.runOn(tty, tty)
+		if calls != 0 {
+			t.Fatalf("tty=%v: a configured project must not open the installer", tty)
+		}
+		for _, want := range []string{"GabitoTL en este proyecto", "Identidad: Gabi", "Memoria:"} {
+			if !strings.Contains(res.out, want) {
+				t.Fatalf("tty=%v: status lacks %q:\n%s", tty, want, res.out)
+			}
+		}
+	}
+	if chash(t, f.home, f.root) != before {
+		t.Fatal("the status must change nothing")
+	}
+	// `install` is how the installer is opened again.
+	if _, calls := f.runOn(true, true, "install"); calls != 1 {
+		t.Fatalf("install must open the TUI on a terminal, calls=%d", calls)
+	}
+}

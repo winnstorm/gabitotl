@@ -10,8 +10,10 @@ import (
 )
 
 // runHome is `gabitotl` with no arguments. It never starts an agent: without a
-// .gabitotl it begins the onboarding (the installer questions); with one it
-// prints a short status.
+// .gabitotl it begins the onboarding (the full-screen installer on a terminal,
+// the plain questions otherwise); in an already configured project it prints a
+// short status and never opens the installer. `gabitotl install` is the way to
+// open the installer again.
 func runHome(env Env) int {
 	m := ui.Default()
 	root := ""
@@ -25,7 +27,7 @@ func runHome(env Env) int {
 		printHelp(env.Stdout)
 		fmt.Fprintf(env.Stdout, "\n%s\n", m.Format("home.not_project"))
 		return ExitOK
-	case env.IsTTY && env.IsOutTTY:
+	case !gabitotl.Exists(root) && env.IsTTY && env.IsOutTTY:
 		return execute(env, installFlags{root: root, tui: true}, "install")
 	case !gabitotl.Exists(root):
 		if !env.IsTTY { // onboarding asks questions; it cannot without a terminal
