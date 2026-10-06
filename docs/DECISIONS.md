@@ -179,3 +179,27 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   role or Engram; GabitoTL never installs Docker.
 - **Why:** a failed install must be retryable without losing data, and the isolation promise ("never touch a PostgreSQL
   you already run") holds only if rollback is as careful as install.
+
+## D24. Authorship belongs to the requester; the guard targets attribution, not mentions
+- **Decision:** LLM branding that claims authorship (co-author trailers and identities, "generated with/by" lines,
+  author headers, assistant boilerplate, badges and share links) is kept out of commits, PRs, files, `.gabitotl/`
+  and memory, for any model or tool. The detector (`internal/branding`) needs a brand plus an authorship cue; a
+  plain technical mention (a runtime we document, a model id, a config dir, an SDK import) is never a finding.
+- **Why:** the person who asked for the work owns it. Tools add their own attribution by default, so one layer is
+  not enough: the guard sits at the persona, the runtime settings, the Git hooks, `vcs.Commit`/PR creation, memory
+  and `.gabitotl/` writes (defense in depth), with `scan`/`fix` for what is already there. Precision matters more
+  than recall: a guard that cries wolf on documentation gets switched off.
+- **Strip vs block:** `strip` (the default) edits only where removing a line is safe, that is free text such as a
+  commit message, PR text and memory entries, and always reports what it removed. Files and staged changes are never
+  rewritten by a hook or a write: they are refused (`block`) and fixed on purpose with `guard fix`, which backs up
+  first and leaves ambiguous matches (attribution mixed with code or prose) for manual review. A mixed line in a
+  message is refused too. `warn` and `off` exist for people who disagree; the zero-value policy of the Go library is
+  `block`, the behavior it always had, while the CLI passes the configured mode.
+- **No history rewrite:** commits that already carry attribution are reported (`guard scan --history`, `doctor`),
+  never rewritten. This is the same rule as D10 (history is never rewritten); the owners of that history decide.
+- **Hooks never replace yours:** a user hook is moved to `<name>.gabitotl-orig` and chained, and uninstall restores
+  it; ownership is a marker in the file. A missing binary warns instead of blocking.
+- **Runtime settings:** only documented settings are written. Claude Code's `attribution` object is managed
+  (empty commit and PR text, no session link; the empty-string value is an ASSUMPTION, see docs/GUARD.md); OpenCode
+  and Kiro have no documented option, so none is invented.
+

@@ -107,6 +107,9 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `memory token create \| list \| revoke` | Per-user, project-scoped bearer tokens. |
 | `memory mcp` | The stdio bridge runtimes use in team mode (forwards to the server over HTTP). |
 | `memory migrate engram` | Import an Engram export into the team memory (idempotent, verified, Engram untouched). |
+| `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
+| `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
+| `guard install-hooks \| uninstall-hooks \| status` | `commit-msg` and `pre-commit` Git hooks (chained after any hook you already have). Installed by `init`/`install` unless you decline. |
 | `vcs status \| branch --task ID` | Git state, provider, permissions; task branch `feature/<id>`. |
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
@@ -115,6 +118,24 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `version`, `help` | |
+
+## Authorship: no AI branding
+
+Authorship belongs to the person who asked for the work. GabitoTL detects LLM branding that
+credits a tool as author (any model: co-author trailers, "generated with" lines, author headers,
+assistant boilerplate, badges and share links) and removes it or refuses to introduce it, in
+commits, pull requests, files, `.gabitotl/` and memory. Plain technical mentions (documenting
+a runtime, a model id, a config directory) are not flagged.
+
+- `branding_guard: strip | block | warn | off` in `.gabitotl/workflow.md` (default `strip`: messages are
+  cleaned and the removal is reported; files are never rewritten silently, they block until
+  `guard fix`). Also `branding_extra_terms` and `branding_allow_paths`.
+- Git hooks, `guard scan` and `guard fix`, the persona rule, memory stripping and the Claude Code
+  `attribution` settings (managed keys, removed on uninstall) all enforce it. `doctor` has an
+  "Autoría/branding" section.
+- Existing history is reported by `guard scan --history`, never rewritten.
+
+Details, the exact mode table and the false-positive policy: [docs/GUARD.md](docs/GUARD.md).
 
 ## Team memory
 
@@ -200,6 +221,7 @@ Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
   are references only: `env:NAME`, `keychain:NAME` or `native`.
 - Reports, logs and inventories list paths, ids and counts, never remotes or environment values.
 - Backups skip `.env*` and key files; commands refuse paths outside the project root.
+- No LLM branding anywhere: the authorship guard (hooks, scan, fix, persona rule) keeps tool attribution out of commits, PRs, code and memory.
 - History is never rewritten: no force-push, `reset --hard`, amend or rebase. Roll back with a revert commit.
 - Remote and PR actions follow `vcs.md` permissions (`allow` / `ask` / `deny`).
 
@@ -231,6 +253,7 @@ AI attribution trailers, no secrets.
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - packages, invariants
 - [docs/DECISIONS.md](docs/DECISIONS.md) - why it is built this way
+- [docs/GUARD.md](docs/GUARD.md) - the authorship guard: what it detects, modes, hooks, allowlist
 - [docs/MEMORY_SERVER.md](docs/MEMORY_SERVER.md) - running the team Memory MCP server and its managed PostgreSQL
 - [docs/ROADMAP.md](docs/ROADMAP.md) - what comes after V1
 - [docs/GABITOTL_SPEC_V1.md](docs/GABITOTL_SPEC_V1.md), [docs/GABITOTL_INSTALLER_MIGRATION_SPEC.md](docs/GABITOTL_INSTALLER_MIGRATION_SPEC.md), [docs/GABITOTL_BUILD_PROMPT.md](docs/GABITOTL_BUILD_PROMPT.md) - original specs

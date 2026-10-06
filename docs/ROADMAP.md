@@ -19,6 +19,14 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
   but not yet exposed by the tools.
 - Token scope cannot be edited in place (create a scoped token, revoke the old one).
 
+## Authorship guard
+
+- Verify on a real Claude Code that an empty `attribution.commit` / `attribution.pr` hides the trailer (documented
+  value is partly assumed, see docs/GUARD.md), and look for attribution options in OpenCode and Kiro as their docs grow.
+- A TUI question for the hooks (today: installed by default, `--no-hooks` / `--no-guard-hooks` to decline).
+- `guard fix` for files only; an offer to propose reverting commits that carry attribution is out of scope on purpose
+  (history is never rewritten).
+
 ## Installer and distribution
 
 - Smoke test of the Kiro adapter against the real tool (its formats are verified against documentation only).
