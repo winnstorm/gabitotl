@@ -13,6 +13,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/gabitotl` | Project layer: `Layout` (all `.gabitotl/` paths), Markdown + YAML front matter codec (`ParseDoc`, `RenderDoc`), typed configs, secret guard, `Init`, `DetectKind`, `FindRoot`. |
 | `internal/identity` | Developer identity: slugged IDs, shared profile in `users/`, active identity in `local/user.md`. Never stores emails. |
 | `internal/memory` | Provider-agnostic memory contract: `Provider` (Search/Save/Update/SessionSummary/CurrentProject/Doctor), `Entry` with traceability fields, `Guard` (team mode requires `actor`; unknown authorship is `legacy`), `Factory`, relevance query builder (capped, never loads memory in full) and `Recorder` (honors `workflow.memory_after_work`). |
+| `internal/memory/engram` | Adapter over the real `engram` CLI behind a `Runner` interface (tests use a fake). Search, Save, Doctor (`engram doctor --json`, read-only), `Projects()`, `Export()`. `Update`, `SessionSummary` and keyless `CurrentProject` have no CLI equivalent and return `ErrUnsupported`; the DB file is never touched directly. Traceability fields travel in a `**Label**: value` content trailer. |
 | `internal/adapters/<runtime>` | (Planned, T4.) Per-runtime installers and renderers. |
 
 ## Dependency rule
