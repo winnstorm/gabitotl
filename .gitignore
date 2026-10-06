@@ -31,3 +31,4 @@ coverage.*
 .env.*
 *.pem
 .atl/
+internal/e2e/zz-scratch-*/
