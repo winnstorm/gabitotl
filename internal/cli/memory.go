@@ -28,7 +28,7 @@ const memoryTimeout = 30 * time.Second
 
 func runMemory(env Env, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory <doctor|search|server|serve|token> [flags]")
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory <doctor|search|server|serve|token|mcp|migrate> [flags]")
 		return ExitUsage
 	}
 	switch args[0] {
@@ -42,8 +42,10 @@ func runMemory(env Env, args []string) int {
 		return runMemoryServe(env, args[1:])
 	case "token":
 		return runMemoryToken(env, args[1:])
+	case "mcp":
+		return runMemoryMCP(env, args[1:])
 	}
-	fmt.Fprintf(env.Stderr, "gabitotl memory: unknown subcommand %q (want doctor, search, server, serve or token)\n", args[0])
+	fmt.Fprintf(env.Stderr, "gabitotl memory: unknown subcommand %q (want doctor, search, server, serve, token, mcp or migrate)\n", args[0])
 	return ExitUsage
 }
 

@@ -185,19 +185,41 @@ type ActiveIn struct {
 	Limit        int    `json:"limit,omitempty" jsonschema:"maximum results, default 8, capped at 20"`
 }
 
-func (s *Server) register() {
+// descriptor returns the MCP tool definition (name, description, hints) shared
+// by the server and by the stdio bridge, so the two can never diverge.
+func descriptor(name string) *mcp.Tool {
 	ro := &mcp.ToolAnnotations{ReadOnlyHint: true}
 	rw := func(title string) *mcp.ToolAnnotations {
 		f := false
 		return &mcp.ToolAnnotations{Title: title, DestructiveHint: &f}
 	}
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolSearch, Description: "Search team memory by relevance. Always scoped to one project; at most 20 results.", Annotations: ro}, s.search)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolSave, Description: "Save a memory entry attributed to you. With a topic_key, a live entry with the same key is revised in place.", Annotations: rw("Save memory")}, s.save)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolUpdate, Description: "Update fields of an existing entry. Pass expected_revision for an optimistic lock.", Annotations: rw("Update memory")}, s.update)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolSessionSummary, Description: "Store the summary that closes a working session.", Annotations: rw("Session summary")}, s.sessionSummary)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolCurrentProject, Description: "The server's default project (if any) and the authenticated actor.", Annotations: ro}, s.currentProject)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolDoctor, Description: "Read-only health report of the memory server and its database.", Annotations: ro}, s.doctor)
-	mcp.AddTool(s.mcp, &mcp.Tool{Name: ToolActiveWork, Description: "Recently updated entries, newest first, by actor and/or task: who is working on what.", Annotations: ro}, s.activeWork)
+	switch name {
+	case ToolSearch:
+		return &mcp.Tool{Name: ToolSearch, Description: "Search team memory by relevance. Always scoped to one project; at most 20 results.", Annotations: ro}
+	case ToolSave:
+		return &mcp.Tool{Name: ToolSave, Description: "Save a memory entry attributed to you. With a topic_key, a live entry with the same key is revised in place.", Annotations: rw("Save memory")}
+	case ToolUpdate:
+		return &mcp.Tool{Name: ToolUpdate, Description: "Update fields of an existing entry. Pass expected_revision for an optimistic lock.", Annotations: rw("Update memory")}
+	case ToolSessionSummary:
+		return &mcp.Tool{Name: ToolSessionSummary, Description: "Store the summary that closes a working session.", Annotations: rw("Session summary")}
+	case ToolCurrentProject:
+		return &mcp.Tool{Name: ToolCurrentProject, Description: "The server's default project (if any) and the authenticated actor.", Annotations: ro}
+	case ToolDoctor:
+		return &mcp.Tool{Name: ToolDoctor, Description: "Read-only health report of the memory server and its database.", Annotations: ro}
+	case ToolActiveWork:
+		return &mcp.Tool{Name: ToolActiveWork, Description: "Recently updated entries, newest first, by actor and/or task: who is working on what.", Annotations: ro}
+	}
+	panic("server: unknown tool " + name)
+}
+
+func (s *Server) register() {
+	mcp.AddTool(s.mcp, descriptor(ToolSearch), s.search)
+	mcp.AddTool(s.mcp, descriptor(ToolSave), s.save)
+	mcp.AddTool(s.mcp, descriptor(ToolUpdate), s.update)
+	mcp.AddTool(s.mcp, descriptor(ToolSessionSummary), s.sessionSummary)
+	mcp.AddTool(s.mcp, descriptor(ToolCurrentProject), s.currentProject)
+	mcp.AddTool(s.mcp, descriptor(ToolDoctor), s.doctor)
+	mcp.AddTool(s.mcp, descriptor(ToolActiveWork), s.activeWork)
 }
 
 func tooLong(name, v string, max int) error {
