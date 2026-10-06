@@ -45,9 +45,10 @@ const (
 	DefaultContainer = "gabitotl-memory-postgres"
 	DefaultVolume    = "gabitotl-memory-pgdata"
 	DefaultNetwork   = "gabitotl-memory-net"
-	// DefaultImage is the pinned official image. PostgreSQL 17 keeps the data
-	// directory at /var/lib/postgresql/data, which the volume mount relies on.
-	DefaultImage    = "postgres:17-alpine"
+	// DefaultImage is the pinned official image (PostgreSQL 17, supported until
+	// 2029). 17 keeps the data directory at /var/lib/postgresql/data, which the
+	// volume mount relies on; 18 moved it, so moving up is a deliberate migration.
+	DefaultImage    = "postgres:17.11-alpine"
 	DefaultPort     = 54329
 	DefaultDatabase = "gabitotl_memory"
 	DefaultUser     = "gabitotl_memory"

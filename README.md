@@ -188,5 +188,6 @@ AI attribution trailers, no secrets.
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - packages, invariants
 - [docs/DECISIONS.md](docs/DECISIONS.md) - why it is built this way
+- [docs/MEMORY_SERVER.md](docs/MEMORY_SERVER.md) - running the team Memory MCP server and its managed PostgreSQL
 - [docs/ROADMAP.md](docs/ROADMAP.md) - what comes after V1
 - [docs/GABITOTL_SPEC_V1.md](docs/GABITOTL_SPEC_V1.md), [docs/GABITOTL_INSTALLER_MIGRATION_SPEC.md](docs/GABITOTL_INSTALLER_MIGRATION_SPEC.md), [docs/GABITOTL_BUILD_PROMPT.md](docs/GABITOTL_BUILD_PROMPT.md) - original specs

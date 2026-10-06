@@ -110,3 +110,28 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   completion (point of no return). `ctrl+c` while applying cancels the context and waits for the pipeline's own
   rollback; the TUI never exits mid-apply.
 - **Consequence:** about 25 more modules in `go.sum`; `NO_COLOR` strips every style, so state is always carried by symbols.
+
+## D19. Our own Memory MCP server on a managed, isolated PostgreSQL; the actor comes from the token
+- **Decision:** team memory is served by GabitoTL's own Go MCP server (`internal/memory/server`, official Go SDK) over a
+  `store.Store`, implemented for PostgreSQL (`pgx/v5`) and in memory. The PostgreSQL is a container GabitoTL creates and
+  labels itself (`internal/pgmanaged`), not an embedded database and not the user's PostgreSQL. Over HTTP the actor of every
+  write is the owner of the bearer token; a request naming another actor is rejected.
+- **Why a server of our own:** the spec's contract is actor, branch, task, commit and soft-lock queries on every entry; a
+  third-party Memory MCP has its own schema (spec 20: never assume it matches). Owning the tools gives stable names and
+  JSON schemas, per-user identity and `memory_active_work` for the soft lock. Engram stays the solo provider.
+- **Why a managed container instead of embedded or the user's PostgreSQL:** an embedded database cannot be shared by a
+  team, and sharing the user's PostgreSQL could interfere with it. A labeled container with its own volume and network can
+  be proven isolated: every operation checks the label first and refuses foreign resources, the port is loopback-only and
+  never 5432, and removal keeps the data unless purged. Image `postgres:17.11-alpine`: 17 is supported until 2029 and keeps
+  the data directory at `/var/lib/postgresql/data`; 18 is current but moved it, so adopting it is a deliberate migration.
+- **Why the token decides the actor:** a client-supplied actor would make "who changed this" unreliable in team mode. Tokens
+  are `gbt_<id>.<secret>`; only the SHA-256 of the secret is stored, compared in constant time, shown once, revocable at
+  once. `legacy` is never an authenticated actor (imports go through the store directly). stdio, a single trusted local
+  client, uses an actor fixed at startup.
+- **Search:** PostgreSQL full text with the `simple` configuration, so Spanish and English text behave alike (no stemming);
+  prefix matching recovers inflected forms. Title outweighs topic/task, which outweighs the body.
+- **Stateless HTTP:** every tool is request/response, so streamable HTTP runs stateless with JSON responses (no sessions, no
+  server streams), which keeps timeouts, rate limits and proxies simple. TLS is optional; plain HTTP on a non-loopback
+  address is refused unless `--allow-insecure-remote` declares a TLS-terminating proxy.
+- **Consequence:** adds `pgx/v5` and `go-sdk` (14 modules in `go.sum`, two of them test-only helpers of pgx). Default tests never need Docker; Docker and PostgreSQL
+  suites are opt-in (`GABITOTL_TEST_DOCKER=1`, `GABITOTL_TEST_PG_DSN`).
