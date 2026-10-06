@@ -28,6 +28,7 @@ note.server-conflict = Ya existe algo con el nombre de nuestro servidor pero no 
 note.team-unconfigured = Dejé anotado el modo equipo, pero falta elegir cómo conectarte: montar el servidor (--memory-role host) o conectarte a uno existente (--memory-role client --memory-url ...).
 note.import-unavailable = No puedo importar Engram a la memoria compartida: {detail}.
 note.import-needs-host = Importar Engram se hace en la máquina que aloja el servidor (necesita la base): corré ahí gabitotl memory migrate engram.
+note.team-not-ready = La memoria compartida no responde ahora (¿el servidor está apagado?), así que dejo la importación de conocimiento para después: levantá el servidor y corré gabitotl import run. Por eso no cambia nada.
 note.gentle-ai-not-found = No encontré Gentle-AI en esta máquina.
 note.persona-conflict = Ojo: {detail} tiene la persona de Gentleman y la de Gabito juntas se pisan. Con --migrate-persona retiro solo ese bloque administrado.
 note.gentle-ai-manual-uninstall = Ojo: Gentle-AI también maneja agentes que GabitoTL no reemplaza, así que no ejecuto su desinstalación completa. Si querés retirarlo, corré vos el desinstalador propio de Gentle-AI.

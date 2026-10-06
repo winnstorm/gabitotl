@@ -55,6 +55,7 @@ const (
 	NoteTeamUnconfigured  = "team-unconfigured"
 	NoteImportUnavailable = "import-unavailable"
 	NoteImportNeedsHost   = "import-needs-host"
+	NoteTeamNotReady      = "team-not-ready"
 )
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -95,6 +96,10 @@ type TeamPlan struct {
 	Server     *ServerPlan
 	Import     *ImportPlan
 	Invites    []string
+	// Unchanged is true when this run would find the team setup already in place
+	// (memory.md, server and credentials) and change nothing: a re-run then is a
+	// no-op with no new snapshot.
+	Unchanged bool
 }
 
 // ServerResult is what the host setup did.
@@ -218,6 +223,7 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 			}
 		}
 	}
+	t.Unchanged = teamUnchanged(env, inv, opts, t)
 	if opts.ImportEngram {
 		switch {
 		case role != gabitotl.RoleHost:
@@ -237,6 +243,31 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 		}
 	}
 	return nil
+}
+
+// teamUnchanged reports whether the team setup of this run is already in place
+// exactly as requested, so applying it would change nothing. It only reads.
+func teamUnchanged(env Env, inv Inventory, opts Options, t *TeamPlan) bool {
+	if opts.ImportEngram || t.Import != nil || len(t.Invites) > 0 || t.StoreToken || !inv.Project.Exists {
+		return false
+	}
+	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(env.ProjectRoot))
+	if err != nil || cfg.Mode != gabitotl.ModeTeam || cfg.Provider != gabitotl.MemoryMemoryMCP ||
+		cfg.URL != t.URL || cfg.Token != "env:"+t.TokenEnv || cfg.Role != t.Role {
+		return false
+	}
+	if t.Role == gabitotl.RoleClient {
+		return true
+	}
+	if t.Server == nil || t.Server.Plan.EngineErr != nil || len(t.Server.Plan.Conflicts) > 0 {
+		return false
+	}
+	for _, s := range t.Server.Plan.Steps {
+		if s.Action == "create" || s.Action == "start" {
+			return false
+		}
+	}
+	return (mcp.Resolver{Getenv: func(string) string { return "" }, Home: env.Home}).Lookup(t.TokenEnv) != ""
 }
 
 func serverKind(action string) rt.Kind {

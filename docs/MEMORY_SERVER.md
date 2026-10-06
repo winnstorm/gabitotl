@@ -43,6 +43,12 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
   exported yet only warns). `--memory-store-token` copies the token from the variable into the 0600
   file (the TUI offers to take it from a password prompt instead); the token is never put in a
   command line, the repo, a log or a report.
+- **Knowledge import.** The project knowledge GabitoTL reads from other harnesses (`AGENTS.md`,
+  `CLAUDE.md`, ...) is saved through the authenticated client. No actor is sent: the server derives it
+  from the token, so the entries belong to whoever runs the install and keep `source: gabitotl-import`.
+  If the server is not running yet (you start it by hand), the install warns that it is *unreachable*,
+  records nothing as imported and a re-run changes nothing (no new snapshot); once the server is up,
+  run `gabitotl import run`.
 - **No container engine.** The plan says so and nothing changes: choose the client role or stay
   with Engram. GabitoTL never installs Docker.
 - **Engram memory.** With the host role, `--import-engram` runs the tested migrator over the

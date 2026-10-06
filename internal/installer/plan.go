@@ -276,10 +276,17 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	// Knowledge to import (read-only preview).
 	if env.ProjectRoot != "" {
 		outs, err := importer.Run(ctx, l, importerEnv(env, inv.Project.Key), importer.Options{DryRun: true})
+		deferred := err == nil && pendingImport(outs) && teamImportDeferred(ctx, env, l)
+		if deferred {
+			pl.note(NoteTeamNotReady, "")
+		}
 		if err == nil {
 			for _, o := range outs {
 				switch o.Status {
 				case importer.StatusWouldApply:
+					if deferred { // it cannot be saved now, so it changes nothing: a re-run stays idempotent
+						continue
+					}
 					pl.Items = append(pl.Items, PlanItem{Kind: KindImport, Target: o.Source, Count: len(o.Items)})
 				case importer.StatusUnchanged:
 					pl.add(rt.NoAction, o.Source, WhyImportDone)
@@ -347,7 +354,7 @@ func GentleUninstallArgs(g GentleAI, selected []string) (args []string, manual b
 // wording for; a test in package ui keeps the messages file complete.
 var (
 	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone}
-	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
+	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteTeamNotReady, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
 
@@ -355,7 +362,7 @@ var (
 // snapshot itself. A plan that does not mutate is an idempotent re-run: nothing
 // to apply, no new snapshot.
 func (p Plan) Mutates() bool {
-	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || p.Team != nil {
+	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || (p.Team != nil && !p.Team.Unchanged) {
 		return true
 	}
 	for _, it := range p.Items {
@@ -380,4 +387,20 @@ func (p Plan) RetireActions() []rt.Action {
 		out = append(out, p.Retire[name]...)
 	}
 	return out
+}
+
+func pendingImport(outs []importer.Outcome) bool {
+	return slices.ContainsFunc(outs, func(o importer.Outcome) bool { return o.Status == importer.StatusWouldApply })
+}
+
+// teamImportDeferred reports whether a knowledge import would go to a team
+// memory that cannot take writes right now (server down, token rejected). The
+// probe is one read-only doctor call against the memory.md that already exists.
+func teamImportDeferred(ctx context.Context, env Env, l gabitotl.Layout) bool {
+	cfg, err := gabitotl.LoadMemory(l)
+	if err != nil || cfg.Provider != gabitotl.MemoryMemoryMCP || cfg.URL == "" || env.OpenMemory == nil {
+		return false
+	}
+	p, err := env.OpenMemory(cfg)
+	return err == nil && teamNotReady(ctx, p) != ""
 }

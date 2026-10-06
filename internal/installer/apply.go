@@ -301,6 +301,10 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 	if cfg, err := gabitotl.LoadMemory(l); err == nil && r.env.OpenMemory != nil {
 		if p, err := r.env.OpenMemory(cfg); err != nil {
 			r.warn("memory unavailable (%v): imports recorded in imports.md only", err)
+		} else if why := teamNotReady(ctx, p); cfg.Provider == gabitotl.MemoryMemoryMCP && why != "" {
+			// Nothing is recorded as imported, so the next run retries once the server is up.
+			r.warn("team memory is %s: the knowledge import was skipped; start the server and run `gabitotl import run`", why)
+			return nil
 		} else {
 			opts.Sink = KnowledgeSink(p, cfg)
 		}
