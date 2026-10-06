@@ -343,3 +343,25 @@ var (
 	NoteCodes    = []string{NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteMemoryUnhealthy, NoteEngramNoBackup}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
+
+// Mutates reports whether running the plan would change anything beyond the
+// snapshot itself. A plan that does not mutate is an idempotent re-run: nothing
+// to apply, no new snapshot.
+func (p Plan) Mutates() bool {
+	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI {
+		return true
+	}
+	for _, it := range p.Items {
+		if it.Kind == KindImport {
+			return true
+		}
+	}
+	for _, acts := range p.Install {
+		for _, a := range acts {
+			if a.Kind == rt.Create || a.Kind == rt.Modify {
+				return true
+			}
+		}
+	}
+	return false
+}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/importer"
-	"github.com/winnstorm/gabitotl/internal/memory"
+	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/memory/providers"
 )
 
@@ -40,16 +40,6 @@ func importEnv(env Env, root string) (importer.Env, error) {
 		return out, err
 	}
 	return ie, nil
-}
-
-var entryTypes = map[importer.Kind]memory.EntryType{
-	importer.KindDecision:     memory.TypeDecision,
-	importer.KindConvention:   memory.TypeConvention,
-	importer.KindArchitecture: memory.TypeDiscovery,
-	importer.KindTask:         memory.TypePending,
-	importer.KindCommand:      memory.TypeConfig,
-	importer.KindConstraint:   memory.TypeConvention,
-	importer.KindTooling:      memory.TypeConfig,
 }
 
 func runImportRun(env Env, args []string, detectOnly bool) int {
@@ -146,21 +136,11 @@ func contains(l []string, s string) bool {
 	return false
 }
 
-// memorySink saves imported knowledge through the configured provider. Imported
-// authorship is unknown, so team mode records the actor as "legacy".
+// memorySink saves imported knowledge through the configured provider.
 func memorySink(env Env, root string) (func(context.Context, importer.Knowledge) error, error) {
 	p, cfg, err := openMemory(env, root)
 	if err != nil {
 		return nil, err
 	}
-	g := memory.Guard{Provider: p, Mode: cfg.Mode}
-	return func(ctx context.Context, k importer.Knowledge) error {
-		_, err := g.Save(ctx, memory.Entry{
-			Type: entryTypes[k.Kind], Title: k.Title, Project: cfg.ProjectKey,
-			Content:  k.Body + "\n\nImported from " + k.Origin + " (" + k.Path + "). Historical context: current code and configuration win.",
-			TopicKey: "import/" + k.Origin + "/" + gabitotl.Slug(k.Title),
-			Actor:    memory.ActorLegacy, Source: "gabitotl-import",
-		})
-		return err
-	}, nil
+	return installer.KnowledgeSink(p, cfg), nil
 }

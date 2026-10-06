@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/identity"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 )
 
@@ -59,7 +61,6 @@ type Manifest struct {
 	OwnershipState ManifestFile   `json:"ownership_state"`
 	GentleState    bool           `json:"gentle_state"`
 	Engram         EngramBackup   `json:"engram"`
-	Created        []string       `json:"created,omitempty"` // project files created by this run (rollback removes only these)
 }
 
 // Snapshot is the global migration snapshot (spec 26).
@@ -67,6 +68,29 @@ type Snapshot struct {
 	ID       string
 	Dir      string
 	Manifest Manifest
+}
+
+// ProjectRuntime labels manifest entries that belong to the project's
+// .gabitotl/ rather than to a runtime.
+const ProjectRuntime = "project"
+
+// projectPaths lists the .gabitotl files a run may create or modify.
+func projectPaths(env Env, pl Plan) []string {
+	if env.ProjectRoot == "" {
+		return nil
+	}
+	l := gabitotl.NewLayout(env.ProjectRoot)
+	out := projectFiles(l)
+	out = append(out, filepath.Join(l.Work(), ".gitkeep"), l.LocalRuntime())
+	if pl.Options.UserName != "" {
+		if u, err := identity.New(pl.Options.User, pl.Options.UserName, ""); err == nil {
+			if f, err := l.UserFile(u.ID); err == nil {
+				out = append(out, f)
+			}
+			out = append(out, l.LocalUser())
+		}
+	}
+	return out
 }
 
 // GlobalDirs are the subdirectories of ~/.gabitotl (spec 39).
@@ -236,6 +260,21 @@ func CreateSnapshot(ctx context.Context, env Env, inv Inventory, pl Plan, obs Ob
 		obs.emit(PhaseSnapshot, "ok", "snapshot "+name, "")
 	}
 
+	// Project files the run may create or modify: recording "did not exist"
+	// lets rollback and restore remove exactly what a run created.
+	for _, p := range projectPaths(env, pl) {
+		dst := filepath.Join(dir, "project", filepath.Base(filepath.Dir(p))+"__"+filepath.Base(p))
+		h, existed, err := copyFile(p, dst)
+		if err != nil {
+			return fail(err)
+		}
+		mf := ManifestFile{Path: p, Runtime: ProjectRuntime, Existed: existed, SHA256: h}
+		if existed {
+			mf.Copy, _ = filepath.Rel(dir, dst)
+		}
+		snap.Manifest.Files = append(snap.Manifest.Files, mf)
+	}
+
 	// Ownership state (so rollback and restore can revert it too).
 	statePath := filepath.Join(env.StateDir(), "state.json")
 	h, existed, err := copyFile(statePath, filepath.Join(dir, "gabitotl-state.json"))
@@ -376,6 +415,9 @@ func (s *Snapshot) RestoreFiles() ([]string, error) {
 				}
 				changed = append(changed, mf.Path)
 			}
+			if mf.Runtime == ProjectRuntime {
+				pruneEmptyDirs(filepath.Dir(mf.Path))
+			}
 			return nil
 		}
 		want, err := s.copyOf(mf)
@@ -408,4 +450,16 @@ func (s *Snapshot) RestoreFiles() ([]string, error) {
 		firstErr = err
 	}
 	return changed, firstErr
+}
+
+// pruneEmptyDirs removes empty directories upward from dir while they are inside
+// a .gabitotl folder. os.Remove refuses non-empty directories, so nothing that
+// holds content can be lost.
+func pruneEmptyDirs(dir string) {
+	for strings.Contains(dir+string(filepath.Separator), string(filepath.Separator)+gabitotl.DirName+string(filepath.Separator)) {
+		if os.Remove(dir) != nil {
+			return
+		}
+		dir = filepath.Dir(dir)
+	}
 }
