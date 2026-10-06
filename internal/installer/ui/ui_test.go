@@ -121,3 +121,10 @@ func TestPrompterNeverAnswersForTheUser(t *testing.T) {
 		t.Fatal("sí is a yes")
 	}
 }
+
+func TestPathsTildeShortensEmbeddedHome(t *testing.T) {
+	p := Paths{Home: "/home/u", Root: "/proj"}
+	if got := p.Tilde("item x[/home/u/.config/a.md]"); got != "item x[~/.config/a.md]" {
+		t.Fatal(got)
+	}
+}

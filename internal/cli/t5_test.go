@@ -435,3 +435,14 @@ func TestWorkUpdatePrintsSoftLockAdvisory(t *testing.T) {
 		t.Fatalf("no overlap, no advisory: %+v", r)
 	}
 }
+
+func TestDevNullIsNotATerminal(t *testing.T) {
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTerminal(f) {
+		t.Fatal("/dev/null is a character device but not a terminal: `< /dev/null` must count as no TTY")
+	}
+}

@@ -47,7 +47,7 @@ func (r *run) buildReport(status string) Report {
 		rep.MemoryNote = NoteNoMigrator
 	}
 	for _, o := range r.res.Imports {
-		if o.Status == importer.StatusImported {
+		if o.Status == importer.StatusImported || o.Status == importer.StatusUnchanged {
 			for _, k := range o.Items {
 				rep.Imported = append(rep.Imported, string(k.Kind)+": "+k.Title)
 			}

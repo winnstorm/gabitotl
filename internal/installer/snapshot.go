@@ -182,7 +182,7 @@ func CreateSnapshot(ctx context.Context, env Env, inv Inventory, pl Plan, obs Ob
 		_ = snap.Save(env)
 		return snap, err
 	}
-	obs.emit(PhaseSnapshot, "start", "snapshot", id)
+	obs.emit(PhaseSnapshot, "info", "snapshot", id)
 
 	if b, err := inv.JSON(); err != nil {
 		return fail(err)

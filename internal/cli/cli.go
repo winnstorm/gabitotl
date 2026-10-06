@@ -45,6 +45,10 @@ func isTerminal(f *os.File) bool {
 	if err != nil {
 		return false
 	}
+	// /dev/null (CI, `< /dev/null`) is a character device but not a terminal.
+	if null, err := os.Stat(os.DevNull); err == nil && os.SameFile(st, null) {
+		return false
+	}
 	return st.Mode()&os.ModeCharDevice != 0
 }
 

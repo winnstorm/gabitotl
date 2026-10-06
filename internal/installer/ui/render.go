@@ -15,6 +15,14 @@ import (
 // paths inside the project become project-relative.
 type Paths struct{ Home, Root string }
 
+// Tilde replaces every occurrence of the home directory inside text with ~.
+func (s Paths) Tilde(text string) string {
+	if s.Home == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, s.Home, "~")
+}
+
 // Short returns the display form of p.
 func (s Paths) Short(p string) string {
 	if s.Root != "" && strings.HasPrefix(p, s.Root+string(filepath.Separator)) {
@@ -51,9 +59,9 @@ func RenderPlan(w io.Writer, m Messages, pl installer.Plan, paths Paths) {
 				continue
 			}
 			target := paths.Short(it.Target)
-			if strings.Contains(target, " [") { // "<path> [section x]": shorten only the path
+			if strings.Contains(target, " [") { // "<path> [section x]": shorten the path and any path inside the label
 				p, rest, _ := strings.Cut(it.Target, " [")
-				target = paths.Short(p) + " [" + rest
+				target = paths.Short(p) + " [" + paths.Tilde(rest)
 			}
 			line := "  " + target
 			switch {
