@@ -42,6 +42,10 @@ const (
 	DefaultServerURL = "http://127.0.0.1:8765/mcp"
 )
 
+// DefaultDatabaseRef is the reference the host's memory.md keeps for the database
+// connection (resolved by `memory serve`; never a connection string).
+const DefaultDatabaseRef = "env:GABITOTL_MEMORY_DATABASE_URL"
+
 // PhaseServer is the phase that installs the managed server and issues tokens.
 const PhaseServer Phase = "memory-server"
 
@@ -268,7 +272,7 @@ func teamUnchanged(ctx context.Context, env Env, inv Inventory, opts Options, t 
 		return false
 	}
 	if t.Role == gabitotl.RoleClient {
-		return true
+		return cfg.PostgresConnection == "" // an older client file still names a database: tidy it
 	}
 	if t.Server == nil || t.Server.Plan.EngineErr != nil || len(t.Server.Plan.Conflicts) > 0 {
 		return false
@@ -329,6 +333,11 @@ func (r *run) teamConfig(l gabitotl.Layout) error {
 	cfg.Mode, cfg.Provider = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP
 	cfg.URL, cfg.Token, cfg.Role = t.URL, "env:"+t.TokenEnv, t.Role
 	cfg.Instance = t.instance()
+	if t.Role == gabitotl.RoleClient {
+		cfg.PostgresConnection = "" // a client has no database: it only holds a url and a token reference
+	} else if cfg.PostgresConnection == "" {
+		cfg.PostgresConnection = DefaultDatabaseRef
+	}
 	return gabitotl.SaveMemory(l, cfg)
 }
 

@@ -43,7 +43,8 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
   run `gabitotl memory serve --http 127.0.0.1:8765` (put it behind TLS to reach it over a network).
   Rollback after a failure removes the container and network this run created and **keeps the data
   volume and the credentials**; a server that already existed is never touched by a rollback.
-- **Client.** Writes `memory.md` (`role: client`), registers the bridge and validates with
+- **Client.** Writes `memory.md` (`role: client`, `url` and `token: env:NAME` only: a client has no
+  database, so no `postgres_connection`), registers the bridge and validates with
   `memory doctor` (a server that does not answer rolls the install back; a token that is simply not
   exported yet only warns). `--memory-store-token` copies the token from the variable into the 0600
   file (the TUI offers to take it from a password prompt instead); the token is never put in a
