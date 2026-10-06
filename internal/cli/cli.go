@@ -72,6 +72,11 @@ func commands() map[string]Command {
 		{"init", "Create .gabitotl/ in a project", runInit},
 		{"memory", "Memory provider tools (doctor, search)", runMemory},
 		{"scan", "Scan the project and print its map", runScan},
+		{"vcs", "Git status and provider (status)", runVCS},
+		{"backup", "Local file backups (create, list, restore, prune)", runBackup},
+		{"worktree", "Git worktrees for teams (add, list, remove)", runWorktree},
+		{"work", "Active work and overlap checks (status, overlap)", runWork},
+		{"persona", "Show the installed persona (print)", runPersona},
 		{"version", "Print the version", runVersion},
 	}
 	m := make(map[string]Command, len(list)+1)

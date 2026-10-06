@@ -8,7 +8,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | Path | Responsibility |
 |------|----------------|
 | `cmd/gabitotl` | Thin `main`: calls `cli.Run`. No logic. |
-| `internal/cli` | Subcommand dispatcher and commands (`init`, `memory doctor|search`, `scan [--root] [--json]`, `version`, `help`; stubs for `install`, `doctor`, `migrate`, `restore`, `uninstall`). Takes an `Env` (stdin/stdout/stderr/cwd/TTY) so commands run in-process in tests. |
+| `internal/cli` | Subcommand dispatcher and commands (`init`, `memory doctor|search`, `scan [--root] [--json]`, `vcs status`, `backup create|list|restore|prune`, `worktree add|list|remove`, `work status|overlap`, `persona print [--stats]`, `version`, `help`; stubs for `install`, `doctor`, `migrate`, `restore`, `uninstall`). Takes an `Env` (stdin/stdout/stderr/cwd/TTY) so commands run in-process in tests. |
 | `internal/version` | Build metadata. |
 | `internal/gabitotl` | Project layer: `Layout` (all `.gabitotl/` paths), Markdown + YAML front matter codec (`ParseDoc`, `RenderDoc`), typed configs, secret guard, `Init`, `DetectKind`, `FindRoot`. |
 | `internal/identity` | Developer identity: slugged IDs, shared profile in `users/`, active identity in `local/user.md`. Never stores emails. |
@@ -31,15 +31,27 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 cmd -> cli -> identity -> gabitotl
           cli -> memory/providers -> memory/{engram,mcp} -> memory -> gabitotl
           cli -> scanner -> memory
+          cli -> vcs -> gabitotl
+          cli -> backup -> gabitotl
+          cli -> coordination -> {vcs, memory, gabitotl}
+          cli -> budget -> {persona, memory, gabitotl}
+          cli -> persona            (leaf: imports nothing from the project)
                   adapters/* -> core (never the reverse)
 ```
 
-- Core packages (`gabitotl`, `identity`, and later memory/backup/vcs) never
+- Core packages (`gabitotl`, `identity`, `memory`, `vcs`, `backup`, `coordination`, `persona`, `budget`) never
   branch on runtime names (`if claude`, `switch runtime`). A runtime is an
   opaque string in `runtime.md`.
 - Runtime-specific behavior (file formats, install locations, model names)
   lives only in adapters, behind interfaces owned by the core.
 - Core depends on no adapter; adapters may depend on core.
+- `persona` is a leaf (it must not import `budget`, which imports it); `vcs` and
+  `backup` know nothing about memory; only `coordination` and `budget` touch the
+  memory contract, and only through `memory.Provider` / `memory.Recorder`.
+- External commands (`git`, `gh`) run only behind `vcs.Runner`; no other package
+  shells out to a VCS. Tests use temp repos and fakes, never a real remote.
+- User-facing Spanish wording (OJO/TIP, Qué hice/Progreso/Qué sigue, the
+  long-chat TIP) lives only in `internal/persona/messages_es-AR.txt`.
 
 ## Project layer invariants
 
