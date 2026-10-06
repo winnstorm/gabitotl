@@ -12,6 +12,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/version` | Build metadata. |
 | `internal/gabitotl` | Project layer: `Layout` (all `.gabitotl/` paths), Markdown + YAML front matter codec (`ParseDoc`, `RenderDoc`), typed configs, secret guard, `Init`, `DetectKind`, `FindRoot`. |
 | `internal/identity` | Developer identity: slugged IDs, shared profile in `users/`, active identity in `local/user.md`. Never stores emails. |
+| `internal/memory` | Provider-agnostic memory contract: `Provider` (Search/Save/Update/SessionSummary/CurrentProject/Doctor), `Entry` with traceability fields, `Guard` (team mode requires `actor`; unknown authorship is `legacy`), `Factory`, relevance query builder (capped, never loads memory in full) and `Recorder` (honors `workflow.memory_after_work`). |
 | `internal/adapters/<runtime>` | (Planned, T4.) Per-runtime installers and renderers. |
 
 ## Dependency rule
@@ -36,3 +37,11 @@ cmd -> cli -> identity -> gabitotl
 - `Init` is idempotent and never overwrites existing files.
 - `local/`, `.bak/` and `tmp/` are listed in `.gabitotl/.gitignore` and never shared.
 - IDs used in paths (user, task) must be canonical slugs, so paths cannot escape their directory.
+
+## Memory rule
+
+The workflow depends on `memory.Provider` only. Concrete providers
+(`memory/engram`, `memory/mcp`) are registered into a `memory.Factory` at the
+composition root and are never imported by workflow code. Team mode requires an
+`actor` on every saved entry; historical or unknown authorship is recorded as
+`legacy`, never invented.
