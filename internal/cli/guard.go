@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	iofs "io/fs"
 	"os"
 	"strconv"
@@ -340,6 +341,10 @@ func runGuardInstallHooks(env Env, args []string) int {
 }
 
 func installHooks(env Env, root, dir string) error {
+	return installHooksTo(env.Stdout, root, dir)
+}
+
+func installHooksTo(w io.Writer, root, dir string) error {
 	bin, err := executablePath()
 	if err != nil {
 		return err
@@ -348,14 +353,41 @@ func installHooks(env Env, root, dir string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.installed", "dir", dir))
+	fmt.Fprintln(w, persona.Msg("guard.hooks.installed", "dir", dir))
 	for _, h := range st {
 		if h.Chained {
-			fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.chained", "name", h.Name))
+			fmt.Fprintln(w, persona.Msg("guard.hooks.chained", "name", h.Name))
 		}
 	}
 	rememberHooks(root, gabitotl.HooksInstalled)
 	return nil
+}
+
+// ensureHooks is the shared "install by default, remember the answer once" step
+// of init and install. It does nothing outside a Git work tree or when the
+// answer is already remembered in workflow.md (guard_hooks). decline stores the
+// refusal instead of installing.
+func ensureHooks(w io.Writer, root string, decline bool) (installed bool, err error) {
+	wf, err := gabitotl.LoadWorkflow(layoutOf(root))
+	if err != nil || wf.GuardHooks != gabitotl.HooksAsk {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	dir, err := guard.HooksDir(ctx, gitRunner(), root)
+	if err != nil {
+		return false, nil // not a Git project: nothing to hook
+	}
+	if decline {
+		rememberHooks(root, gabitotl.HooksDeclined)
+		return false, nil
+	}
+	return true, installHooksTo(w, root, dir)
+}
+
+// autoHooks is the installer hook (installer.Env.GuardHooks).
+func autoHooks(root string, decline bool) (bool, error) {
+	return ensureHooks(io.Discard, root, decline)
 }
 
 func runGuardUninstallHooks(env Env, args []string) int {

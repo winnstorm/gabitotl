@@ -38,6 +38,7 @@ type Options struct {
 	MigratePersona bool     // retire the managed Gentleman/Gentle-AI persona block after verify
 	RemoveGentleAI bool     // run Gentle-AI's own uninstall after verify (destructive)
 	PreserveEngram bool     // informational: Engram is always adopted, never copied
+	NoGuardHooks   bool     // do not install the authorship guard Git hooks (remembered in workflow.md)
 	DryRun         bool
 
 	// Team memory (see team.go). Only meaningful with Memory memory-mcp.

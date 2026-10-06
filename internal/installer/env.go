@@ -75,6 +75,10 @@ type Env struct {
 	OpenMemory func(cfg gabitotl.MemoryConfig) (memory.Provider, error)
 	// Team holds the team-memory hooks (managed server, team database, tokens).
 	Team TeamEnv
+	// GuardHooks installs the authorship guard Git hooks of the project (or
+	// remembers the decline) and reports whether hooks are now in place. It is
+	// supplied by the CLI; nil means the installer never touches Git hooks.
+	GuardHooks func(root string, decline bool) (installed bool, err error)
 	// RenderReport renders the migration report for imports.md (the CLI injects
 	// the Spanish renderer). Nil uses Report.DefaultMarkdown.
 	RenderReport func(Report) string

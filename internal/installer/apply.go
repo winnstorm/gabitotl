@@ -253,6 +253,14 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 		return err
 	}
 	r.emit(PhaseMigrate, "ok", "create .gabitotl", fmt.Sprintf("%d file(s)", len(res.Created)))
+	if r.env.GuardHooks != nil {
+		switch done, err := r.env.GuardHooks(r.env.ProjectRoot, r.pl.Options.NoGuardHooks); {
+		case err != nil:
+			r.warn("authorship guard hooks not installed: %v", err)
+		case done:
+			r.emit(PhaseMigrate, "ok", "install authorship guard hooks", "commit-msg, pre-commit")
+		}
+	}
 	if r.pl.Options.AutomateGit && slices.Contains(res.Created, relTo(r.env.ProjectRoot, l.VCS())) {
 		cfg, err := gabitotl.LoadVCS(l)
 		if err != nil {

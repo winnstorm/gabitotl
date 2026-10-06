@@ -35,6 +35,7 @@ var (
 			Home: renv.Home, ProjectRoot: root, GOOS: renv.GOOS, GOARCH: goruntime.GOARCH,
 			Getenv: renv.Getenv, Environ: os.Environ, LookPath: renv.LookPath, Runner: installerRunnerFn(), Now: renv.Now,
 			Runtimes: registryFn(), Migrators: migratorRegistry(), Version: version.Version, Team: teamEnv(),
+			GuardHooks:   autoHooks,
 			OpenMemory:   func(cfg gabitotl.MemoryConfig) (memory.Provider, error) { return newProvider(cfg) },
 			RenderReport: ui.ReportRenderer(m),
 		}, nil
@@ -95,6 +96,7 @@ type installFlags struct {
 	dryRun, yes, noTUI                      bool
 	tui                                     bool // the caller allows the full-screen interface
 	migratePersona, removeGentle, preserveE bool
+	noGuardHooks                            bool
 
 	// Team memory (flags of the plain flow; the TUI asks the same things).
 	memoryRole, memoryURL, memoryTokenEnv, memoryEngine, memoryInstance string
@@ -122,6 +124,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.IntVar(&f.memoryPort, "memory-port", 0, "host: loopback port of the managed PostgreSQL (default: automatic)")
 	fs.StringVar(&f.memoryInstance, "memory-instance", "", "host: named instance of the managed server")
 	fs.BoolVar(&f.importEngram, "import-engram", false, "host: import the Engram memory into the team memory (safety export first; Engram stays intact)")
+	fs.BoolVar(&f.noGuardHooks, "no-guard-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
 	if migrate {
 		fs.BoolVar(&f.preserveE, "preserve-engram", false, "keep using the existing Engram memory (always the case: Engram is adopted, never copied)")
@@ -240,7 +243,7 @@ func execute(env Env, f installFlags, source string) int {
 
 	opts := installer.Options{
 		Source: source, Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
-		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun,
+		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks,
 		MemoryRole: f.memoryRole, MemoryURL: f.memoryURL, MemoryTokenEnv: f.memoryTokenEnv, StoreToken: f.memoryStoreToken,
 		Invites: f.memoryInvites, ServerEngine: f.memoryEngine, ServerPort: f.memoryPort, ServerInstance: f.memoryInstance,
 		ImportEngram: f.importEngram,

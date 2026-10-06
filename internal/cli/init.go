@@ -170,22 +170,21 @@ func offerHooks(env Env, root string, f initFlags) {
 	if err != nil || wf.GuardHooks != gabitotl.HooksAsk {
 		return
 	}
-	_, dir, err := hooksDirFor(env, root)
-	if err != nil {
+	if _, _, err := hooksDirFor(env, root); err != nil {
 		return // not a Git project: nothing to hook
 	}
-	install := !f.noHooks
-	if install && env.IsTTY && !f.yes {
+	decline := f.noHooks
+	if !decline && env.IsTTY && !f.yes {
 		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
 		a := strings.ToLower(p.ask(persona.Msg("guard.hooks.ask"), "s"))
-		install = a != "n" && a != "no"
+		decline = a == "n" || a == "no"
 	}
-	if !install {
-		rememberHooks(root, gabitotl.HooksDeclined)
+	if decline {
 		fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.declined"))
-		return
 	}
-	if err := installHooks(env, root, dir); err != nil {
+	installed, err := ensureHooks(env.Stdout, root, decline)
+	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl init: guard hooks: %v\n", err)
 	}
+	_ = installed
 }
