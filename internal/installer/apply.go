@@ -154,6 +154,16 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 	}
 
 	if err := r.mutate(ctx); err != nil {
+		var partial *PartialError
+		if errors.As(err, &partial) { // after Gentle-AI's own uninstall: keep GabitoTL, point to the snapshot
+			r.snap.Manifest.Status = "partial"
+			_ = r.snap.Save(r.env)
+			r.warn("GabitoTL stays configured. Gentle-AI may be partially removed: `gabitotl restore %s` returns the saved configuration files", r.snap.ID)
+			if rerr := r.writeReport(ctx, "partial"); rerr != nil {
+				r.warn("report: %v", rerr)
+			}
+			return res, err
+		}
 		r.rollback(err)
 		return res, err
 	}
@@ -175,6 +185,9 @@ func (r *run) mutate(ctx context.Context) error {
 	r.res.Checks = append(r.res.Checks, r.verifyRuntimes("runtime")...)
 	if bad := Failed(r.res.Checks); len(bad) > 0 {
 		return fmt.Errorf("%w: %s", ErrVerifyFailed, bad[0].Name+": "+bad[0].Detail)
+	}
+	if err := r.retire(ctx); err != nil {
+		return err
 	}
 	return r.finish(ctx)
 }
@@ -382,9 +395,11 @@ func (r *run) rollback(cause error) {
 	r.emit(PhaseReport, "ok", "rolled back", fmt.Sprintf("%d file(s) restored", len(files)))
 }
 
-// finish closes a successful run (retire and report are added in the
-// soft-landing step).
-func (r *run) finish(context.Context) error {
+// finish closes a successful run: the report, then the snapshot status.
+func (r *run) finish(ctx context.Context) error {
+	if err := r.writeReport(ctx, "complete"); err != nil {
+		return fmt.Errorf("%s: %w", PhaseReport, err)
+	}
 	r.snap.Manifest.Status = "complete"
 	return r.snap.Save(r.env)
 }
