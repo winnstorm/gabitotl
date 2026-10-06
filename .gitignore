@@ -32,3 +32,5 @@ coverage.*
 *.pem
 .atl/
 internal/e2e/zz-scratch-*/
+engram-export*.json
+*.engram-export
