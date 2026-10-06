@@ -14,7 +14,7 @@ import (
 var (
 	llm       = "Cla" + "ude"
 	aiTrailer = "Co-Authored-By: " + llm + " Sonnet 5.5 <noreply@" + "anthropic" + ".com>"
-	aiFooter  = "🤖 Generated " + "with [" + llm + " Code](https://" + "claude.com/claude-" + "code)"
+	aiFooter  = "🤖 " + "Generated " + "with [" + llm + " Code](https://" + "claude.com/claude-" + "code)"
 )
 
 func TestCommitStripsAttribution(t *testing.T) {

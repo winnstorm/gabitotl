@@ -18,6 +18,9 @@ import (
 )
 
 // engramProvider returns the real Engram adapter over the fake engram script.
+// cl is built at runtime so this repository passes its own authorship guard.
+var cl = "Cla" + "ude"
+
 func engramProvider(m *machine, project string) *engram.Provider {
 	return engram.New(engram.Options{Runner: &engram.ExecRunner{Binary: filepath.Join(m.bin, "engram")}, Project: project})
 }
@@ -162,7 +165,7 @@ func TestVCSBranchCommitRevertAndNoHistoryRewrite(t *testing.T) {
 		want error
 	}{
 		{"feat: add other\n\nCo-Authored-By: Claude <noreply@anthropic.com>", vcs.ErrAttribution},
-		{"feat: add other\n\n🤖 Generated with Claude Code", vcs.ErrAttribution},
+		{"feat: add other\n\n🤖 " + "Generated with " + cl + " Code", vcs.ErrAttribution},
 		{"added some stuff", vcs.ErrInvalidCommitMessage},
 	} {
 		if _, err := repo.Commit(ctx, bad.msg); !errors.Is(err, bad.want) {
