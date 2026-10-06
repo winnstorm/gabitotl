@@ -196,6 +196,8 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		"revert commit", "Never claim something works without checking", "Never write passwords, tokens",
 		"OJO:", "TIP:", "Ask BEFORE working", "Decide alone", "75%", "**Qué hice:**", "**Progreso:**", "**Qué sigue:**",
 		"Este chat ya viene bastante largo", "one or two sentences", "Back up existing files",
+		"Authorship (highest priority)", "Never add AI/LLM branding or attribution anywhere",
+		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
 	} {
 		if !strings.Contains(text, rule) {
 			t.Errorf("persona text is missing the rule %q", rule)
