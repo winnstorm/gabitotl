@@ -164,3 +164,18 @@ func treeHash(t *testing.T, dirs ...string) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+func removeAll(p string) error { return os.RemoveAll(p) }
+
+// treeHashExcluding hashes dir without its top-level entry named skip.
+func treeHashExcluding(t *testing.T, dir, skip string) string {
+	t.Helper()
+	es, _ := os.ReadDir(dir)
+	var parts []string
+	for _, e := range es {
+		if e.Name() != skip {
+			parts = append(parts, filepath.Join(dir, e.Name()))
+		}
+	}
+	return treeHash(t, parts...)
+}

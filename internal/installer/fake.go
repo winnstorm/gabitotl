@@ -18,13 +18,13 @@ type FakeRunner struct {
 
 // Run implements Runner.
 func (f *FakeRunner) Run(_ context.Context, _ string, name string, args ...string) ([]byte, []byte, error) {
-	f.mu.Lock()
-	f.Calls = append(f.Calls, strings.TrimSpace(name+" "+strings.Join(args, " ")))
-	f.mu.Unlock()
 	base := name
 	if i := strings.LastIndexAny(base, `/\`); i >= 0 {
 		base = base[i+1:]
 	}
+	f.mu.Lock()
+	f.Calls = append(f.Calls, strings.TrimSpace(base+" "+strings.Join(args, " ")))
+	f.mu.Unlock()
 	if len(args) > 0 {
 		if h, ok := f.Handlers[base+" "+args[0]]; ok {
 			out, err := h(args)

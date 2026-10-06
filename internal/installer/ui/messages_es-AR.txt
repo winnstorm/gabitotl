@@ -1,0 +1,37 @@
+# Installer user-facing messages (Rioplatense Spanish, installer spec section 51).
+# This is the only place where installer wording lives; replace the file's
+# contents (ParseMessages) to change language or tone. Format: key = value.
+# {name} placeholders are filled by Messages.Format. State symbols: ✓ ! → ×
+
+# --- plan (dry-run) -------------------------------------------------------
+plan.title = Plan:
+plan.import.count = {count} elemento(s)
+plan.empty = No hay nada para hacer.
+plan.dry_run_done = Esto fue un ensayo: no cambié nada.
+
+why.exists = ya existe; no se toca
+why.snapshot = snapshot global con inventario, export de memoria y las configs que se tocan
+why.engram-adopted = Engram se adopta: no se copia, no se re-crea, no se modifica
+why.engram-project = configuración de Engram del proyecto
+why.gentle-backups = backups de Gentle-AI; los dejo para la limpieza diferida
+why.user-assets = skills y configuración propios; no los administra GabitoTL
+why.gentle-uninstall-all = mecanismo propio de Gentle-AI, recién después de verificar
+why.gentle-uninstall-agents = mecanismo propio de Gentle-AI, solo los agentes que GabitoTL reemplaza
+why.import-unchanged = ya importado y sin cambios
+
+# --- notes raised while planning -----------------------------------------
+note.no-runtimes = No encontré ningún coding agent para configurar. Dejo solo el proyecto armado.
+note.runtime-not-installed = {detail} no está instalado: lo configuro porque lo pediste, pero no lo instalo yo.
+note.engram-missing = No encontré Engram y no instalo nada por mi cuenta: la memoria queda sin conectar hasta que lo instales.
+note.no-memory-migrator = Todavía no hay un migrador probado de Engram a memoria compartida. Mantengo tu Engram y el export de seguridad; no copio nada.
+note.gentle-ai-not-found = No encontré Gentle-AI en esta máquina.
+note.persona-conflict = Ojo: {detail} tiene la persona de Gentleman y la de Gabito juntas se pisan. Con --migrate-persona retiro solo ese bloque administrado.
+note.gentle-ai-agents-unmatched = Ninguno de los runtimes elegidos coincide con un agente de Gentle-AI: no hay nada que retirar con seguridad.
+note.memory-unhealthy = Engram reporta errores. No toco nada hasta que `engram doctor` quede limpio.
+note.engram-not-exportable = Encontré datos de Engram pero no el binario: no puedo hacer el export de seguridad.
+
+# --- Engram topology warnings (spec 55) ------------------------------------
+warn.data-dir-override = Engram usa un directorio de datos propio ({detail}). Lo respeto tal cual.
+warn.cloud-sync = Esta instalación de Engram parece tener nube o autosync ({detail}). No es una instalación local simple: no la toco.
+warn.project-config = Este proyecto tiene .engram/ con su propia configuración ({detail}). La reutilizo.
+warn.project-identity = La identidad del proyecto en Engram no coincide con la de GabitoTL ({detail}). Revisalo antes de pasar a memoria compartida.

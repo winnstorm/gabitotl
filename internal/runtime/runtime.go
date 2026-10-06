@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/winnstorm/gabitotl/internal/ownership"
@@ -209,6 +210,13 @@ type FileInfo struct {
 type Snapshot struct {
 	Dir   string
 	Files []string
+}
+
+// CopyPath is where the copy of the original file orig lives inside the
+// snapshot. Backup and restore both use it, so they always agree.
+func (s Snapshot) CopyPath(orig string) string {
+	rel := strings.NewReplacer(":", "_", `\`, "/").Replace(orig)
+	return filepath.Join(s.Dir, "files", strings.TrimLeft(rel, "/"))
 }
 
 // Check is one verification line.
