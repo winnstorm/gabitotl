@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	binary = filepath.Join(dir, "gabitotl")
-	build := exec.Command("go", "build", "-o", binary, "github.com/winnstorm/gabitotl/cmd/gabitotl")
+	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, "github.com/winnstorm/gabitotl/cmd/gabitotl")
 	if out, err := build.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "building gabitotl: %v\n%s", err, out)
 		os.RemoveAll(dir)
