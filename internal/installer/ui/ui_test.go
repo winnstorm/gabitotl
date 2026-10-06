@@ -66,3 +66,58 @@ func TestRenderPlanGroupsLikeSpec42(t *testing.T) {
 		}
 	}
 }
+
+func TestMessagesCoverDoctorAndReport(t *testing.T) {
+	m := Default()
+	for _, c := range installer.DoctorCodes {
+		if _, ok := m[c]; !ok {
+			t.Errorf("missing %s", c)
+		}
+	}
+	for _, s := range installer.DoctorSections {
+		if _, ok := m["doctor.section."+s]; !ok {
+			t.Errorf("missing section %s", s)
+		}
+	}
+	for _, p := range installer.PhaseOrder {
+		if _, ok := m["phase."+string(p)]; !ok && p != installer.PhaseInventory && p != installer.PhasePlatform && p != installer.PhaseProject && p != installer.PhaseRuntimes && p != installer.PhaseMemory && p != installer.PhaseOtherHarness {
+			t.Errorf("missing phase.%s", p)
+		}
+	}
+}
+
+func TestReportRendererFollowsSpec22(t *testing.T) {
+	out := ReportRenderer(Default())(installer.Report{
+		Source: "gentle-ai", ImportedAt: "2026-10-05T21:00:00-03:00", Status: "complete",
+		Engram: true, Project: "ecommerce", Observation: 1248, Backup: "~/.gabitotl/migrations/x/memory/engram-export.json",
+		Imported: []string{"decision: Auth"}, NotImported: []string{"persona", "components: skills"},
+		Retired: []string{"persona: claude-code", "gentle-ai: uninstall --all"}, Preserved: []string{"engram", "user-files", "unmanaged-config"},
+	})
+	for _, want := range []string{"# Gentle-AI", "## Memoria", "Engram detectado y reutilizado.", "ecommerce", "1248", "## Configuración importada",
+		"## No importado", "Persona Gentleman", "## Retirado", "## Preservado", "Archivos del usuario", "source: gentle-ai", "status: complete"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+func TestPrompterNeverAnswersForTheUser(t *testing.T) {
+	m := Default()
+	var out bytes.Buffer
+	if NewPrompter(strings.NewReader(""), &out, m).Confirm("¿Seguro?") {
+		t.Fatal("end of input must decline")
+	}
+	p := NewPrompter(strings.NewReader("9\nx\n2\n"), &out, m)
+	if i, ok := p.Choose("q", []string{"a", "b"}, 0); !ok || i != 1 {
+		t.Fatalf("invalid answers are re-asked: %d %v", i, ok)
+	}
+	if _, ok := NewPrompter(strings.NewReader(""), &out, m).Choose("q", []string{"a"}, 0); ok {
+		t.Fatal("ended input is not a choice")
+	}
+	if got := NewPrompter(strings.NewReader("\n"), &out, m).Ask("nombre", "Gabi"); got != "Gabi" {
+		t.Fatalf("default = %q", got)
+	}
+	if !NewPrompter(strings.NewReader("sí\n"), &out, m).Confirm("¿?") {
+		t.Fatal("sí is a yes")
+	}
+}

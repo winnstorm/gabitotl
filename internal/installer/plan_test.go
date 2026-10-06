@@ -69,7 +69,7 @@ func TestBuildPlanIsPureAndSplitsRetirement(t *testing.T) {
 func TestBuildPlanPersonaConflictNeedsExplicitConsent(t *testing.T) {
 	f := newFixture(t)
 	_, pl := buildPlan(t, f, Options{})
-	if len(pl.Retire) != 0 || !pl.hasNote(NotePersonaConflict) {
+	if len(pl.Retire) != 0 || !pl.HasNote(NotePersonaConflict) {
 		t.Fatalf("without consent the block is only reported: retire=%v notes=%v", pl.Retire, pl.Notes)
 	}
 }
@@ -85,7 +85,7 @@ func TestBuildPlanRejectsUnknownRuntimeAndHandlesMissingEngram(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, pl := buildPlan(t, f, Options{})
-	if pl.Memory.Command != "" || !pl.hasNote(NoteEngramMissing) {
+	if pl.Memory.Command != "" || !pl.HasNote(NoteEngramMissing) {
 		t.Fatalf("a missing Engram is never installed or wired: %+v", pl)
 	}
 }
@@ -93,7 +93,7 @@ func TestBuildPlanRejectsUnknownRuntimeAndHandlesMissingEngram(t *testing.T) {
 func TestBuildPlanTeamMemoryWithoutMigratorIsHonest(t *testing.T) {
 	f := newFixture(t)
 	_, pl := buildPlan(t, f, Options{Mode: "team"})
-	if pl.MemoryChoice != "memory-mcp" || !pl.hasNote(NoteNoMigrator) {
+	if pl.MemoryChoice != "memory-mcp" || !pl.HasNote(NoteNoMigrator) {
 		t.Fatalf("%+v", pl)
 	}
 	if pl.Memory.Command != "" {

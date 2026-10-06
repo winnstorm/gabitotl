@@ -27,11 +27,6 @@ func TestDispatch(t *testing.T) {
 		{"version", []string{"version"}, 0, "gabitotl ", ""},
 		{"--version", []string{"--version"}, 0, "gabitotl ", ""},
 		{"unknown", []string{"nope"}, 2, "", "unknown command"},
-		{"doctor stub", []string{"doctor"}, 2, "", "not implemented yet"},
-		{"install stub", []string{"install"}, 2, "", "not implemented yet"},
-		{"migrate stub", []string{"migrate"}, 2, "", "not implemented yet"},
-		{"restore stub", []string{"restore"}, 2, "", "not implemented yet"},
-		{"uninstall stub", []string{"uninstall"}, 2, "", "not implemented yet"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

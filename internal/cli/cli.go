@@ -55,20 +55,14 @@ type Command struct {
 	Run     func(env Env, args []string) int
 }
 
-func notImplemented(name string) func(Env, []string) int {
-	return func(env Env, _ []string) int {
-		fmt.Fprintf(env.Stderr, "gabitotl %s: not implemented yet\n", name)
-		return ExitNotImplemented
-	}
-}
-
 func commands() map[string]Command {
 	list := []Command{
-		{"install", "Install GabitoTL into a runtime", notImplemented("install")},
-		{"doctor", "Diagnose installation and project state", notImplemented("doctor")},
-		{"migrate", "Migrate configuration between versions", notImplemented("migrate")},
-		{"restore", "Restore files from a local backup", notImplemented("restore")},
-		{"uninstall", "Remove GabitoTL from a runtime", notImplemented("uninstall")},
+		{"install", "Install GabitoTL: detect, back up, migrate, configure (--dry-run, --yes)", runInstall},
+		{"migrate", "Migrate from another harness (migrate gentle-ai)", runMigrate},
+		{"doctor", "Check the installation and the project (read-only)", runDoctor},
+		{"restore", "Restore configs from a migration snapshot (lists snapshots)", runRestore},
+		{"uninstall", "Remove only what GabitoTL installed", runUninstall},
+		{"cleanup", "Offer to delete expired legacy snapshots (30 days)", runCleanup},
 		{"init", "Create .gabitotl/ in a project", runInit},
 		{"memory", "Memory provider tools (doctor, search)", runMemory},
 		{"scan", "Scan the project and print its map", runScan},
@@ -92,8 +86,7 @@ func commands() map[string]Command {
 // Run dispatches args (without the program name) and returns the exit code.
 func Run(args []string, env Env) int {
 	if len(args) == 0 {
-		printHelp(env.Stdout)
-		return ExitOK
+		return runHome(env)
 	}
 	switch args[0] {
 	case "-h", "--help":

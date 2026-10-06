@@ -26,9 +26,7 @@ const (
 // Messages holds the replaceable user-facing templates.
 type Messages map[string]string
 
-// ParseMessages reads "key = value" lines (blank lines and # comments ignored)
-// and verifies every key in RequiredKeys is present.
-func ParseMessages(src string) (Messages, error) {
+func parse(src string) (Messages, error) {
 	m := Messages{}
 	sc := bufio.NewScanner(strings.NewReader(src))
 	for n := 1; sc.Scan(); n++ {
@@ -42,8 +40,20 @@ func ParseMessages(src string) (Messages, error) {
 		}
 		m[strings.TrimSpace(k)] = strings.TrimSpace(v)
 	}
+	return m, nil
+}
+
+// ParseMessages reads "key = value" lines (blank lines and # comments ignored)
+// and verifies every key of the embedded es-AR file is present, so a
+// replacement file can never leave a gap.
+func ParseMessages(src string) (Messages, error) {
+	m, err := parse(src)
+	if err != nil {
+		return nil, err
+	}
+	def := Default()
 	var missing []string
-	for _, k := range RequiredKeys {
+	for k := range def {
 		if m[k] == "" {
 			missing = append(missing, k)
 		}
@@ -57,7 +67,7 @@ func ParseMessages(src string) (Messages, error) {
 
 // Default returns the embedded es-AR messages.
 func Default() Messages {
-	m, err := ParseMessages(defaultMessages)
+	m, err := parse(defaultMessages)
 	if err != nil {
 		panic(err) // the embedded file is covered by tests
 	}
@@ -78,13 +88,10 @@ func (m Messages) Format(key string, pairs ...string) string {
 	return s
 }
 
-// Keys used by the renderers; RequiredKeys lists them for validation.
+// Keys referenced directly by renderers (the rest are built from codes).
 const (
 	KeyPlanTitle   = "plan.title"
 	KeyPlanImport  = "plan.import.count"
 	KeyPlanEmpty   = "plan.empty"
 	KeyPlanDryDone = "plan.dry_run_done"
 )
-
-// RequiredKeys must exist in any replacement messages file.
-var RequiredKeys = []string{KeyPlanTitle, KeyPlanImport, KeyPlanEmpty, KeyPlanDryDone}

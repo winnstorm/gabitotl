@@ -1,0 +1,320 @@
+package ui
+
+import (
+	"fmt"
+	"io"
+	"sort"
+	"strconv"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/winnstorm/gabitotl/internal/installer"
+	rt "github.com/winnstorm/gabitotl/internal/runtime"
+)
+
+var osNames = map[string]string{"linux": "Linux", "darwin": "macOS", "windows": "Windows"}
+
+func line(w io.Writer, sym, text string) { fmt.Fprintf(w, "  %s %s\n", sym, text) }
+
+func box(w io.Writer, title, subtitle string) {
+	const width = 40
+	pad := func(s string) string {
+		n := utf8.RuneCountInString(s)
+		l := (width - n) / 2
+		if l < 0 {
+			l = 0
+		}
+		r := width - n - l
+		if r < 0 {
+			r = 0
+		}
+		return strings.Repeat(" ", l) + s + strings.Repeat(" ", r)
+	}
+	fmt.Fprintf(w, "╭%s╮\n│%s│\n│%s│\n╰%s╯\n", strings.Repeat("─", width), pad(title), pad(subtitle), strings.Repeat("─", width))
+}
+
+// RenderInventory prints the detection summary (spec 2): what was found, not
+// what will be asked.
+func RenderInventory(w io.Writer, m Messages, inv installer.Inventory) {
+	box(w, m.Format("inv.title"), m.Format("inv.subtitle"))
+	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.system"))
+	os := osNames[inv.Platform.OS]
+	if os == "" {
+		os = inv.Platform.OS
+	}
+	line(w, SymOK, m.Format("inv.os", "name", os))
+	if inv.Platform.Git {
+		line(w, SymOK, m.Format("inv.git"))
+	} else {
+		line(w, SymError, m.Format("inv.git.missing"))
+	}
+	if inv.Project.Root != "" {
+		line(w, SymOK, m.Format("inv.project", "name", inv.Project.Name))
+	} else {
+		line(w, SymWarn, m.Format("inv.project.none"))
+	}
+
+	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.agents"))
+	for _, r := range inv.Runtimes {
+		switch {
+		case r.Usable():
+			line(w, SymOK, m.Format("inv.runtime.ready", "name", r.Label))
+		case r.State == rt.StateDetectedHistory:
+			line(w, SymWarn, m.Format("inv.runtime.history", "name", r.Label))
+		}
+	}
+
+	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.memory"))
+	mem := inv.Memory
+	switch {
+	case mem.Present():
+		line(w, SymOK, m.Format("inv.engram.found"))
+		if mem.Observations > 0 {
+			line(w, SymOK, m.Format("inv.engram.obs", "count", strconv.Itoa(mem.Observations)))
+		}
+		if mem.DoctorRan && mem.DoctorOK {
+			line(w, SymOK, m.Format("inv.engram.healthy"))
+		} else if mem.DoctorRan {
+			line(w, SymError, m.Format("inv.engram.unhealthy"))
+		}
+	default:
+		line(w, SymWarn, m.Format("inv.engram.none"))
+	}
+
+	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.other"))
+	if g := inv.Other.GentleAI; g.Found {
+		detail := ""
+		if g.Version != "" {
+			detail = g.Version
+		}
+		line(w, SymWarn, strings.TrimSpace(m.Format("inv.gentle.found", "detail", detail)))
+		if len(g.Agents) > 0 {
+			var ids []string
+			for _, a := range g.Agents {
+				ids = append(ids, a.ID)
+			}
+			line(w, " ", m.Format("inv.gentle.agents", "detail", strings.Join(ids, ", ")))
+		}
+	} else {
+		line(w, SymOK, m.Format("inv.other.none"))
+	}
+	fmt.Fprintln(w)
+}
+
+// RenderOjoMigration prints the Gabito "Ojo" before a Gentle-AI migration.
+func RenderOjoMigration(w io.Writer, m Messages, inv installer.Inventory) {
+	key, pairs := "ojo.migration.nomem", []string(nil)
+	if inv.Memory.Observations > 0 {
+		key, pairs = "ojo.migration", []string{"count", strconv.Itoa(inv.Memory.Observations)}
+	}
+	fmt.Fprintf(w, "%s:\n%s\n\n", m.Format("label.ojo"), m.Format(key, pairs...))
+}
+
+var lineSymbols = map[string]string{
+	installer.LineOK: SymOK, installer.LineWarn: SymWarn, installer.LineTodo: SymTodo, installer.LineError: SymError,
+}
+
+// RenderDoctor prints the doctor report grouped by section (spec 41).
+func RenderDoctor(w io.Writer, m Messages, d installer.DoctorReport) {
+	fmt.Fprintf(w, "%s\n", m.Format("doctor.title"))
+	for _, s := range d.Sections {
+		if len(s.Lines) == 0 {
+			continue
+		}
+		fmt.Fprintf(w, "\n%s\n", m.Format("doctor.section."+s.Name))
+		for _, l := range s.Lines {
+			fmt.Fprintf(w, "%s %s\n", lineSymbols[l.Status], m.Format(l.Code, "detail", l.Detail))
+		}
+	}
+	if n := d.Errors(); n > 0 {
+		fmt.Fprintf(w, "\n%s %s\n", SymError, m.Format("doctor.summary.errors", "count", strconv.Itoa(n)))
+	} else {
+		fmt.Fprintf(w, "\n%s %s\n", SymOK, m.Format("doctor.summary.ok"))
+	}
+}
+
+// RenderEvent prints one progress event: phase starts as "→ ...", warnings as "! ...".
+func RenderEvent(w io.Writer, m Messages, e installer.Event) {
+	switch {
+	case e.Status == "start":
+		if msg, ok := m["phase."+string(e.Phase)]; ok {
+			fmt.Fprintf(w, "%s %s…\n", SymTodo, msg)
+		}
+	case e.Status == "warn":
+		fmt.Fprintf(w, "%s %s %s\n", SymWarn, e.Step, e.Detail)
+	}
+}
+
+// RenderResult prints the closing summary of a run (spec 28, final screen).
+func RenderResult(w io.Writer, m Messages, res installer.Result, inv installer.Inventory, paths Paths) {
+	switch {
+	case res.RolledBack:
+		fmt.Fprintf(w, "%s %s\n", SymError, m.Format("result.rolled_back", "count", strconv.Itoa(len(res.RolledBackWith))))
+	case res.Skipped:
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.nothing"))
+	case res.DryRun:
+		fmt.Fprintln(w, m.Format(KeyPlanDryDone))
+	default:
+		fmt.Fprintf(w, "\n%s\n\n%s\n%s %s\n", m.Format("result.done"), m.Format("result.gabitotl"), SymOK, m.Format("result.configured"))
+		if inv.Memory.Present() {
+			fmt.Fprintf(w, "\n%s\n%s %s\n", m.Format("result.memory"), SymOK, m.Format("result.memory.reused"))
+			if inv.Memory.Observations > 0 {
+				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.memory.preserved", "count", strconv.Itoa(inv.Memory.Observations)))
+			}
+		}
+		if len(res.Applied) > 0 {
+			fmt.Fprintf(w, "\n%s\n", m.Format("result.runtimes"))
+			for _, n := range res.Applied {
+				label := n
+				if r, ok := inv.Runtime(n); ok {
+					label = r.Label
+				}
+				fmt.Fprintf(w, "%s %s\n", SymOK, label)
+			}
+		}
+		if inv.Other.GentleAI.Found {
+			fmt.Fprintf(w, "\n%s\n", m.Format("result.gentle"))
+			if len(res.Retired.GentleArgs) > 0 || len(res.Retired.Personas) > 0 {
+				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.gentle.retired"))
+			} else {
+				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.gentle.kept"))
+			}
+		}
+		if res.Snapshot != nil {
+			fmt.Fprintf(w, "\n%s\n", m.Format("result.snapshot", "path", paths.Short(res.Snapshot.Dir)))
+		}
+		if inv.Other.GentleAI.Found {
+			fmt.Fprintf(w, "\n%s:\n%s\n", m.Format("label.tip"), m.Format("tip.backup"))
+		}
+	}
+	for _, wn := range res.Warnings {
+		fmt.Fprintf(w, "%s %s\n", SymWarn, m.Format("result.warning", "detail", wn))
+	}
+}
+
+// RenderSnapshots lists migration snapshots for `gabitotl restore`.
+func RenderSnapshots(w io.Writer, m Messages, snaps []*installer.Snapshot) {
+	if len(snaps) == 0 {
+		fmt.Fprintln(w, m.Format("restore.none"))
+		return
+	}
+	fmt.Fprintln(w, m.Format("restore.title"))
+	for _, s := range snaps {
+		detail := fmt.Sprintf("%s, %d archivo(s)", s.Manifest.Source, len(s.Manifest.Files))
+		fmt.Fprintf(w, "  %s\n", m.Format("restore.line", "id", s.ID, "status", s.Manifest.Status, "detail", detail))
+	}
+	fmt.Fprintf(w, "\n%s\n", m.Format("restore.hint"))
+}
+
+// RenderRestorePlan lists what a restore would change.
+func RenderRestorePlan(w io.Writer, m Messages, changes []installer.RestoreChange, paths Paths) {
+	if len(changes) == 0 {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("restore.nothing"))
+		return
+	}
+	fmt.Fprintln(w, m.Format("restore.plan"))
+	for _, c := range changes {
+		fmt.Fprintf(w, "  %s %s %s\n", SymTodo, m.Format("restore.change."+c.Action), paths.Short(c.Path))
+	}
+	fmt.Fprintf(w, "\n%s\n", m.Format("restore.note"))
+}
+
+// RenderUninstallPlan shows what uninstall removes and what it keeps (spec 46).
+func RenderUninstallPlan(w io.Writer, m Messages, pl installer.UninstallPlan, paths Paths) {
+	if len(pl.Runtimes) == 0 {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.none"))
+		return
+	}
+	fmt.Fprintf(w, "%s\n\n", m.Format("uninstall.remove"))
+	for _, n := range pl.Runtimes {
+		files := append([]string(nil), pl.Files[n]...)
+		sort.Strings(files)
+		for _, f := range files {
+			fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("uninstall.remove.item", "name", n, "detail", paths.Short(f)))
+		}
+	}
+	fmt.Fprintf(w, "\n%s\n\n", m.Format("uninstall.keep"))
+	for _, k := range pl.Preserved {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.keep."+k))
+	}
+}
+
+// RenderCleanup lists expired legacy material.
+func RenderCleanup(w io.Writer, m Messages, items []installer.Expired, days int, paths Paths) {
+	if len(items) == 0 {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("cleanup.none"))
+		return
+	}
+	fmt.Fprintf(w, "%s\n", m.Format("cleanup.title", "days", strconv.Itoa(days)))
+	for _, it := range items {
+		fmt.Fprintf(w, "  %s %s\n", SymTodo, m.Format("cleanup.item", "kind", it.Kind, "path", paths.Short(it.Path), "age", strconv.Itoa(it.AgeDays)))
+	}
+	fmt.Fprintf(w, "\n%s\n", m.Format("cleanup.note"))
+}
+
+// ReportRenderer returns the Spanish renderer of the migration report written
+// to .gabitotl/imports.md (spec 22). Inject it as installer.Env.RenderReport.
+func ReportRenderer(m Messages) func(installer.Report) string {
+	return func(r installer.Report) string {
+		var b strings.Builder
+		fmt.Fprintf(&b, "- source: %s\n- imported_at: %s\n- status: %s\n\n# %s\n\n## %s\n\n", r.Source, r.ImportedAt, r.Status, titleOf(r.Source), m.Format("report.memory"))
+		if r.Engram {
+			fmt.Fprintf(&b, "%s\n\n", m.Format("report.engram.reused"))
+			if r.Project != "" {
+				fmt.Fprintf(&b, "%s\n%s\n\n", m.Format("report.engram.project"), r.Project)
+			}
+			if r.Observation > 0 {
+				fmt.Fprintf(&b, "%s\n%d\n\n", m.Format("report.engram.obs"), r.Observation)
+			}
+			if r.Backup != "" {
+				fmt.Fprintf(&b, "%s\n%s\n\n", m.Format("report.engram.backup"), r.Backup)
+			}
+		} else {
+			fmt.Fprintf(&b, "%s\n\n", m.Format("report.engram.none"))
+		}
+		if r.MemoryNote != "" {
+			fmt.Fprintf(&b, "%s\n\n", m.Format("report.memory.note."+r.MemoryNote))
+		}
+		list := func(key string, items []string) {
+			fmt.Fprintf(&b, "## %s\n\n", m.Format(key))
+			for _, i := range items {
+				fmt.Fprintf(&b, "- %s\n", i)
+			}
+			if len(items) == 0 {
+				fmt.Fprintf(&b, "- %s\n", m.Format("report.none"))
+			}
+			b.WriteString("\n")
+		}
+		list("report.imported", r.Imported)
+		var not, ret, kept []string
+		for _, n := range r.NotImported {
+			if rest, ok := strings.CutPrefix(n, "components: "); ok {
+				not = append(not, m.Format("report.not.components", "detail", rest))
+			} else {
+				not = append(not, m.Format("report.not."+n))
+			}
+		}
+		for _, x := range r.Retired {
+			switch {
+			case strings.HasPrefix(x, "persona: "):
+				ret = append(ret, m.Format("report.retired.persona", "detail", strings.TrimPrefix(x, "persona: ")))
+			case strings.HasPrefix(x, "gentle-ai: "):
+				ret = append(ret, m.Format("report.retired.gentle", "detail", strings.TrimPrefix(x, "gentle-ai: ")))
+			}
+		}
+		for _, k := range r.Preserved {
+			kept = append(kept, m.Format("report.kept."+k))
+		}
+		list("report.not_imported", not)
+		list("report.retired", ret)
+		list("report.preserved", kept)
+		return strings.TrimRight(b.String(), "\n") + "\n"
+	}
+}
+
+func titleOf(source string) string {
+	if source == installer.SourceGentleAI {
+		return "Gentle-AI"
+	}
+	return strings.ToUpper(source[:1]) + source[1:]
+}

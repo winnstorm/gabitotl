@@ -394,12 +394,14 @@ func (s *Snapshot) copyOf(mf ManifestFile) ([]byte, error) {
 // RestoreFiles puts every file of the manifest back exactly as it was: saved
 // copies are written back, files that did not exist are removed. The ownership
 // state is restored the same way. It never touches Engram or anything outside
-// the manifest. It returns the paths it changed.
-func (s *Snapshot) RestoreFiles() ([]string, error) {
+// the manifest. Project (.gabitotl) files are only reverted when includeProject
+// is set: a rollback of a run that just created them does, a later user-driven
+// restore never does (the folder is committed work). It returns the paths it changed.
+func (s *Snapshot) RestoreFiles(includeProject bool) ([]string, error) {
 	var changed []string
 	done := map[string]bool{}
 	apply := func(mf ManifestFile) error {
-		if done[mf.Path] {
+		if done[mf.Path] || (mf.Runtime == ProjectRuntime && !includeProject) {
 			return nil
 		}
 		done[mf.Path] = true

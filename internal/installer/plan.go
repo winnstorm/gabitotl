@@ -105,7 +105,8 @@ type Plan struct {
 // Sentinel errors of plan building.
 var ErrUnknownRuntime = errors.New("unknown runtime")
 
-func (p Plan) hasNote(code string) bool {
+// HasNote reports whether the plan carries a note with this code.
+func (p Plan) HasNote(code string) bool {
 	return slices.ContainsFunc(p.Notes, func(n Note) bool { return n.Code == code })
 }
 
@@ -364,4 +365,13 @@ func (p Plan) Mutates() bool {
 		}
 	}
 	return false
+}
+
+// RetireActions flattens the retire-time actions in runtime order.
+func (p Plan) RetireActions() []rt.Action {
+	var out []rt.Action
+	for _, name := range p.RuntimeOrder {
+		out = append(out, p.Retire[name]...)
+	}
+	return out
 }

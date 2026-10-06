@@ -118,7 +118,7 @@ func TestRestoreFilesRevertsEditsAndRemovesCreatedFiles(t *testing.T) {
 	if created == "" {
 		t.Fatalf("expected at least one file that did not exist (plan: %d items)", len(pl.Items))
 	}
-	changed, err := s.RestoreFiles()
+	changed, err := s.RestoreFiles(true)
 	if err != nil || len(changed) < 2 {
 		t.Fatalf("changed=%v err=%v", changed, err)
 	}

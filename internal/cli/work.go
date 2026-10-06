@@ -115,19 +115,26 @@ func runWorkOverlap(env Env, args []string) int {
 		_ = enc.Encode(rep)
 		return ExitOK
 	}
-	msgs := persona.DefaultMessages()
 	if len(rep.Findings) == 0 {
 		fmt.Fprintln(env.Stdout, "no overlap found")
 	}
-	for _, f := range rep.Findings {
-		fmt.Fprintf(env.Stdout, "overlap with %s (task %s, branch %s, via %s): %s\n",
-			f.Who, dash(f.Task), dash(f.Branch), f.Source, strings.Join(f.SharedAreas, ", "))
-		fmt.Fprintf(env.Stdout, "  **%s:** %s\n", msgs[persona.KeyBlockOjo], msgs.OverlapOjo(f.Who, strings.Join(f.SharedAreas, ", ")))
-	}
+	printOverlap(env, rep.Findings)
 	for _, w := range rep.Warnings {
 		fmt.Fprintf(env.Stderr, "warning: %s\n", w)
 	}
 	return ExitOK // advisory: never fails because of an overlap
+}
+
+// printOverlap prints the soft-lock advisory (the Spanish OJO text of the
+// persona messages) for each finding. It is advisory only: callers never fail
+// because of it.
+func printOverlap(env Env, findings []coordination.Finding) {
+	msgs := persona.DefaultMessages()
+	for _, f := range findings {
+		fmt.Fprintf(env.Stdout, "overlap with %s (task %s, branch %s, via %s): %s\n",
+			f.Who, dash(f.Task), dash(f.Branch), f.Source, strings.Join(f.SharedAreas, ", "))
+		fmt.Fprintf(env.Stdout, "  **%s:** %s\n", msgs[persona.KeyBlockOjo], msgs.OverlapOjo(f.Who, strings.Join(f.SharedAreas, ", ")))
+	}
 }
 
 // runWorkWrite implements `work start` (create) and `work update` (merge) for
@@ -197,5 +204,14 @@ func runWorkWrite(env Env, args []string, start bool) int {
 		return ExitError
 	}
 	fmt.Fprintf(env.Stdout, "%s/%s [%s] branch=%s areas=%s\n", t.Owner, t.ID, t.Status, dash(t.Branch), dash(strings.Join(t.Areas, ",")))
+	// Soft lock: tell the developer when someone else's active work overlaps.
+	// Active-work files only (cheap, no memory query); `work overlap` also
+	// searches memory. Never blocks.
+	if t.Active() && len(t.Areas)+len(t.Files) > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), memoryTimeout)
+		defer cancel()
+		rep := coordination.CheckOverlap(ctx, layout, nil, coordination.Probe{User: u, Task: t.ID, Areas: t.Areas, Files: t.Files})
+		printOverlap(env, rep.Findings)
+	}
 	return ExitOK
 }

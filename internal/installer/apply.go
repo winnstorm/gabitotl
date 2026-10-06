@@ -137,7 +137,7 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 		res.Skipped = true
 		return res, nil
 	}
-	if pl.hasNote(NoteMemoryUnhealthy) {
+	if pl.HasNote(NoteMemoryUnhealthy) {
 		return res, ErrMemoryUnhealthy
 	}
 
@@ -382,7 +382,7 @@ func (r *run) rollback(cause error) {
 			r.warn("rollback: %s: %v", r.applied[i], err)
 		}
 	}
-	files, err := r.snap.RestoreFiles()
+	files, err := r.snap.RestoreFiles(true)
 	if err != nil {
 		r.warn("rollback: %v", err)
 	}

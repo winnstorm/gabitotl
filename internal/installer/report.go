@@ -43,7 +43,7 @@ func (r *run) buildReport(status string) Report {
 			rep.Backup = tilde(r.env.Home, filepath.Join(r.snap.Dir, r.snap.Manifest.Engram.File))
 		}
 	}
-	if r.pl.hasNote(NoteNoMigrator) {
+	if r.pl.HasNote(NoteNoMigrator) {
 		rep.MemoryNote = NoteNoMigrator
 	}
 	for _, o := range r.res.Imports {

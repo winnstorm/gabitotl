@@ -35,3 +35,202 @@ warn.data-dir-override = Engram usa un directorio de datos propio ({detail}). Lo
 warn.cloud-sync = Esta instalación de Engram parece tener nube o autosync ({detail}). No es una instalación local simple: no la toco.
 warn.project-config = Este proyecto tiene .engram/ con su propia configuración ({detail}). La reutilizo.
 warn.project-identity = La identidad del proyecto en Engram no coincide con la de GabitoTL ({detail}). Revisalo antes de pasar a memoria compartida.
+
+# --- detection summary (spec 2 and 50) --------------------------------------
+inv.title = GabitoTL
+inv.subtitle = Preparando tu entorno de trabajo
+inv.section.system = Sistema
+inv.section.agents = Coding agents
+inv.section.memory = Memoria
+inv.section.other = Otros harness
+inv.os = {name}
+inv.git = Git
+inv.git.missing = Git no está instalado
+inv.project = Proyecto detectado: {name}
+inv.project.none = No estoy dentro de un proyecto
+inv.runtime.ready = {name}
+inv.runtime.history = {name} (solo encontré configuración vieja)
+inv.runtime.absent = {name} no está instalado
+inv.engram.found = Engram encontrado: lo voy a reutilizar, no instalo otra copia
+inv.engram.none = No encontré Engram
+inv.engram.obs = {count} recuerdos existentes
+inv.engram.healthy = engram doctor sin errores
+inv.engram.unhealthy = engram doctor reporta errores
+inv.gentle.found = Gentle-AI encontrado {detail}
+inv.gentle.agents = Agentes que administra: {detail}
+inv.other.none = No encontré otros harness
+
+# --- Gabito voice (spec 51) ---------------------------------------------------
+label.ojo = Ojo
+label.tip = TIP
+ojo.migration = Encontré Gentle-AI y {count} recuerdos en Engram. Primero voy a respaldar esa memoria; no la voy a tocar durante la desinstalación.
+ojo.migration.nomem = Encontré Gentle-AI. Primero voy a respaldar la configuración que se toca; la memoria no se toca.
+tip.backup = Dejé el backup de Gentle-AI guardado por si necesitás volver atrás. Cuando estés seguro, lo podemos limpiar con `gabitotl cleanup`.
+
+# --- progress -----------------------------------------------------------------
+phase.plan = Armando el plan
+phase.snapshot = Respaldando antes de tocar nada
+phase.migrate-knowledge = Importando el conocimiento útil
+phase.configure-runtimes = Configurando los runtimes
+phase.verify-memory = Verificando la memoria
+phase.verify-project = Verificando el proyecto
+phase.retire = Retirando lo anterior
+phase.report = Escribiendo el informe
+
+# --- results ------------------------------------------------------------------
+result.done = Listo.
+result.gabitotl = GabitoTL
+result.configured = configurado
+result.memory = Memoria
+result.memory.reused = Engram sigue usando la misma memoria y ya quedó conectado a GabitoTL.
+result.memory.preserved = {count} recuerdos preservados
+result.runtimes = Runtimes
+result.gentle = Gentle-AI
+result.gentle.retired = configuración retirada
+result.gentle.kept = sigue instalado, no lo toqué
+result.snapshot = Snapshot: {path}
+result.nothing = Ya estaba todo configurado: no hice cambios.
+result.rolled_back = Algo falló y revertí los cambios de GabitoTL. Gentle-AI y Engram siguen intactos. ({count} archivo(s) restaurados)
+result.failed = Falló: {detail}
+result.partial = GabitoTL quedó configurado y verificado, pero retirar Gentle-AI no terminó. Detalle: {detail}
+result.warning = {detail}
+
+refuse.no_tty = Sin una terminal no puedo preguntarte nada, así que no cambio nada. Corré con --yes para que siga sin preguntar, o con --dry-run para ver el plan.
+refuse.no_project = Esto no es un proyecto (o es una carpeta que no uso como proyecto). Entrá a la carpeta del proyecto y volvé a correrlo.
+refuse.no_gentle = No encontré Gentle-AI en esta máquina: no hay nada para migrar.
+refuse.remove_needs_gentle = --remove-gentle-ai pide que Gentle-AI esté instalado y que todo quede verificado antes de retirarlo.
+
+# --- interactive questions (only what cannot be detected) -----------------------
+ask.name = ¿Cómo querés que te llame?
+ask.mode = ¿Cómo vas a trabajar?
+ask.mode.solo = Yo solo (usa Engram local)
+ask.mode.team = En equipo (memoria compartida)
+ask.git = ¿Querés que Gabito maneje commits y PR?
+ask.git.yes = Sí, que los maneje
+ask.git.no = No, que me pregunte cada vez
+ask.action = ¿Qué querés hacer?
+ask.action.migrate = Migrar Gentle-AI → GabitoTL
+ask.action.keep = Instalar GabitoTL sin tocar Gentle-AI
+ask.action.inventory = Revisar detalles
+ask.action.exit = Salir
+ask.persona = {detail} tiene el bloque de persona de Gentleman de Gentle-AI. Con las dos personas juntas se pisan.
+ask.persona.show = Esto es exactamente lo que voy a quitar (recién después de verificar):
+ask.persona.confirm = ¿Retiro ese bloque?
+ask.apply = ¿Aplico el plan?
+ask.retire.title = Gentle-AI ya no es necesario para este proyecto. Todo quedó verificado.
+ask.retire.do = Retirar configuración de Gentle-AI
+ask.retire.keep = Mantenerlo instalado
+ask.retire.review = Revisar qué se va a quitar
+ask.retire.preview = Voy a ejecutar el desinstalador propio de Gentle-AI: gentle-ai {detail}
+ask.retire.narrow = Uso la forma por agente: los agentes que GabitoTL no reemplaza quedan como están.
+ask.choose = Elegí una opción
+ask.yesno = [s/N]
+ask.invalid = No entendí esa respuesta.
+
+# --- restore / uninstall / cleanup ----------------------------------------------
+restore.title = Snapshots disponibles:
+restore.none = No hay snapshots de migración.
+restore.line = {id}  [{status}]  {detail}
+restore.hint = Restaurá uno con: gabitotl restore <id>
+restore.plan = Esto cambia:
+restore.change.restore = restaurar
+restore.change.remove = quitar (no existía antes)
+restore.confirm = ¿Restauro estos archivos?
+restore.done = Listo. Volví {count} archivo(s). Antes guardé lo actual en {path}.
+restore.nothing = No hay nada para restaurar: ya está como en el snapshot.
+restore.note = No toco Engram ni la carpeta .gabitotl del proyecto. Si Gentle-AI se desinstaló, sus archivos solo vuelven si estaban en el snapshot.
+
+uninstall.none = GabitoTL no tiene nada instalado en los runtimes.
+uninstall.remove = Se eliminará:
+uninstall.remove.item = {name}: {detail}
+uninstall.keep = Se conservará:
+uninstall.keep.engram = Engram
+uninstall.keep.memory = las memorias (Engram o Memory MCP)
+uninstall.keep.code = tu código
+uninstall.keep.project = el .gabitotl del proyecto
+uninstall.keep.backups = los backups
+uninstall.confirm = ¿Desinstalo?
+uninstall.done = Listo. Saqué solo lo que había puesto GabitoTL. Guardé una copia de esos archivos en {path}.
+uninstall.manual = Esto lo tenés que revisar a mano: {detail}
+
+cleanup.none = No hay nada vencido para limpiar.
+cleanup.title = Esto ya pasó los {days} días y se puede borrar:
+cleanup.item = {kind}: {path} ({age} días)
+cleanup.confirm = ¿Lo borro?
+cleanup.done = Listo. Borré {count} elemento(s).
+cleanup.note = No toco ~/.gentle-ai/backups ni Engram.
+
+# --- onboarding / status (gabitotl with no arguments) ----------------------------
+home.status.title = GabitoTL en este proyecto
+home.status.identity = Identidad: {detail}
+home.status.identity.none = Identidad: todavía no sé cómo identificarte
+home.status.memory = Memoria: {detail}
+home.status.runtime = Runtime: {detail}
+home.status.hint = Para ver el estado completo: gabitotl doctor
+home.onboarding = Este proyecto todavía no tiene .gabitotl. Armo todo con lo que detecto.
+home.not_project = Entrá a la carpeta de un proyecto para que lo configure. Ayuda: gabitotl help
+
+# --- doctor (spec 41) --------------------------------------------------------------
+doctor.title = GabitoTL doctor
+doctor.section.core = Core
+doctor.section.project = Proyecto
+doctor.section.memory = Memoria
+doctor.section.runtimes = Runtimes
+doctor.section.git = Git
+doctor.section.legacy = Legacy
+doctor.summary.ok = Todo en orden.
+doctor.summary.errors = Hay {count} error(es) para resolver.
+doctor.core.version = GabitoTL {detail}
+doctor.core.platform = {detail}
+doctor.core.git = Git instalado
+doctor.core.git-missing = Git no está instalado
+doctor.project.none = No estoy dentro de un proyecto
+doctor.project.missing = Este proyecto todavía no tiene .gabitotl (corré gabitotl install)
+doctor.project.ok = .gabitotl
+doctor.project.invalid = {detail}
+doctor.memory.engram = Engram
+doctor.memory.engram-missing = No encontré Engram
+doctor.memory.engram-binary-missing = Hay datos de Engram ({detail}) pero no el binario
+doctor.memory.doctor-ok = engram doctor sin errores
+doctor.memory.doctor-bad = engram doctor reporta errores: {detail}
+doctor.memory.project = proyecto {detail}
+doctor.memory.project-unknown = Engram todavía no conoce el proyecto {detail}
+doctor.memory.mcp = MCP de memoria configurado en {detail} runtime(s)
+doctor.memory.mcp-none = Ningún runtime tiene el MCP de memoria configurado
+doctor.memory.mcp-server-pending = Memoria compartida: todavía no hay un servidor Memory MCP elegido
+doctor.runtime.ok = {detail}
+doctor.runtime.drift = {detail}: cambió desde la instalación
+doctor.runtime.todo = {detail}: se va a configurar
+doctor.runtime.history = {detail}: solo hay configuración vieja
+doctor.runtime.persona-conflict = {detail}
+doctor.git.repo = repositorio
+doctor.git.no-repo = esto no es un repositorio Git
+doctor.git.provider = {detail}
+doctor.git.identity = identidad: {detail}
+doctor.git.no-identity = todavía no sé cómo identificarte
+doctor.legacy.gentle = Gentle-AI sigue instalado {detail}
+doctor.legacy.gentle-backups = Backups de Gentle-AI disponibles
+doctor.legacy.snapshots = {detail} snapshot(s) de migración disponibles
+doctor.legacy.none = Nada heredado
+
+# --- migration report written to .gabitotl/imports.md (spec 22) ------------------------
+report.memory = Memoria
+report.engram.reused = Engram detectado y reutilizado.
+report.engram.none = No encontré Engram.
+report.engram.project = Proyecto Engram:
+report.engram.obs = Observaciones encontradas:
+report.engram.backup = Backup:
+report.memory.note.no-memory-migrator = Memoria compartida: no hay un migrador probado de Engram, así que se conservó el export y no se copió nada.
+report.imported = Configuración importada
+report.not_imported = No importado
+report.retired = Retirado
+report.preserved = Preservado
+report.none = Nada
+report.not.persona = Persona Gentleman
+report.not.components = Componentes de Gentle-AI: {detail}
+report.retired.persona = Bloque de persona de Gentle-AI en {detail}
+report.retired.gentle = Configuración administrada por Gentle-AI (gentle-ai {detail})
+report.kept.engram = Engram
+report.kept.user-files = Archivos del usuario
+report.kept.unmanaged-config = Configuración no administrada por Gentle-AI
+report.kept.gentle-ai-backups = Backups de Gentle-AI (limpieza diferida)
