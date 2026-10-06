@@ -101,17 +101,19 @@ func TestBuildPlanTeamMemoryWithoutMigratorIsHonest(t *testing.T) {
 	}
 }
 
-func TestGentleUninstallArgsPrefersNarrowFormWhenAgentsAreNotAllCovered(t *testing.T) {
+func TestGentleUninstallArgsOnlyEverUsesAll(t *testing.T) {
 	g := GentleAI{Agents: []AgentRef{{"claude-code", "claude-code"}, {"opencode", "opencode"}}}
-	if a, covered := GentleUninstallArgs(g, []string{"claude-code", "opencode"}); !covered || strings.Join(a, " ") != "uninstall --all" {
-		t.Fatalf("%v %v", a, covered)
+	if a, manual := GentleUninstallArgs(g, []string{"claude-code", "opencode"}); manual || strings.Join(a, " ") != "uninstall --all" {
+		t.Fatalf("%v %v", a, manual)
 	}
 	g.Agents = append(g.Agents, AgentRef{ID: "windsurf"}) // no V1 adapter: GabitoTL does not replace it
-	a, covered := GentleUninstallArgs(g, []string{"claude-code", "opencode"})
-	if covered || strings.Join(a, " ") != "uninstall --agent claude-code --agent opencode" {
-		t.Fatalf("an agent GabitoTL does not cover must keep its Gentle-AI setup: %v %v", a, covered)
+	if a, manual := GentleUninstallArgs(g, []string{"claude-code", "opencode"}); a != nil || !manual {
+		t.Fatalf("an agent GabitoTL does not cover forbids --all and asks for a manual uninstall: %v %v", a, manual)
 	}
-	if a, _ := GentleUninstallArgs(g, []string{"kiro-cli"}); a != nil {
-		t.Fatalf("no overlap means nothing to retire: %v", a)
+	if a, manual := GentleUninstallArgs(g, []string{"kiro-cli"}); a != nil || manual {
+		t.Fatalf("no overlap means nothing to retire: %v %v", a, manual)
+	}
+	if a, _ := GentleUninstallArgs(GentleAI{}, nil); strings.Join(a, " ") != "uninstall --all" {
+		t.Fatalf("no per-agent record: %v", a)
 	}
 }

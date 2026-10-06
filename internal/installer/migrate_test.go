@@ -29,8 +29,19 @@ func lastIndex(log []string, prefix string) int {
 	return -1
 }
 
+// coverAllAgents rewrites the fake Gentle-AI state so every agent it manages is
+// one GabitoTL replaces, which makes `gentle-ai uninstall --all` safe to run.
+func coverAllAgents(t *testing.T, f *fixture) {
+	t.Helper()
+	state := `{"version":"4.2.0","installed_agents":["claude-code","opencode","kiro-ide"],"components":["persona","engram"]}`
+	if err := os.WriteFile(f.home+"/.gentle-ai/state.json", []byte(state), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSoftLandingOrderAndPreservation(t *testing.T) {
 	f := newFixture(t)
+	coverAllAgents(t, f)
 	engramTree := treeHash(t, f.home+"/.engram")
 	backups := treeHash(t, f.home+"/.gentle-ai/backups")
 	steering := slurp(t, f.home+"/.kiro/steering/product.md")
@@ -45,8 +56,8 @@ func TestSoftLandingOrderAndPreservation(t *testing.T) {
 	if un < 0 {
 		t.Fatalf("Gentle-AI's own uninstall never ran: %v", log)
 	}
-	if strings.Join(res.Retired.GentleArgs, " ") != "uninstall --agent claude-code --agent kiro-ide --agent opencode" {
-		t.Fatalf("an unmapped Gentle-AI agent must keep its setup, so the narrow form is used: %v", res.Retired.GentleArgs)
+	if strings.Join(res.Retired.GentleArgs, " ") != "uninstall --all" {
+		t.Fatalf("only the documented --all form may run: %v", res.Retired.GentleArgs)
 	}
 	// engram doctor -> export -> ... -> gentle-ai uninstall LAST -> doctor again.
 	doc, exp := logIndex(log, "engram doctor"), logIndex(log, "engram export")
@@ -111,8 +122,31 @@ func TestMigrateWithoutRemovalLeavesGentleAIAlone(t *testing.T) {
 	}
 }
 
+func TestUnreplacedGentleAgentMeansNoUninstallAllButPersonaIsRetired(t *testing.T) {
+	f := newFixture(t) // Gentle-AI also manages windsurf, which GabitoTL does not replace
+	inv, pl := buildPlan(t, f, landing)
+	if !pl.HasNote(NoteGentleManual) || pl.GentleArgs != nil {
+		t.Fatalf("the plan must tell the user to uninstall manually: %+v", pl)
+	}
+	f.runner.Calls = nil
+	res, err := Run(context.Background(), f.env, inv, pl, nil, Hooks{ConfirmRetire: func(RetirePreview) bool {
+		t.Error("the user must not be asked to run an uninstall that will not run")
+		return true
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.runner.Count("gentle-ai") != 0 || len(res.Retired.GentleArgs) != 0 {
+		t.Fatalf("gentle-ai uninstall must not run when --all would remove an agent GabitoTL keeps out: %v", f.runner.Log())
+	}
+	if len(res.Retired.Personas) != 1 || !slices.ContainsFunc(res.Warnings, func(w string) bool { return strings.Contains(w, "manually") }) {
+		t.Fatalf("persona retirement still applies and the manual step is reported: %+v", res)
+	}
+}
+
 func TestInteractiveRetirementIsAskedOnlyAfterVerification(t *testing.T) {
 	f := newFixture(t)
+	coverAllAgents(t, f)
 	o := landing
 	o.RemoveGentleAI = false
 	inv, pl := buildPlan(t, f, o)
@@ -134,6 +168,7 @@ func TestInteractiveRetirementIsAskedOnlyAfterVerification(t *testing.T) {
 
 	// Declined: GabitoTL stays, Gentle-AI is not touched.
 	g := newFixture(t)
+	coverAllAgents(t, g)
 	ginv, gpl := buildPlan(t, g, o)
 	res, err = Run(context.Background(), g.env, ginv, gpl, nil, Hooks{ConfirmRetire: func(RetirePreview) bool { return false }})
 	if err != nil || g.runner.Count("gentle-ai") != 0 || len(res.Retired.GentleArgs) != 0 {
@@ -174,6 +209,7 @@ func TestRetirementNeverRunsWithoutCleanVerification(t *testing.T) {
 
 func TestFailedGentleUninstallKeepsVerifiedGabitoTLAndPointsToSnapshot(t *testing.T) {
 	f := newFixture(t)
+	coverAllAgents(t, f)
 	f.runner.Handlers["gentle-ai uninstall"] = func([]string) (string, error) { return "", errors.New("exit status 2") }
 	res, err := runPlan(t, f, landing)
 	var pe *PartialError
@@ -190,6 +226,7 @@ func TestFailedGentleUninstallKeepsVerifiedGabitoTLAndPointsToSnapshot(t *testin
 
 func TestReconnectsEntriesGentleUninstallRemoved(t *testing.T) {
 	f := newFixture(t)
+	coverAllAgents(t, f)
 	f.runner.Handlers["gentle-ai uninstall"] = func([]string) (string, error) {
 		writeFile(t, f.home+"/.claude.json", "{}\n") // Gentle-AI removed the shared engram MCP entry
 		return "ok", nil

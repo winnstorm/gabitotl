@@ -30,8 +30,10 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 - Installing missing runtimes or Engram on request (today a missing tool is
   reported, never installed behind the user's back).
 - GitHub/Bitbucket authentication helpers.
-- Per-agent flag of Gentle-AI's uninstall: the narrow form (`uninstall --agent X`)
-  is an assumption until verified against a released Gentle-AI CLI.
+- Per-agent Gentle-AI uninstall: no per-agent form is verified (`gentle-ai
+  uninstall -h` documents only `--all`), so GabitoTL never runs one. When `--all`
+  would remove an agent GabitoTL does not replace, the user is told to uninstall
+  manually. Revisit once a released Gentle-AI CLI documents a narrow form.
 
 ## Product
 

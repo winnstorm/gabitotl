@@ -16,7 +16,6 @@ why.engram-project = configuración de Engram del proyecto
 why.gentle-backups = backups de Gentle-AI; los dejo para la limpieza diferida
 why.user-assets = skills y configuración propios; no los administra GabitoTL
 why.gentle-uninstall-all = mecanismo propio de Gentle-AI, recién después de verificar
-why.gentle-uninstall-agents = mecanismo propio de Gentle-AI, solo los agentes que GabitoTL reemplaza
 why.import-unchanged = ya importado y sin cambios
 
 # --- notes raised while planning -----------------------------------------
@@ -26,6 +25,7 @@ note.engram-missing = No encontré Engram y no instalo nada por mi cuenta: la me
 note.no-memory-migrator = Todavía no hay un migrador probado de Engram a memoria compartida. Mantengo tu Engram y el export de seguridad; no copio nada.
 note.gentle-ai-not-found = No encontré Gentle-AI en esta máquina.
 note.persona-conflict = Ojo: {detail} tiene la persona de Gentleman y la de Gabito juntas se pisan. Con --migrate-persona retiro solo ese bloque administrado.
+note.gentle-ai-manual-uninstall = Ojo: Gentle-AI también maneja agentes que GabitoTL no reemplaza, así que no ejecuto su desinstalación completa. Si querés retirarlo, corré vos el desinstalador propio de Gentle-AI.
 note.gentle-ai-agents-unmatched = Ninguno de los runtimes elegidos coincide con un agente de Gentle-AI: no hay nada que retirar con seguridad.
 note.memory-unhealthy = Engram reporta errores. No toco nada hasta que `engram doctor` quede limpio.
 note.engram-not-exportable = Encontré datos de Engram pero no el binario: no puedo hacer el export de seguridad.
@@ -122,7 +122,6 @@ ask.retire.do = Retirar configuración de Gentle-AI
 ask.retire.keep = Mantenerlo instalado
 ask.retire.review = Revisar qué se va a quitar
 ask.retire.preview = Voy a ejecutar el desinstalador propio de Gentle-AI: gentle-ai {detail}
-ask.retire.narrow = Uso la forma por agente: los agentes que GabitoTL no reemplaza quedan como están.
 ask.choose = Elegí una opción
 ask.yesno = [s/N]
 ask.invalid = No entendí esa respuesta.

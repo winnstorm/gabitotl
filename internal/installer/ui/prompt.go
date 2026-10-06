@@ -173,9 +173,6 @@ func (p *Prompter) RetireHook() func(installer.RetirePreview) bool {
 				return true
 			}
 			fmt.Fprintf(p.w, "%s %s\n", SymTodo, p.m.Format("ask.retire.preview", "detail", strings.Join(pv.Args, " ")))
-			if !pv.Covered {
-				fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.retire.narrow"))
-			}
 		}
 	}
 }

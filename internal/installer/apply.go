@@ -46,8 +46,7 @@ func Failed(cs []Check) []Check {
 
 // RetirePreview is what the user is asked to confirm after verification.
 type RetirePreview struct {
-	Args    []string // gentle-ai uninstall arguments
-	Covered bool     // true when --all is used
+	Args []string // gentle-ai uninstall arguments
 }
 
 // Hooks let a presenter take decisions that can only be asked once everything

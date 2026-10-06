@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -57,6 +56,7 @@ const (
 	NoteGentleNotFound  = "gentle-ai-not-found"
 	NotePersonaConflict = "persona-conflict"
 	NoteGentleUnmatched = "gentle-ai-agents-unmatched"
+	NoteGentleManual    = "gentle-ai-manual-uninstall"
 	NoteMemoryUnhealthy = "memory-unhealthy"
 	NoteEngramNoBackup  = "engram-not-exportable"
 )
@@ -73,15 +73,14 @@ type PlanItem struct {
 
 // Reason codes of PlanItem.Why.
 const (
-	WhyExists         = "exists"
-	WhySnapshot       = "snapshot"
-	WhyEngramAdopted  = "engram-adopted"
-	WhyEngramProject  = "engram-project"
-	WhyGentleBackups  = "gentle-backups"
-	WhyUserAssets     = "user-assets"
-	WhyUninstallAll   = "gentle-uninstall-all"
-	WhyUninstallAgent = "gentle-uninstall-agents"
-	WhyImportDone     = "import-unchanged"
+	WhyExists        = "exists"
+	WhySnapshot      = "snapshot"
+	WhyEngramAdopted = "engram-adopted"
+	WhyEngramProject = "engram-project"
+	WhyGentleBackups = "gentle-backups"
+	WhyUserAssets    = "user-assets"
+	WhyUninstallAll  = "gentle-uninstall-all"
+	WhyImportDone    = "import-unchanged"
 )
 
 // Plan is the pure description of a run. Building it writes nothing.
@@ -271,17 +270,15 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Retirement of Gentle-AI: its own mechanism, after verify.
 	if opts.RemoveGentleAI && g.Found {
-		args, covered := GentleUninstallArgs(g, pl.RuntimeOrder)
-		if args == nil {
+		args, manual := GentleUninstallArgs(g, pl.RuntimeOrder)
+		switch {
+		case manual:
+			pl.note(NoteGentleManual, "")
+		case args == nil:
 			pl.note(NoteGentleUnmatched, "")
-		} else {
+		default:
 			pl.GentleArgs = args
-			target := "gentle-ai " + strings.Join(args, " ")
-			why := WhyUninstallAll
-			if !covered {
-				why = WhyUninstallAgent
-			}
-			pl.add(rt.RemoveAfterVerify, target, why)
+			pl.add(rt.RemoveAfterVerify, "gentle-ai "+strings.Join(args, " "), WhyUninstallAll)
 		}
 	}
 
@@ -303,45 +300,34 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	return pl, nil
 }
 
-// GentleUninstallArgs picks Gentle-AI's own uninstall form. `--all` only when
-// every agent Gentle-AI manages is one GabitoTL replaces; otherwise the narrower
-// per-agent form, so an agent GabitoTL does not cover (for example one without a
-// V1 adapter) keeps its Gentle-AI setup. covered reports whether `--all` fits.
-// A nil result means no selected runtime matches any Gentle-AI agent.
-//
-// The per-agent flag spelling (`--agent <id>`) is an ASSUMPTION about the
-// Gentle-AI CLI; only `uninstall --all` is documented in the installer spec.
-func GentleUninstallArgs(g GentleAI, selected []string) (args []string, covered bool) {
-	var ids []string
-	allCovered := len(g.Agents) > 0
+// GentleUninstallArgs returns Gentle-AI's own uninstall invocation. Only
+// `uninstall --all` is documented, so it is the only form ever used, and only
+// when every agent Gentle-AI manages is one GabitoTL replaces (or Gentle-AI
+// records no per-agent state). When `--all` would also remove an agent GabitoTL
+// does not replace, args is nil and manual reports whether at least one selected
+// runtime matches, so the user is told to run Gentle-AI's own uninstall by hand.
+// A nil args with manual false means no selected runtime matches any agent.
+func GentleUninstallArgs(g GentleAI, selected []string) (args []string, manual bool) {
+	matched := 0
 	for _, a := range g.Agents {
 		if a.Runtime != "" && slices.Contains(selected, a.Runtime) {
-			ids = append(ids, a.ID)
-		} else {
-			allCovered = false
+			matched++
 		}
 	}
 	switch {
-	case len(g.Agents) == 0:
-		return []string{"uninstall", "--all"}, true // no per-agent record: Gentle-AI decides what it owns
-	case allCovered:
-		return []string{"uninstall", "--all"}, true
-	case len(ids) == 0:
+	case len(g.Agents) == 0, matched == len(g.Agents):
+		return []string{"uninstall", "--all"}, false
+	case matched == 0:
 		return nil, false
 	}
-	sort.Strings(ids)
-	args = []string{"uninstall"}
-	for _, id := range ids {
-		args = append(args, "--agent", id)
-	}
-	return args, false
+	return nil, true
 }
 
 // WhyCodes, NoteCodes and WarningCodes list every code presenters must have
 // wording for; a test in package ui keeps the messages file complete.
 var (
-	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyUninstallAgent, WhyImportDone}
-	NoteCodes    = []string{NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteMemoryUnhealthy, NoteEngramNoBackup}
+	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone}
+	NoteCodes    = []string{NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
 

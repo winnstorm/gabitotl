@@ -29,14 +29,17 @@ func (e *PartialError) Unwrap() error { return e.Err }
 // without a clean set of critical checks nothing is retired.
 func (r *run) retire(ctx context.Context) error {
 	g := r.inv.Other.GentleAI
-	args, covered := GentleUninstallArgs(g, r.pl.RuntimeOrder)
+	args, manual := GentleUninstallArgs(g, r.pl.RuntimeOrder)
+	if manual {
+		r.warn("Gentle-AI also manages agents GabitoTL does not replace: its `uninstall --all` was not run; run Gentle-AI's own uninstall manually")
+	}
 	personaWork := false
 	for _, acts := range r.pl.Retire {
 		personaWork = personaWork || len(acts) > 0
 	}
 	maybeGentle := g.Found && args != nil && (r.pl.Options.RemoveGentleAI || r.hooks.ConfirmRetire != nil)
 	if !personaWork && !maybeGentle {
-		if r.pl.Options.RemoveGentleAI && g.Found {
+		if r.pl.Options.RemoveGentleAI && g.Found && !manual {
 			r.warn("no selected runtime matches a Gentle-AI agent: nothing was retired")
 		}
 		return nil // nothing to retire: no retire phase
@@ -68,7 +71,7 @@ func (r *run) retire(ctx context.Context) error {
 	// presenter is asked only now, once everything is verified.
 	remove := r.pl.Options.RemoveGentleAI
 	if maybeGentle && !remove && r.hooks.ConfirmRetire != nil {
-		remove = r.hooks.ConfirmRetire(RetirePreview{Args: args, Covered: covered})
+		remove = r.hooks.ConfirmRetire(RetirePreview{Args: args})
 	}
 	if !maybeGentle || !remove {
 		return r.postVerify(ctx)

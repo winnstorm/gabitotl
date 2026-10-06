@@ -23,7 +23,7 @@ const (
 	cUser   = "# My rules\n\nBe kind.\n"
 	cGentle = "<!-- gentle-ai:persona -->\nGentleman.\n<!-- /gentle-ai:persona -->\n"
 	cOC     = "{\n  \"provider\": {\"anthropic\": {}}\n}\n"
-	cState  = `{"version":"4.2.0","installed_agents":["claude-code","opencode","kiro-ide"],"components":["persona"]}`
+	cState  = `{"version":"4.2.0","installed_agents":["claude-code","opencode"],"components":["persona"]}`
 	cDoctor = `{"status":"ok","checks":[{"check_id":"db","result":"ok","message":"fine"}]}`
 )
 
