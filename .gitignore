@@ -1,0 +1,32 @@
+# Agent tooling / local assistant state (never published)
+.claude/
+CLAUDE.md
+.opencode/
+.kiro/
+.engram/
+.codegraph/
+odd/
+.gentle-ai/
+
+# GabitoTL local-only state (dogfooding)
+.gabitotl/local/
+.gabitotl/.bak/
+.gabitotl/tmp/
+
+# Go build output
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Secrets
+.env
+.env.*
+*.pem
