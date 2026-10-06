@@ -124,7 +124,7 @@ func TestInstallCreatesLabeledResourcesAndIsIdempotent(t *testing.T) {
 		t.Fatalf("container: %+v", ct)
 	}
 	// The password is generated, stored 0600, and never an argument.
-	creds, err := ReadCredentials(f.home)
+	creds, err := ReadCredentials(SecretsPath(f.home))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestInstallCreatesLabeledResourcesAndIsIdempotent(t *testing.T) {
 			t.Fatalf("idempotent install changed something: %+v", mu)
 		}
 	}
-	if again, _ := ReadCredentials(f.home); again != creds {
+	if again, _ := ReadCredentials(SecretsPath(f.home)); again != creds {
 		t.Fatal("credentials must not change on re-install")
 	}
 }
@@ -288,20 +288,20 @@ func TestRemoveKeepsTheVolumeUnlessPurged(t *testing.T) {
 	if len(f.eng.Containers) != 0 || len(f.eng.Networks) != 0 || len(f.eng.Volumes) != 1 {
 		t.Fatalf("default remove keeps the volume: %+v / %+v", r, f.eng)
 	}
-	if _, err := ReadCredentials(f.home); err != nil {
+	if _, err := ReadCredentials(SecretsPath(f.home)); err != nil {
 		t.Fatal("credentials open the kept volume and must stay")
 	}
 	// Re-installing over the kept volume reuses the password.
-	before, _ := ReadCredentials(f.home)
+	before, _ := ReadCredentials(SecretsPath(f.home))
 	f.install()
-	if after, _ := ReadCredentials(f.home); after.Password != before.Password {
+	if after, _ := ReadCredentials(SecretsPath(f.home)); after.Password != before.Password {
 		t.Fatal("re-install over a kept volume must reuse its password")
 	}
 	r, err = f.m.Remove(ctx, RemoveOptions{Purge: true, Confirmed: true})
 	if err != nil || len(f.eng.Volumes) != 0 {
 		t.Fatalf("purge: %+v %v", r, err)
 	}
-	if _, err := ReadCredentials(f.home); !errors.Is(err, ErrNoCredentials) {
+	if _, err := ReadCredentials(SecretsPath(f.home)); !errors.Is(err, ErrNoCredentials) {
 		t.Fatal("purge removes the credentials file")
 	}
 	if bad := f.eng.Unlabeled(); len(bad) != 0 {
@@ -455,7 +455,7 @@ func TestFailedRunCleansUpOnlyItsOwnContainer(t *testing.T) {
 	if len(f.eng.Containers) != 0 {
 		t.Fatal("the half-created container must be removed")
 	}
-	creds, _ := ReadCredentials(f.home)
+	creds, _ := ReadCredentials(SecretsPath(f.home))
 	for _, c := range f.eng.Calls {
 		if strings.Contains(strings.Join(c.Args, " "), creds.Password) {
 			t.Fatal("password in args")
@@ -486,14 +486,14 @@ func TestFilteredEnvDropsEveryPostgresVariable(t *testing.T) {
 
 func TestLookupSecret(t *testing.T) {
 	home := t.TempDir()
-	if err := WriteCredentials(home, Credentials{Password: "pw", URL: "postgres://u:pw@127.0.0.1:54329/d"}); err != nil {
+	if err := WriteCredentials(SecretsPath(home), Credentials{Password: "pw", URL: "postgres://u:pw@127.0.0.1:54329/d"}); err != nil {
 		t.Fatal(err)
 	}
 	none := func(string) string { return "" }
-	if v := LookupSecret(EnvDatabaseURL, home, none); !strings.HasPrefix(v, "postgres://") {
+	if v := LookupSecret(EnvDatabaseURL, SecretsPath(home), none); !strings.HasPrefix(v, "postgres://") {
 		t.Fatalf("file fallback: %q", v)
 	}
-	if v := LookupSecret(EnvDatabaseURL, home, func(string) string { return "from-env" }); v != "from-env" {
+	if v := LookupSecret(EnvDatabaseURL, SecretsPath(home), func(string) string { return "from-env" }); v != "from-env" {
 		t.Fatalf("the process environment wins: %q", v)
 	}
 	if v := LookupSecret("DATABASE_URL", home, none); v != "" {
@@ -521,5 +521,44 @@ func TestNetworkCreationSurvivesAddressPoolExhaustion(t *testing.T) {
 		if len(c.Args) > 1 && c.Args[0] == "network" && c.Args[1] == "inspect" && c.Args[2] != DefaultNetwork {
 			t.Fatalf("other networks must never be inspected: %v", c.Args)
 		}
+	}
+}
+
+func TestNamedInstancesNeverShareResources(t *testing.T) {
+	base := DefaultConfig("/h")
+	a, err := base.WithInstance("trial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Container != "gabitotl-memory-postgres-trial" || a.Volume != "gabitotl-memory-pgdata-trial" || a.Network != "gabitotl-memory-net-trial" {
+		t.Fatalf("%+v", a)
+	}
+	if a.SecretsFile() == base.SecretsFile() || !strings.HasSuffix(a.SecretsFile(), "memory-server-trial.env") {
+		t.Fatalf("each instance has its own credentials file: %s vs %s", a.SecretsFile(), base.SecretsFile())
+	}
+	if err := a.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"Trial", "a b", "../x", strings.Repeat("a", 40), "-x"} {
+		if _, err := base.WithInstance(bad); err == nil {
+			t.Errorf("instance %q must be rejected", bad)
+		}
+	}
+	// A named instance coexists with the default one in the same engine.
+	f := newFx(t)
+	f.install()
+	f.m.Cfg, _ = f.m.Cfg.WithInstance("trial")
+	f.busy[DefaultPort] = true // the default instance listens there; the next one takes another port
+	if r := f.install(); r.Port == DefaultPort {
+		t.Fatal("the second instance must pick another port")
+	}
+	if len(f.eng.Containers) != 2 || len(f.eng.Volumes) != 2 || len(f.eng.Networks) != 2 {
+		t.Fatalf("two instances, two of each resource: %d/%d/%d", len(f.eng.Containers), len(f.eng.Volumes), len(f.eng.Networks))
+	}
+	if _, err := f.m.Remove(context.Background(), RemoveOptions{Purge: true, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.eng.Containers) != 1 || f.eng.Containers[DefaultContainer] == nil {
+		t.Fatal("removing a named instance must leave the default one alone")
 	}
 }

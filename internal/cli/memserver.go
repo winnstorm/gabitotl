@@ -31,15 +31,17 @@ func runMemoryServer(env Env, args []string) int {
 
 // serverFlags are shared by every `memory server` subcommand.
 type serverFlags struct {
-	engine string
-	port   int
-	dryRun bool
+	engine   string
+	instance string
+	port     int
+	dryRun   bool
 }
 
 func (f *serverFlags) bind(fs *flag.FlagSet) {
 	fs.StringVar(&f.engine, "engine", "auto", "container engine: docker, podman or auto")
 	fs.IntVar(&f.port, "port", 0, "host port on 127.0.0.1 (default: 54329, or the next free one; never 5432)")
 	fs.BoolVar(&f.dryRun, "dry-run", false, "show what would happen and change nothing")
+	fs.StringVar(&f.instance, "instance", "", "named instance with its own container, volume, network and credentials (default: the standard one)")
 }
 
 func serverManager(f serverFlags) (*pgmanaged.Manager, error) {
@@ -49,6 +51,9 @@ func serverManager(f serverFlags) (*pgmanaged.Manager, error) {
 	}
 	cfg := pgmanaged.DefaultConfig(renv.Home)
 	cfg.Engine, cfg.Port = f.engine, f.port
+	if cfg, err = cfg.WithInstance(f.instance); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -111,7 +116,11 @@ func runServerInstall(env Env, args []string) int {
 	}
 	fmt.Fprintf(env.Stdout, "Managed PostgreSQL %s: %s on %s:%d (loopback only).\n", verb, m.Cfg.Container, pgmanaged.Bind, res.Port)
 	fmt.Fprintf(env.Stdout, "Credentials: %s (mode 0600, never printed). Reference them as env:%s.\n", res.SecretsPath, pgmanaged.EnvDatabaseURL)
-	fmt.Fprintln(env.Stdout, "Next: gabitotl memory serve --http 127.0.0.1:8765, then gabitotl memory token create --user <id>.")
+	inst := ""
+	if m.Cfg.Instance != "" {
+		inst = " --instance " + m.Cfg.Instance
+	}
+	fmt.Fprintf(env.Stdout, "Next: gabitotl memory serve --http 127.0.0.1:8765%s, then gabitotl memory token create --user <id>%s.\n", inst, inst)
 	return ExitOK
 }
 

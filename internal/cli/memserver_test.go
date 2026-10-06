@@ -92,7 +92,7 @@ func TestServerLifecycleCommands(t *testing.T) {
 	if r.code != 0 || !strings.Contains(r.out, "installed") || !strings.Contains(r.out, "env:GABITOTL_MEMORY_DATABASE_URL") {
 		t.Fatalf("install: %+v", r)
 	}
-	creds, err := pgmanaged.ReadCredentials(f.home)
+	creds, err := pgmanaged.ReadCredentials(pgmanaged.SecretsPath(f.home))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestServerCommandsNeverPrintTheSecret(t *testing.T) {
 		r := f.run("", append([]string{"memory", "server"}, a...)...)
 		all.WriteString(r.out + r.err)
 	}
-	creds, _ := pgmanaged.ReadCredentials(f.home)
+	creds, _ := pgmanaged.ReadCredentials(pgmanaged.SecretsPath(f.home))
 	if strings.Contains(all.String(), creds.Password) || strings.Contains(all.String(), "postgres://") {
 		t.Fatalf("a secret leaked:\n%s", all.String())
 	}
@@ -237,7 +237,7 @@ func TestDSNResolutionUsesTheManagedCredentialsFile(t *testing.T) {
 	if r := f.run("", "memory", "token", "list"); r.code == 0 || !strings.Contains(r.err, pgmanaged.EnvDatabaseURL) {
 		t.Fatalf("without any source the error names the variable: %+v", r)
 	}
-	if err := pgmanaged.WriteCredentials(f.home, pgmanaged.Credentials{Password: "pw", URL: "postgres://u:pw@127.0.0.1:54329/d"}); err != nil {
+	if err := pgmanaged.WriteCredentials(pgmanaged.SecretsPath(f.home), pgmanaged.Credentials{Password: "pw", URL: "postgres://u:pw@127.0.0.1:54329/d"}); err != nil {
 		t.Fatal(err)
 	}
 	if r := f.run("", "memory", "token", "list"); r.code != 0 {
@@ -345,4 +345,29 @@ func (f roundTripFn) RoundTrip(r *http.Request) (*http.Response, error) { return
 
 func memoryQuery(text, project string) memory.Query {
 	return memory.Query{Text: text, Project: project}
+}
+
+func TestServerInstanceFlagUsesOwnNamesAndCredentials(t *testing.T) {
+	f := newSfix(t)
+	if r := f.run("", "memory", "server", "install", "--instance", "trial"); r.code != 0 || !strings.Contains(r.out, "gabitotl-memory-postgres-trial") || !strings.Contains(r.out, "--instance trial") {
+		t.Fatalf("%+v", r)
+	}
+	if f.eng.Containers["gabitotl-memory-postgres-trial"] == nil || f.eng.Containers[pgmanaged.DefaultContainer] != nil {
+		t.Fatal("only the named instance may exist")
+	}
+	if _, err := os.Stat(filepath.Join(f.home, ".gabitotl", "secrets", "memory-server-trial.env")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(pgmanaged.SecretsPath(f.home)); err == nil {
+		t.Fatal("the default credentials file must not be touched")
+	}
+	if r := f.run("", "memory", "token", "list", "--instance", "trial"); r.code != 0 {
+		t.Fatalf("the instance credentials back the default reference: %+v", r)
+	}
+	if r := f.run("", "memory", "token", "list"); r.code == 0 {
+		t.Fatal("without the instance there is no credential source")
+	}
+	if r := f.run("", "memory", "server", "install", "--instance", "Bad Name"); r.code == 0 {
+		t.Fatal("invalid instance")
+	}
 }

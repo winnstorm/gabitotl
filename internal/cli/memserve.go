@@ -38,7 +38,7 @@ var dsnRefRe = regexp.MustCompile(`^env:([A-Za-z_][A-Za-z0-9_]*)$`)
 // openServerStore resolves the connection reference and opens the store. The
 // DSN is read from the environment, falling back to the managed credentials
 // file for GABITOTL_MEMORY_DATABASE_URL. It is never printed.
-func openServerStore(ctx context.Context, ref string) (store.Store, error) {
+func openServerStore(ctx context.Context, ref, instance string) (store.Store, error) {
 	m := dsnRefRe.FindStringSubmatch(ref)
 	if m == nil {
 		return nil, fmt.Errorf("--dsn must be an env:NAME reference, never the connection string itself")
@@ -47,7 +47,11 @@ func openServerStore(ctx context.Context, ref string) (store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	dsn := pgmanaged.LookupSecret(m[1], renv.Home, renv.Getenv)
+	cfg, err := pgmanaged.DefaultConfig(renv.Home).WithInstance(instance)
+	if err != nil {
+		return nil, err
+	}
+	dsn := pgmanaged.LookupSecret(m[1], cfg.SecretsFile(), renv.Getenv)
 	if dsn == "" {
 		return nil, fmt.Errorf("environment variable %s is not set (and no managed credentials file provides it); run `gabitotl memory server install` or export it", m[1])
 	}
@@ -64,6 +68,7 @@ func runMemoryServe(env Env, args []string) int {
 	httpAddr := fs.String("http", "", "serve streamable HTTP on host:port (bearer tokens; loopback by default)")
 	stdio := fs.Bool("stdio", false, "serve one local client over stdin/stdout")
 	dsn := fs.String("dsn", defaultDSNRef, "database connection, as an env:NAME reference")
+	instance := fs.String("instance", "", "named managed instance whose credentials file backs the default reference")
 	root := fs.String("root", "", "project root (stdio: source of the default actor and project)")
 	actor := fs.String("actor", "", "stdio actor (default: the active identity of the project)")
 	project := fs.String("project", "", "default project key for clients that omit it")
@@ -112,7 +117,7 @@ func runMemoryServe(env Env, args []string) int {
 	}
 
 	octx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	st, err := openServerStore(octx, *dsn)
+	st, err := openServerStore(octx, *dsn, *instance)
 	cancel()
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl memory serve: %v\n", err)
@@ -160,7 +165,7 @@ func runMemoryToken(env Env, args []string) int {
 }
 
 type tokenFlags struct {
-	user, dsn, id string
+	user, dsn, id, instance string
 }
 
 func parseToken(env Env, name string, args []string, withID bool) (store.Store, tokenFlags, func(), int) {
@@ -169,6 +174,7 @@ func parseToken(env Env, name string, args []string, withID bool) (store.Store, 
 	var f tokenFlags
 	fs.StringVar(&f.user, "user", "", "user id (the actor of everything this token writes)")
 	fs.StringVar(&f.dsn, "dsn", defaultDSNRef, "database connection, as an env:NAME reference")
+	fs.StringVar(&f.instance, "instance", "", "named managed instance whose credentials file backs the default reference")
 	if withID {
 		fs.StringVar(&f.id, "id", "", "revoke only this token id (default: every active token of the user)")
 	}
@@ -180,7 +186,7 @@ func parseToken(env Env, name string, args []string, withID bool) (store.Store, 
 		return nil, f, nil, ExitUsage
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), memoryTimeout*2)
-	st, err := openServerStore(ctx, f.dsn)
+	st, err := openServerStore(ctx, f.dsn, f.instance)
 	if err != nil {
 		cancel()
 		fmt.Fprintf(env.Stderr, "gabitotl memory token %s: %v\n", name, err)

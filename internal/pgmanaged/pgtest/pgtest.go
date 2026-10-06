@@ -101,7 +101,7 @@ func startInstance() (string, error) {
 			_, _ = m.Remove(context.Background(), pgmanaged.RemoveOptions{Purge: true, Confirmed: true})
 			continue
 		}
-		creds, err := pgmanaged.ReadCredentials(home)
+		creds, err := pgmanaged.ReadCredentials(cfg.SecretsFile())
 		if err != nil {
 			_, _ = m.Remove(context.Background(), pgmanaged.RemoveOptions{Purge: true, Confirmed: true})
 			return "", err

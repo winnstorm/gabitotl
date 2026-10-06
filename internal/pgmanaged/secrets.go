@@ -44,9 +44,9 @@ func (c Config) DatabaseURL(password string, port int) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", c.User, password, Bind, port, c.Database)
 }
 
-// WriteCredentials stores the credentials atomically with mode 0600.
-func WriteCredentials(home string, c Credentials) error {
-	dir := SecretsDir(home)
+// WriteCredentials stores the credentials atomically with mode 0600 at path.
+func WriteCredentials(path string, c Credentials) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func WriteCredentials(home string, c Credentials) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), SecretsPath(home))
+	return os.Rename(tmp.Name(), path)
 }
 
 // ReadEnvFile parses KEY=VALUE lines (comments and blanks ignored).
@@ -97,8 +97,8 @@ func ReadEnvFile(path string) (map[string]string, error) {
 }
 
 // ReadCredentials loads the credentials file. A missing file is ErrNoCredentials.
-func ReadCredentials(home string) (Credentials, error) {
-	m, err := ReadEnvFile(SecretsPath(home))
+func ReadCredentials(path string) (Credentials, error) {
+	m, err := ReadEnvFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return Credentials{}, ErrNoCredentials
 	}
@@ -107,7 +107,7 @@ func ReadCredentials(home string) (Credentials, error) {
 	}
 	c := Credentials{Password: m[EnvPassword], URL: m[EnvDatabaseURL]}
 	if c.Password == "" || c.URL == "" {
-		return Credentials{}, fmt.Errorf("%w: %s does not hold %s and %s", ErrNoCredentials, SecretsPath(home), EnvPassword, EnvDatabaseURL)
+		return Credentials{}, fmt.Errorf("%w: %s does not hold %s and %s", ErrNoCredentials, path, EnvPassword, EnvDatabaseURL)
 	}
 	return c, nil
 }
@@ -115,7 +115,7 @@ func ReadCredentials(home string) (Credentials, error) {
 // LookupSecret resolves a variable the way `memory serve` does: the process
 // environment first, then the managed credentials file. Only the two variables
 // the file defines are ever read from it.
-func LookupSecret(name, home string, getenv func(string) string) string {
+func LookupSecret(name, credentialsPath string, getenv func(string) string) string {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
@@ -125,7 +125,7 @@ func LookupSecret(name, home string, getenv func(string) string) string {
 	if name != EnvDatabaseURL && name != EnvPassword {
 		return ""
 	}
-	if m, err := ReadEnvFile(SecretsPath(home)); err == nil {
+	if m, err := ReadEnvFile(credentialsPath); err == nil {
 		return m[name]
 	}
 	return ""

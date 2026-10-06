@@ -58,7 +58,7 @@ func TestDockerLifecycle(t *testing.T) {
 		t.Fatalf("a second install must change nothing: %+v %v", again, err)
 	}
 
-	creds, err := pgmanaged.ReadCredentials(m.Cfg.Home)
+	creds, err := pgmanaged.ReadCredentials(m.Cfg.SecretsFile())
 	if err != nil {
 		t.Fatal(err)
 	}

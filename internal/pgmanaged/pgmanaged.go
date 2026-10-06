@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -92,6 +93,9 @@ type Config struct {
 	User     string
 	// Home is the injected global home (the directory that contains .gabitotl).
 	Home string
+	// Instance is empty for the default instance. A named instance gets its own
+	// container, volume, network and credentials file (see WithInstance).
+	Instance string
 }
 
 // DefaultConfig returns the default instance rooted at home.
@@ -154,4 +158,38 @@ func labelArgs(role string) []string {
 func loopback(ip string) bool {
 	a, err := netip.ParseAddr(ip)
 	return err == nil && a.IsLoopback()
+}
+
+var instanceRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}$`)
+
+// WithInstance returns the configuration of a named instance: every resource
+// name and the credentials file carry the suffix, so it can never collide with
+// the default instance or another named one.
+func (c Config) WithInstance(name string) (Config, error) {
+	if name == "" {
+		return c, nil
+	}
+	if !instanceRe.MatchString(name) {
+		return c, fmt.Errorf("pgmanaged: instance %q must be lowercase letters, digits and dashes (at most 31 characters)", name)
+	}
+	c.Instance = name
+	c.Container += "-" + name
+	c.Volume += "-" + name
+	c.Network += "-" + name
+	return c, nil
+}
+
+func (c Config) suffix() string {
+	if c.Instance == "" {
+		return ""
+	}
+	return "-" + c.Instance
+}
+
+// SecretsFile is the credentials file of this instance.
+func (c Config) SecretsFile() string {
+	if c.Instance == "" {
+		return SecretsPath(c.Home)
+	}
+	return filepath.Join(SecretsDir(c.Home), "memory-server"+c.suffix()+".env")
 }

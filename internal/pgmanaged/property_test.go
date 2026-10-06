@@ -49,7 +49,7 @@ func TestNeverActsOnUnlabeledResources(t *testing.T) {
 			f.busy[p] = true
 		}
 		if rng.Intn(4) == 0 {
-			_ = WriteCredentials(f.home, Credentials{Password: "pw", URL: cfg.DatabaseURL("pw", DefaultPort)})
+			_ = WriteCredentials(SecretsPath(f.home), Credentials{Password: "pw", URL: cfg.DatabaseURL("pw", DefaultPort)})
 		}
 
 		before := f.eng.Snapshot()

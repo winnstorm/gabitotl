@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -240,7 +241,7 @@ func (m *Manager) stepsFor(w world, port int) []Step {
 		steps = append(steps, Step{Action: "reuse", Resource: "container", Name: m.Cfg.Container, Detail: "already running"})
 	}
 	steps = append(steps,
-		Step{Action: "write", Resource: "credentials", Name: SecretsPath(m.Cfg.Home), Detail: "mode 0600; generated once, never printed"},
+		Step{Action: "write", Resource: "credentials", Name: m.Cfg.SecretsFile(), Detail: "mode 0600; generated once, never printed"},
 		Step{Action: "wait", Resource: "container", Name: m.Cfg.Container, Detail: "until PostgreSQL accepts connections"})
 	return steps
 }
@@ -268,7 +269,7 @@ func (m *Manager) Install(ctx context.Context) (InstallResult, error) {
 	if err != nil {
 		return InstallResult{Plan: plan}, err
 	}
-	res := InstallResult{Plan: plan, Port: plan.Port, SecretsPath: SecretsPath(m.Cfg.Home)}
+	res := InstallResult{Plan: plan, Port: plan.Port, SecretsPath: m.Cfg.SecretsFile()}
 	creds, err := m.prepareCredentials(w, plan.Port)
 	if err != nil {
 		return res, err
@@ -306,7 +307,7 @@ func (m *Manager) Install(ctx context.Context) (InstallResult, error) {
 // the connection file. It runs before anything is created, so a failure here
 // leaves no half-installed instance.
 func (m *Manager) prepareCredentials(w world, port int) (Credentials, error) {
-	existing, err := ReadCredentials(m.Cfg.Home)
+	existing, err := ReadCredentials(m.Cfg.SecretsFile())
 	haveFile := err == nil
 	if err != nil && !errors.Is(err, ErrNoCredentials) {
 		return Credentials{}, err
@@ -314,11 +315,11 @@ func (m *Manager) prepareCredentials(w world, port int) (Credentials, error) {
 	dataExists := w.container.Exists || w.volume.Exists
 	switch {
 	case dataExists && !haveFile:
-		return Credentials{}, fmt.Errorf("%w: the data volume %q already exists but %s does not. Restore that file, or remove the instance with --purge-data to start over", ErrNoCredentials, m.Cfg.Volume, SecretsPath(m.Cfg.Home))
+		return Credentials{}, fmt.Errorf("%w: the data volume %q already exists but %s does not. Restore that file, or remove the instance with --purge-data to start over", ErrNoCredentials, m.Cfg.Volume, m.Cfg.SecretsFile())
 	case dataExists:
 		creds := Credentials{Password: existing.Password, URL: m.Cfg.DatabaseURL(existing.Password, port)}
 		if creds.URL != existing.URL {
-			if err := WriteCredentials(m.Cfg.Home, creds); err != nil {
+			if err := WriteCredentials(m.Cfg.SecretsFile(), creds); err != nil {
 				return Credentials{}, err
 			}
 		}
@@ -329,7 +330,7 @@ func (m *Manager) prepareCredentials(w world, port int) (Credentials, error) {
 		return Credentials{}, err
 	}
 	creds := Credentials{Password: pw, URL: m.Cfg.DatabaseURL(pw, port)}
-	if err := WriteCredentials(m.Cfg.Home, creds); err != nil {
+	if err := WriteCredentials(m.Cfg.SecretsFile(), creds); err != nil {
 		return Credentials{}, err
 	}
 	return creds, nil
@@ -518,14 +519,14 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 		return Status{}, err
 	}
 	w, err := m.survey(ctx)
-	st := Status{Engine: w.engine, SecretsPath: SecretsPath(m.Cfg.Home)}
+	st := Status{Engine: w.engine, SecretsPath: m.Cfg.SecretsFile()}
 	if err != nil {
 		return st, err
 	}
 	st.Conflicts = w.conflicts(m.Cfg)
 	st.VolumeOK = w.volume.Exists && w.volume.Managed
 	st.NetworkOK = w.network.Exists && w.network.Managed
-	_, cerr := ReadCredentials(m.Cfg.Home)
+	_, cerr := ReadCredentials(m.Cfg.SecretsFile())
 	st.HasSecrets = cerr == nil
 	if w.container.Exists && w.container.Managed {
 		st.Installed, st.Running, st.Port, st.Image, st.Health = true, w.container.Running, w.container.HostPort, w.container.Image, w.container.Health
@@ -574,7 +575,7 @@ func (m *Manager) Backup(ctx context.Context) (BackupResult, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return BackupResult{}, err
 	}
-	path := fmt.Sprintf("%s/memory-%s.dump", dir, m.Now().Format("20060102T150405Z"))
+	path := filepath.Join(dir, "memory"+m.Cfg.suffix()+"-"+m.Now().Format("20060102T150405Z")+".dump")
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return BackupResult{}, err
@@ -654,7 +655,7 @@ func (m *Manager) Remove(ctx context.Context, o RemoveOptions) (RemoveResult, er
 			return r, fmt.Errorf("pgmanaged: remove volume: %w", err)
 		}
 		r.Removed = append(r.Removed, "volume "+m.Cfg.Volume+" (all data)")
-		if err := os.Remove(SecretsPath(m.Cfg.Home)); err == nil {
+		if err := os.Remove(m.Cfg.SecretsFile()); err == nil {
 			r.Removed = append(r.Removed, "credentials file")
 		}
 	case w.volume.Exists:
@@ -729,22 +730,22 @@ func (m *Manager) Verify(ctx context.Context) memory.Report {
 }
 
 func (m *Manager) verifySecrets(add func(name, status, msg string), port int) {
-	st, err := os.Stat(SecretsPath(m.Cfg.Home))
+	st, err := os.Stat(m.Cfg.SecretsFile())
 	if err != nil {
-		add("credentials", memory.StatusError, "credentials file is missing: "+SecretsPath(m.Cfg.Home))
+		add("credentials", memory.StatusError, "credentials file is missing: "+m.Cfg.SecretsFile())
 		return
 	}
 	if st.Mode().Perm()&0o077 != 0 {
 		add("credentials", memory.StatusError, fmt.Sprintf("credentials file mode is %o, expected 600", st.Mode().Perm()))
 		return
 	}
-	cr, err := ReadCredentials(m.Cfg.Home)
+	cr, err := ReadCredentials(m.Cfg.SecretsFile())
 	switch {
 	case err != nil:
 		add("credentials", memory.StatusError, firstLine(err.Error()))
 	case cr.URL != m.Cfg.DatabaseURL(cr.Password, port):
 		add("credentials", memory.StatusWarn, "the connection file points to another port; run install to refresh it")
 	default:
-		add("credentials", memory.StatusOK, SecretsPath(m.Cfg.Home)+" (0600)")
+		add("credentials", memory.StatusOK, m.Cfg.SecretsFile()+" (0600)")
 	}
 }
