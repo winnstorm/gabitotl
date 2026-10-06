@@ -161,14 +161,25 @@ type WorkflowConfig struct {
 	MemoryBeforeWork  bool         `yaml:"memory_before_work"`
 	MemoryAfterWork   bool         `yaml:"memory_after_work"`
 	Backup            BackupPolicy `yaml:"backup"`
+	// Context budget (spec section 20). Missing keys keep these defaults, so
+	// workflow.md files written before they existed keep working.
+	ContextLimitTokens int     `yaml:"context_limit_tokens"`
+	ContextThreshold   float64 `yaml:"context_threshold"`
 }
+
+// Context budget defaults.
+const (
+	DefaultContextLimitTokens = 200_000
+	DefaultContextThreshold   = 0.75
+)
 
 // DefaultWorkflow returns the V1 workflow defaults.
 func DefaultWorkflow() WorkflowConfig {
 	return WorkflowConfig{
 		Output: "compact", Language: "es-AR", Persona: "gabito",
 		BackupBeforeWrite: true, MemoryBeforeWork: true, MemoryAfterWork: true,
-		Backup: BackupPolicy{MaxSnapshots: 20, MaxAgeDays: 7},
+		Backup:             BackupPolicy{MaxSnapshots: 20, MaxAgeDays: 7},
+		ContextLimitTokens: DefaultContextLimitTokens, ContextThreshold: DefaultContextThreshold,
 	}
 }
 
@@ -178,6 +189,12 @@ func (c *WorkflowConfig) Validate() error {
 	}
 	if c.Backup.MaxSnapshots < 1 || c.Backup.MaxAgeDays < 1 {
 		return fmt.Errorf("backup: max_snapshots and max_age_days must be >= 1")
+	}
+	if c.ContextLimitTokens <= 0 {
+		return fmt.Errorf("context_limit_tokens: must be positive")
+	}
+	if c.ContextThreshold <= 0 || c.ContextThreshold > 1 {
+		return fmt.Errorf("context_threshold: must be in (0, 1]")
 	}
 	return nil
 }

@@ -46,6 +46,20 @@ type Config struct {
 // DefaultConfig returns the default limit and the 75% threshold.
 func DefaultConfig() Config { return Config{Limit: DefaultLimit, Threshold: DefaultThreshold} }
 
+// FromWorkflow reads the budget from workflow.md (context_limit_tokens and
+// context_threshold). Zero values fall back to the defaults, so configs that
+// predate these keys keep working.
+func FromWorkflow(w gabitotl.WorkflowConfig) Config {
+	c := DefaultConfig()
+	if w.ContextLimitTokens > 0 {
+		c.Limit = w.ContextLimitTokens
+	}
+	if w.ContextThreshold > 0 {
+		c.Threshold = w.ContextThreshold
+	}
+	return c
+}
+
 // Validate checks the configuration.
 func (c Config) Validate() error {
 	if c.Limit <= 0 {
