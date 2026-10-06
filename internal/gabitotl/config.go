@@ -193,7 +193,38 @@ type WorkflowConfig struct {
 	// workflow.md files written before they existed keep working.
 	ContextLimitTokens int     `yaml:"context_limit_tokens"`
 	ContextThreshold   float64 `yaml:"context_threshold"`
+	// Authorship guard (docs/GUARD.md). Missing keys keep these defaults.
+	BrandingGuard      string   `yaml:"branding_guard"`
+	BrandingExtraTerms []string `yaml:"branding_extra_terms"`
+	BrandingAllowPaths []string `yaml:"branding_allow_paths"`
+	// GuardHooks remembers the answer to "install the Git hooks?": ask (not
+	// answered yet), installed or declined.
+	GuardHooks string `yaml:"guard_hooks"`
 }
+
+// Branding guard modes (branding_guard).
+const (
+	// GuardStrip removes attribution lines from messages (commits, PR text,
+	// memory entries) and reports what it removed; it blocks anything it cannot
+	// remove safely, including attribution in files.
+	GuardStrip = "strip"
+	// GuardBlock refuses everywhere and never edits.
+	GuardBlock = "block"
+	// GuardWarn reports findings and lets the operation go on.
+	GuardWarn = "warn"
+	// GuardOff disables enforcement (scan and fix still work on demand).
+	GuardOff = "off"
+)
+
+// Guard hook answers (guard_hooks).
+const (
+	HooksAsk       = "ask"
+	HooksInstalled = "installed"
+	HooksDeclined  = "declined"
+)
+
+// GuardModes lists the valid branding_guard values.
+var GuardModes = []string{GuardStrip, GuardBlock, GuardWarn, GuardOff}
 
 // Context budget defaults.
 const (
@@ -208,6 +239,8 @@ func DefaultWorkflow() WorkflowConfig {
 		BackupBeforeWrite: true, MemoryBeforeWork: true, MemoryAfterWork: true,
 		Backup:             BackupPolicy{MaxSnapshots: 20, MaxAgeDays: 7},
 		ContextLimitTokens: DefaultContextLimitTokens, ContextThreshold: DefaultContextThreshold,
+		BrandingGuard: GuardStrip, GuardHooks: HooksAsk,
+		BrandingExtraTerms: []string{}, BrandingAllowPaths: []string{},
 	}
 }
 
@@ -224,7 +257,10 @@ func (c *WorkflowConfig) Validate() error {
 	if c.ContextThreshold <= 0 || c.ContextThreshold > 1 {
 		return fmt.Errorf("context_threshold: must be in (0, 1]")
 	}
-	return nil
+	if err := oneOf("branding_guard", c.BrandingGuard, GuardModes...); err != nil {
+		return err
+	}
+	return oneOf("guard_hooks", c.GuardHooks, HooksAsk, HooksInstalled, HooksDeclined)
 }
 
 // Load helpers: each decodes into defaults, then validates.

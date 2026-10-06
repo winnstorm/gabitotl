@@ -289,7 +289,7 @@ func TestInitCreatesAndIsIdempotent(t *testing.T) {
 	if err != nil || proj.Name != "Shop" || proj.ProjectKind != KindNew {
 		t.Fatalf("project = %+v, %v", proj, err)
 	}
-	if wf, err := LoadWorkflow(l); err != nil || wf != DefaultWorkflow() {
+	if wf, err := LoadWorkflow(l); err != nil || !reflect.DeepEqual(wf, DefaultWorkflow()) {
 		t.Fatalf("workflow = %+v, %v", wf, err)
 	}
 	if _, err := LoadRuntime(l); err != nil {

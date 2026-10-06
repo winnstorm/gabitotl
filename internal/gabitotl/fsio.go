@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 )
 
-// WriteFile writes data to path after the secret guard passes. It replaces
+// WriteFile writes data to path after the secret and branding guards pass. It replaces
 // the file atomically (temp file + rename). Every .gabitotl write goes through here.
 func WriteFile(path string, data []byte) error {
 	if err := ValidateNoSecrets(data); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	if err := ValidateNoBranding(data); err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -39,6 +42,9 @@ func WriteFile(path string, data []byte) error {
 // It reports whether the file was created and never overwrites.
 func WriteFileIfMissing(path string, data []byte) (bool, error) {
 	if err := ValidateNoSecrets(data); err != nil {
+		return false, fmt.Errorf("%s: %w", path, err)
+	}
+	if err := ValidateNoBranding(data); err != nil {
 		return false, fmt.Errorf("%s: %w", path, err)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
