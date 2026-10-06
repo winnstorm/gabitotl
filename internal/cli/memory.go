@@ -44,6 +44,8 @@ func runMemory(env Env, args []string) int {
 		return runMemoryToken(env, args[1:])
 	case "mcp":
 		return runMemoryMCP(env, args[1:])
+	case "migrate":
+		return runMemoryMigrate(env, args[1:])
 	}
 	fmt.Fprintf(env.Stderr, "gabitotl memory: unknown subcommand %q (want doctor, search, server, serve, token, mcp or migrate)\n", args[0])
 	return ExitUsage

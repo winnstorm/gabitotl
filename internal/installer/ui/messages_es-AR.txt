@@ -340,3 +340,24 @@ tui.apply.retire_keep = Dejo Gentle-AI como está y termino de cerrar.
 tui.step.configure = Configurado {name}
 tui.result.title = Resultado
 tui.quit.nothing = No cambié nada.
+
+# --- gabitotl memory migrate engram --------------------------------------------------------
+migrate.title = Importación de Engram a la memoria compartida
+migrate.dry = Ensayo: no importé nada y no toqué ninguna base.
+migrate.counts = {observations} observaciones en el export: {eligible} se importarían, {skipped} se saltean.
+migrate.skipped = Saltadas: {detail}
+migrate.by_project = Por proyecto: {detail}
+migrate.by_type = Por tipo (de Engram): {detail}
+migrate.mapped = Tipos que no existen en GabitoTL se mapean: {detail}
+migrate.extras = Resúmenes de sesión: {summaries}. Relaciones: {relations}. Prompts (no se importan): {prompts}.
+migrate.actors = Autor conocido: {known}. Autor desconocido (se anotan como legacy, nunca inventados): {legacy}.
+migrate.done = Importé {imported} recuerdos; {already} ya estaban (no se duplicó nada).
+migrate.verified = Verificado: los conteos cierran y {ok}/{checked} muestras coinciden con el contenido original.
+migrate.unverified = No pude verificar del todo: {ok}/{checked} muestras coincidieron.
+migrate.dropped = {count} clave(s) de tema ya estaban en uso en la memoria compartida: las importé sin clave para no pisar nada.
+migrate.untouched = Engram quedó intacto: no se modificó ni se borró nada. El export y el informe están a salvo.
+migrate.report = Informe: {path}
+migrate.refuse_export = Para el ensayo necesito un export de Engram: pasá --export ARCHIVO (lo hacés con `engram export ARCHIVO --project NOMBRE`).
+migrate.refuse_scope = Decime qué importar: --project NOMBRE (un proyecto de Engram) o --all-projects.
+migrate.confirm = ¿Importo estos recuerdos a la memoria compartida? Hago el export de seguridad primero y no duplico nada.
+migrate.needs_engram = No encontré el binario de Engram para hacer el export de seguridad. Pasá --export ARCHIVO con un export que ya tengas.
