@@ -1,7 +1,7 @@
 # GabitoTL architecture
 
-Go module `github.com/winnstorm/gabitotl`. Stdlib first; the only third-party
-dependency is `gopkg.in/yaml.v3` (front matter).
+Go module `github.com/winnstorm/gabitotl`. Stdlib first; third-party dependencies are
+`gopkg.in/yaml.v3` (front matter) and the Charm v2 stack (`charm.land/bubbletea/v2`, `lipgloss/v2`, `huh/v2`), used only by `internal/tui`.
 
 ## Package layout
 
@@ -30,7 +30,8 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/runtime/all` | Composition root for adapters: the only importer of the concrete adapter packages. |
 | `internal/importer` | Read-only knowledge importers (Kiro `.kiro/*`, Gentle-AI state and managed-block detection, Engram detection and project counts through the T2 adapter, generic CLAUDE.md/AGENTS.md sections outside gabitotl/gentle markers). They return `Knowledge` items (decision, convention, architecture, task, command, constraint, tooling), skip secret-looking files and never modify the source. `imports.md` (`Registry`) records origin, date, content hash, what was imported and last review; an unchanged hash is not imported again. Gentle-AI and Engram are detected independently. |
 | `internal/installer` | Installer logic, no printing (installer spec sections 3-5, 16-28, 38-49). Every dependency comes through `Env` (home, environment, `LookPath`, command `Runner`, clock, runtime registry, migrator registry, memory opener); `FakeRunner` records invocations for tests. Phases in order (`PhaseOrder`): `DetectPlatform`, `DetectProject`, `DetectRuntimes` (through the adapter registry), `DetectMemory` (Engram on its own: binary, `ENGRAM_DATA_DIR`, `.engram/`, read-only `engram doctor` and `projects list`; topology warnings for a data-dir override, cloud/autosync, project config and identity mismatch), `DetectOtherHarness` (Gentle-AI via binary, `~/.gentle-ai/state.json`, installed agents mapped to registered runtimes), `BuildInventory` (`inventory.json`, never carries secrets, remotes or environment values), `BuildPlan` (pure; CREATE/MODIFY/PRESERVE/IMPORT/REMOVE-AFTER-VERIFY/NO-ACTION; install-time and retire-time actions kept apart), `CreateSnapshot`, then `Run` (migrate knowledge, configure runtimes, verify memory/project/runtimes, retire, report). `Doctor` is read-only. `PlanRestore`/`Restore`, `PlanUninstall`/`Uninstall`, `PlanCleanup`/`ApplyCleanup` implement the lifecycle commands. |
-| `internal/installer/ui` | Presentation: one embedded, replaceable Rioplatense messages file (`messages_es-AR.txt`; a replacement must define every key of the embedded one), state symbols (`✓ ! → ×`), the renderers (inventory, plan grouped like spec 42, doctor, result, restore/uninstall/cleanup, the spec-22 report for `imports.md`) and a plain stdlib `Prompter` (numbered choices, one question at a time; end of input never answers for the user). Bubble Tea/Huh is deferred (docs/ROADMAP.md). |
+| `internal/installer/ui` | Presentation: one embedded, replaceable Rioplatense messages file (`messages_es-AR.txt`; a replacement must define every key of the embedded one), state symbols (`✓ ! → ×`), the renderers (inventory, plan grouped like spec 42, doctor, result, restore/uninstall/cleanup, the spec-22 report for `imports.md`) and a plain stdlib `Prompter` (numbered choices, one question at a time; end of input never answers for the user). `InventorySections`, `PlanGroups` and `RenderOutcome` expose what the screens show as data so the plain flow and the TUI never diverge. |
+| `internal/tui` | Full-screen installer (Bubble Tea, Lip Gloss, Huh v2), presentation only. `Backend` (detect, build plan, run) is its narrow view of `internal/installer`. Screens: detection and menu (adapted to what was found), details, memory ("Tu memoria está segura", with the honest team limitation), one huh form per undetectable question, runtime checklist, persona-retirement confirmation (the exact blocks), plan (with details), live apply progress with rollback visibility, retire-Gentle-AI question (asked by the pipeline after verification), result with TIP. `Run` returns an `Outcome`; the apply runs in a goroutine that streams `installer.Event`s as messages, `ctrl+c` cancels its context and waits for the pipeline's rollback, and `finish` guarantees no apply outlives the program. Scrolling keeps the cursor line visible in 80x24 and below; `NO_COLOR` makes every style empty. Tests drive `Update` with messages against a fixture machine. |
 
 ## Dependency rule
 
@@ -48,6 +49,7 @@ cmd -> cli -> identity -> gabitotl
                   runtime/* and importer -> core (never the reverse)
           cli -> installer -> {runtime, importer, memory, memory/engram, memory/migrate, vcs, identity, persona, gabitotl}
           cli -> installer/ui -> installer   (presentation depends on logic, never the reverse)
+          cli -> tui -> {installer, installer/ui}   (the TUI never contains installer logic)
 ```
 
 - Core packages (`gabitotl`, `identity`, `memory`, `vcs`, `backup`, `coordination`, `persona`, `budget`, `runtime`) never
@@ -100,4 +102,5 @@ Each is enforced in `internal/installer` and covered by a test.
 - **No secrets in reports.** Reports, logs, `migration.md` and `inventory.json` list paths, ids and counts only; remotes and environment values are never recorded.
 - **Rollback.** On any failure after mutations start, `Run` removes what each configured adapter owns (ownership state) and restores every file in the manifest byte for byte, including the ownership state and project files created by the run. Gentle-AI and Engram stay intact. Knowledge already saved to memory is never deleted (reported). `gabitotl restore` reverts configs from a snapshot but never touches Engram or the project's `.gabitotl/`, and saves the current files first.
 - **Two backup levels.** Global: `~/.gabitotl/{migrations,backups}` for agent configs. Project: `.gabitotl/.bak` for code. They never mix.
-- **Non-interactive safety.** Without a TTY and without `--yes` the commands refuse to mutate; `--dry-run` prints the plan and changes nothing.
+- **Non-interactive safety.** Without a TTY and without `--yes` the commands refuse to mutate; `--dry-run` prints the plan and changes nothing. The TUI needs stdin and stdout on terminals.
+- **Cancellation.** `Run` checks the context between phases: a cancelled run is reverted through the normal rollback until verification ends. Retirement runs with a non-cancellable context (point of no return), so Gentle-AI's own uninstall is never killed half way.

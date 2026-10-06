@@ -6,11 +6,6 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 
 ## Deferred on purpose in V1
 
-- **Interactive TUI (Bubble Tea, Lip Gloss, Huh).** The installer spec recommends
-  it (section 3), but V1 ships a plain-stdlib presenter: numbered choices, one
-  question at a time, state symbols (`✓ ! → ×`) and the Gabito voice. All logic
-  lives in `internal/installer`, so a TUI only replaces `internal/installer/ui`
-  and the prompts; no behavior moves.
 - **Engram to Memory MCP/PostgreSQL migrator.** `internal/memory/migrate` has the
   `MemoryMigrator` interface and an empty registry. A migrator ships only when the
   Memory MCP server is chosen and the adapter is tested against it. Until then the
@@ -19,6 +14,9 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
   PostgreSQL access is wired.
 
 ## Installer and distribution
+
+- TUI for `migrate`, `restore`, `uninstall` and `cleanup` (V1 ships the TUI for `gabitotl` and
+  `gabitotl install`; those commands keep the plain prompts), and a dry-run entry inside the TUI.
 
 - `gabitotl update` / `gabitotl upgrade`: backup, update the binary, migration
   schema, dry reconciliation, apply and verify, touching only the runtimes

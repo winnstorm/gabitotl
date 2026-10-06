@@ -10,10 +10,10 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   dependencies and trivial distribution matter more than framework features.
 - **Consequence:** `go install` and `make build` are the install paths; packaging is roadmap work.
 
-## D2. Standard library first; `gopkg.in/yaml.v3` is the only dependency
-- **Decision:** `flag`, `os/exec`, `encoding/json` and friends from the stdlib; yaml.v3 only for the
-  Markdown front matter of `.gabitotl/` files.
-- **Consequence:** a small supply-chain surface; a hand-written presenter instead of a TUI library (see D12).
+## D2. Standard library first; yaml.v3 and the Charm stack are the only dependencies
+- **Decision:** `flag`, `os/exec`, `encoding/json` and friends from the stdlib; `gopkg.in/yaml.v3` only for the
+  Markdown front matter of `.gabitotl/` files; Bubble Tea, Lip Gloss and Huh only in `internal/tui` (see D18).
+- **Consequence:** a small supply-chain surface; the plain presenter stays for non-interactive use (see D12).
 
 ## D3. Core never branches on runtime names
 - **Decision:** a runtime is an opaque string; file formats, paths and binary names live only in
@@ -63,7 +63,7 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   newer than `max_age_days`; it is pruned only when it fails both. Backups never copy `.gabitotl/.bak` or secret-looking
   files, and restoring first saves the current state in a `pre-restore` snapshot.
 
-## D12. Plain presenter now, TUI later
+## D12. Plain presenter first, TUI on top (superseded in part by D18)
 - **Decision:** numbered choices, one question at a time, state symbols (`✓ ! → ×`). All installer logic is in
   `internal/installer`, so a Bubble Tea/Huh UI replaces only `internal/installer/ui`.
 
@@ -93,3 +93,20 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   `engram`/`gentle-ai`/`claude`/`opencode`/`kiro-cli`/`gh` scripts plus symlinks to real `git` and a few coreutils, and temporary repos
   (a local bare repo as origin). Capabilities without a CLI command are exercised through the same internal packages.
 - **Consequence:** tests are hermetic and never touch the real `$HOME`; they require a POSIX shell (Linux and macOS).
+
+## D18. Charm v2 stack for the TUI, presentation only
+- **Decision:** `internal/tui` uses Bubble Tea, Lip Gloss and Huh at their current stable majors, which
+  live under the `charm.land` module paths: `charm.land/bubbletea/v2` v2.0.10, `charm.land/lipgloss/v2` v2.0.6,
+  `charm.land/huh/v2` v2.0.3 (the old `github.com/charmbracelet/*` paths are the v1 line). Huh forms
+  (one question each) are embedded in the Bubble Tea model; menus, plan and progress are plain Bubble Tea
+  with Lip Gloss. `bubbles` and `teatest` are not used directly.
+- **Why:** the installer spec (section 3) names this stack; v2 is what the official docs show. Tests drive
+  `Update` with messages and run the returned commands, so no terminal is needed.
+- **Boundaries:** the TUI reaches `internal/installer` only through the `Backend` interface (detect, build plan, run)
+  and reads the inventory and plan as data (`ui.InventorySections`, `ui.PlanGroups`); it holds no business rules.
+  All wording stays in `messages_es-AR.txt`. The TUI opens only when stdin and stdout are terminals;
+  `--no-tui`, `--yes`, `--dry-run`, pipes and `migrate` keep the plain flow.
+- **Cancellation:** `installer.Run` now honors context cancellation between phases and runs the retire phase to
+  completion (point of no return). `ctrl+c` while applying cancels the context and waits for the pipeline's own
+  rollback; the TUI never exits mid-apply.
+- **Consequence:** about 25 more modules in `go.sum`; `NO_COLOR` strips every style, so state is always carried by symbols.

@@ -29,6 +29,28 @@ gabitotl doctor              # read-only health check
 Without a terminal, mutating commands refuse to run unless you pass `--yes`.
 `--dry-run` never mutates anything.
 
+## The installer screen (TUI)
+
+On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
+(Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish. It walks through:
+
+1. what was detected (`✓` ready, `!` needs attention, `→` will be configured, `×` error);
+2. what to do (migrate Gentle-AI, install without touching it, review details, quit);
+3. "Tu memoria está segura" (reuse Engram, or shared memory with its honest limitation);
+4. only the questions that cannot be detected (name, solo or team, commits and PRs), one at a time;
+5. which coding agents to configure (detected ones preselected; nothing is installed);
+6. the plan (CREATE / MODIFY / PRESERVE / IMPORT / REMOVE AFTER VERIFY / NO ACTION), with the
+   exact persona block that would be retired, and an `Aplicar` button;
+7. live progress, then the result with a TIP (backup kept, `gabitotl cleanup`).
+
+Quitting (`q`, `ctrl+c`) before applying changes nothing. `ctrl+c` while applying asks the
+installer to roll back and waits for it, so the machine is never left half-applied; the
+retirement of Gentle-AI is the point of no return and always finishes. It works in 80x24,
+follows terminal resizes, and honors `NO_COLOR` (symbols, never color alone, carry the state).
+
+The TUI opens only when stdin **and** stdout are terminals. `--no-tui`, `--yes`, `--dry-run`,
+pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
+
 ## Core concepts
 
 | Concept | Meaning |
@@ -66,8 +88,8 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 
 | Command | What it does |
 |---------|--------------|
-| `gabitotl` | In a project without `.gabitotl/`: onboard (terminal only). Otherwise a short status. Never starts an agent. |
-| `install [--dry-run] [--yes]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`. |
+| `gabitotl` | On a terminal in a project: the installer screen. Piped: onboard a project without `.gabitotl/`, otherwise a short status. Never starts an agent. |
+| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`. |
 | `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
@@ -146,7 +168,7 @@ Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
 
 V1 is deliberately small. Known gaps (details in [docs/ROADMAP.md](docs/ROADMAP.md)):
 
-- No interactive TUI (Bubble Tea) yet: prompts are plain numbered choices.
+- The TUI covers `gabitotl` and `gabitotl install`; `migrate`, `restore`, `uninstall` and `cleanup` still use plain numbered prompts.
 - No concrete Memory MCP server is selected; the abstract provider and a fake transport exist.
 - No Engram -> Memory MCP migrator (the export is kept and the plan says so).
 - Bitbucket PRs are a documented stub (`ErrNotImplemented`); GitLab/Azure DevOps have no PR support.
