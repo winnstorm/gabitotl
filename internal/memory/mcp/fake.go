@@ -86,6 +86,21 @@ func (f *FakeTransport) Call(_ context.Context, tool string, args any) (json.Raw
 		return json.RawMessage(`{}`), nil
 	case d.CurrentProject:
 		return json.Marshal(map[string]any{"project": f.Project})
+	case d.Health:
+		return json.Marshal(map[string]any{"provider": "fake", "ok": true,
+			"checks": []memory.Check{{Name: "store", Status: memory.StatusOK, Message: "fake store"}}})
+	case d.ActiveWork:
+		var q ActiveQuery
+		if err := json.Unmarshal(raw, &q); err != nil {
+			return nil, err
+		}
+		var out []memory.Entry
+		for _, e := range f.Entries {
+			if (q.Project == "" || e.Project == q.Project) && (q.Actor == "" || e.Actor == q.Actor) && (q.Task == "" || e.Task == q.Task) {
+				out = append(out, e)
+			}
+		}
+		return json.Marshal(map[string]any{"entries": out})
 	}
 	return nil, fmt.Errorf("unknown tool %q", tool)
 }

@@ -1,17 +1,22 @@
-// Package mcp is an abstract Memory MCP provider. The concrete Memory MCP
-// server (backed by PostgreSQL) is not selected yet, so this package defines
-// only a thin Transport (call a named MCP tool with JSON arguments) and
-// implements memory.Provider over it. No PostgreSQL access lives here.
+// Package mcp is the Memory MCP provider: a memory.Provider that talks to the
+// GabitoTL Memory MCP server (internal/memory/server) through a thin Transport
+// (call a named MCP tool with JSON arguments). No PostgreSQL access lives here;
+// the real transport (stdio bridge or streamable HTTP with a bearer token) is
+// bound at the composition root, and Transport stays abstract so the provider
+// is testable with FakeTransport.
 //
-// Tool mapping is configurable through Tools; the defaults mirror the common
-// "mem_*" naming. Wire contract per tool (JSON):
+// Tool names and wire contract (JSON) match the server's tools:
 //
-//	Search         args: memory.Query            -> {"entries":[memory.Entry...]}
-//	Save           args: memory.Entry            -> {"id":"..."}
-//	Update         args: {"id":"...","patch":{memory.EntryPatch}} -> {}
-//	SessionSummary args: memory.Summary          -> {}
-//	CurrentProject args: {}                      -> {"project":"..."}
-//	Health         args: {}                      -> {} (optional; empty name skips)
+//	memory_search           args: memory.Query            -> {"entries":[memory.Entry...],"count":n}
+//	memory_save             args: memory.Entry            -> {"id":"...","revision":n,"created":bool}
+//	memory_update           args: {"id","project","patch":{memory.EntryPatch},"expected_revision"} -> {"id":"...","revision":n}
+//	memory_session_summary  args: memory.Summary          -> {"ok":true,"project":"..."}
+//	memory_current_project  args: {}                      -> {"project":"...","actor":"..."}
+//	memory_doctor           args: {}                      -> {"provider","checks":[...],"ok":bool}
+//	memory_active_work      args: ActiveQuery             -> {"entries":[...],"count":n}
+//
+// The server derives the actor from the credential and rejects a different one,
+// so the client sends the actor it believes it is and never needs to be trusted.
 //
 // The connection is held by REFERENCE only (env:NAME). It is resolved at run
 // time by the Transport implementation via ResolveRef and never persisted or
@@ -34,8 +39,8 @@ import (
 // Name is the provider name in memory.md.
 const Name = gabitotl.MemoryMemoryMCP
 
-// ErrNoTransport means no concrete Memory MCP server has been selected.
-var ErrNoTransport = errors.New("memory-mcp: no Memory MCP transport configured (concrete server not selected yet)")
+// ErrNoTransport means no transport to the Memory MCP server is bound yet.
+var ErrNoTransport = errors.New("memory-mcp: no Memory MCP transport configured")
 
 // Transport calls a named MCP tool with JSON arguments and returns the JSON result.
 type Transport interface {
@@ -44,15 +49,15 @@ type Transport interface {
 
 // Tools maps provider operations to MCP tool names.
 type Tools struct {
-	Search, Save, Update, SessionSummary, CurrentProject, Health string
+	Search, Save, Update, SessionSummary, CurrentProject, Health, ActiveWork string
 }
 
-// DefaultTools is the default tool-name mapping.
+// DefaultTools is the tool-name mapping of the GabitoTL Memory MCP server.
 func DefaultTools() Tools {
 	return Tools{
-		Search: "mem_search", Save: "mem_save", Update: "mem_update",
-		SessionSummary: "mem_session_summary", CurrentProject: "mem_current_project",
-		Health: "mem_health",
+		Search: "memory_search", Save: "memory_save", Update: "memory_update",
+		SessionSummary: "memory_session_summary", CurrentProject: "memory_current_project",
+		Health: "memory_doctor", ActiveWork: "memory_active_work",
 	}
 }
 
@@ -67,7 +72,8 @@ func (t Tools) withDefaults() Tools {
 	return Tools{
 		Search: pick(t.Search, d.Search), Save: pick(t.Save, d.Save), Update: pick(t.Update, d.Update),
 		SessionSummary: pick(t.SessionSummary, d.SessionSummary),
-		CurrentProject: pick(t.CurrentProject, d.CurrentProject), Health: t.Health,
+		CurrentProject: pick(t.CurrentProject, d.CurrentProject), Health: pick(t.Health, d.Health),
+		ActiveWork: pick(t.ActiveWork, d.ActiveWork),
 	}
 }
 
@@ -175,7 +181,11 @@ func (p *Provider) Update(ctx context.Context, id memory.ID, patch memory.EntryP
 	if strings.TrimSpace(string(id)) == "" {
 		return errors.New("memory-mcp: update needs an id")
 	}
-	return p.call(ctx, p.tools.Update, map[string]any{"id": id, "patch": patch}, nil)
+	args := map[string]any{"id": id, "patch": patch}
+	if p.opt.Project != "" {
+		args["project"] = p.opt.Project
+	}
+	return p.call(ctx, p.tools.Update, args, nil)
 }
 
 // SessionSummary calls the session-summary tool.
@@ -195,7 +205,32 @@ func (p *Provider) CurrentProject(ctx context.Context) (string, error) {
 		}
 		return "", err
 	}
+	if res.Project == "" {
+		return p.opt.Project, nil
+	}
 	return res.Project, nil
+}
+
+// ActiveQuery asks which entries were recently updated, by actor and/or task.
+type ActiveQuery struct {
+	Project      string `json:"project,omitempty"`
+	Actor        string `json:"actor,omitempty"`
+	Task         string `json:"task,omitempty"`
+	SinceMinutes int    `json:"since_minutes,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+}
+
+// ActiveWork lists recently updated entries (newest first): who is working on
+// what. It backs soft-lock checks; it is not part of memory.Provider.
+func (p *Provider) ActiveWork(ctx context.Context, q ActiveQuery) ([]memory.Entry, error) {
+	q.Project = p.project(q.Project)
+	var res struct {
+		Entries []memory.Entry `json:"entries"`
+	}
+	if err := p.call(ctx, p.tools.ActiveWork, q, &res); err != nil {
+		return nil, err
+	}
+	return res.Entries, nil
 }
 
 // Doctor is read-only: it checks that the connection reference resolves (the
@@ -209,21 +244,24 @@ func (p *Provider) Doctor(ctx context.Context) memory.Report {
 	} else {
 		rep.Checks = append(rep.Checks, memory.Check{Name: "connection", Status: memory.StatusOK, Message: "reference " + p.opt.ConnectionRef + " resolves"})
 	}
-	probe, name := p.tools.Health, "health"
-	if probe == "" {
-		probe, name = p.tools.CurrentProject, "server"
+	var remote struct {
+		Checks []memory.Check `json:"checks"`
 	}
-	if err := p.call(ctx, probe, struct{}{}, nil); err != nil {
-		rep.Checks = append(rep.Checks, memory.Check{Name: name, Status: memory.StatusError, Message: err.Error()})
-	} else {
-		rep.Checks = append(rep.Checks, memory.Check{Name: name, Status: memory.StatusOK, Message: "server answered"})
+	if err := p.call(ctx, p.tools.Health, struct{}{}, &remote); err != nil {
+		rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusError, Message: err.Error()})
+		return rep
+	}
+	rep.Checks = append(rep.Checks, memory.Check{Name: "server", Status: memory.StatusOK, Message: "server answered"})
+	for _, c := range remote.Checks {
+		c.Name = "server " + c.Name
+		rep.Checks = append(rep.Checks, c)
 	}
 	return rep
 }
 
-// FromConfig is the factory constructor. Until a concrete Memory MCP server is
-// selected there is no Transport to bind, so it returns ErrNoTransport after
-// validating the configuration.
+// FromConfig is the factory constructor. The Transport to the server is bound
+// by the composition root (the real client is a separate step), so until then
+// it returns ErrNoTransport after validating the configuration.
 func FromConfig(cfg gabitotl.MemoryConfig) (memory.Provider, error) {
 	if cfg.PostgresConnection != "" && !envRefRe.MatchString(cfg.PostgresConnection) {
 		return nil, fmt.Errorf("memory-mcp: postgres_connection must be an env:NAME reference")

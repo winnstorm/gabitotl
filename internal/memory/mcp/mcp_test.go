@@ -107,3 +107,45 @@ func TestFromConfigWithoutServer(t *testing.T) {
 		t.Fatal("nil transport must be ErrNoTransport")
 	}
 }
+
+func TestDefaultToolNamesMatchTheServer(t *testing.T) {
+	d := DefaultTools()
+	want := Tools{Search: "memory_search", Save: "memory_save", Update: "memory_update", SessionSummary: "memory_session_summary",
+		CurrentProject: "memory_current_project", Health: "memory_doctor", ActiveWork: "memory_active_work"}
+	if d != want {
+		t.Fatalf("defaults: %+v", d)
+	}
+	if got := (Tools{Search: "x"}).withDefaults(); got.Search != "x" || got.Save != "memory_save" || got.Health != "memory_doctor" {
+		t.Fatalf("partial mapping keeps the defaults: %+v", got)
+	}
+}
+
+func TestActiveWorkAndProjectScopedUpdate(t *testing.T) {
+	ft := &FakeTransport{Project: ""}
+	p := newProv(t, ft, nil)
+	ctx := context.Background()
+	id, _ := p.Save(ctx, memory.Entry{Type: memory.TypeProgress, Title: "Login form", Content: "wip", Actor: "gabi", Task: "auth"})
+	_, _ = p.Save(ctx, memory.Entry{Type: memory.TypeProgress, Title: "Validation", Content: "wip", Actor: "gonza", Task: "users"})
+	got, err := p.ActiveWork(ctx, ActiveQuery{Task: "auth"})
+	if err != nil || len(got) != 1 || got[0].Actor != "gabi" {
+		t.Fatalf("active work: %+v %v", got, err)
+	}
+	title := "x"
+	if err := p.Update(ctx, id, memory.EntryPatch{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if pr, err := p.CurrentProject(ctx); err != nil || pr != "proj" {
+		t.Fatalf("an empty server project falls back to the configured key: %q %v", pr, err)
+	}
+}
+
+func TestDoctorIncludesTheServerChecks(t *testing.T) {
+	rep := newProv(t, &FakeTransport{}, nil).Doctor(context.Background())
+	names := map[string]bool{}
+	for _, c := range rep.Checks {
+		names[c.Name] = true
+	}
+	if !names["server"] || !names["server store"] || !names["connection"] {
+		t.Fatalf("checks: %+v", rep.Checks)
+	}
+}
