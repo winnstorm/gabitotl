@@ -34,9 +34,12 @@
 package claudecode
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 
+	"github.com/winnstorm/gabitotl/internal/ownership"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/runtime/engine"
 )
@@ -90,6 +93,29 @@ func AttributionKeys() []Key {
 		{[]string{"attribution", "pr"}, json.RawMessage(`""`)},
 		{[]string{"attribution", "sessionUrl"}, json.RawMessage(`false`)},
 	}
+}
+
+// Attribution implements runtime.AttributionReporter: it reads settings.json
+// (read-only) and reports whether every managed key has the expected value.
+func (a *Adapter) Attribution(env rt.Env, scope rt.Scope) rt.AttributionState {
+	path := a.settingsPath(env, scope)
+	st := rt.AttributionState{Supported: true, Detail: path}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return st
+	}
+	st.Hidden = true
+	for _, k := range AttributionKeys() {
+		cur, ok, err := ownership.Get(data, k.Path)
+		if err != nil || !ok {
+			st.Hidden = false
+			continue
+		}
+		if !bytes.Equal(bytes.TrimSpace(cur), k.Value) {
+			st.Hidden, st.Custom = false, true
+		}
+	}
+	return st
 }
 
 // Key is one managed settings key and the value GabitoTL sets.

@@ -61,7 +61,7 @@ const (
 )
 
 // DoctorSections are the section names in order (spec 41).
-var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "legacy"}
+var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "authorship", "legacy"}
 
 // DoctorCodes lists every line code, for the messages completeness test.
 var DoctorCodes = []string{
@@ -70,6 +70,8 @@ var DoctorCodes = []string{
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocRuntimeOK, DocRuntimeDrift,
 	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
+	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
+	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
 }
 
 // Line is one doctor finding.
@@ -258,6 +260,9 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		}
 	}
 	add("git", git...)
+
+	// Authorship and branding (read-only)
+	add("authorship", guardDoctor(ctx, env, hasProject, inv)...)
 
 	// Legacy
 	var leg []Line

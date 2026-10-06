@@ -290,6 +290,21 @@ type Adapter interface {
 	ListModels(env Env) ([]string, error)
 }
 
+// AttributionState is the read-only state of a runtime's own attribution
+// setting (the line a coding tool adds to commits and pull requests).
+type AttributionState struct {
+	Supported bool   // the runtime documents a setting that controls attribution
+	Hidden    bool   // the managed keys are in place, so the tool adds no attribution
+	Custom    bool   // the user chose a different value, which GabitoTL keeps
+	Detail    string // file or key concerned, for the report
+}
+
+// AttributionReporter is implemented by adapters that manage an attribution
+// setting. Doctor reads it; adapters without it have no documented setting.
+type AttributionReporter interface {
+	Attribution(env Env, scope Scope) AttributionState
+}
+
 // Registry holds adapters in registration order.
 type Registry struct{ adapters []Adapter }
 
