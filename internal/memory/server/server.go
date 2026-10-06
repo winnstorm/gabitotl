@@ -79,7 +79,14 @@ type Config struct {
 	// AuthFailRate / AuthFailBurst limit failed authentications per client
 	// address (default 10 per minute).
 	AuthFailPerMinute int
-	Now               func() time.Time
+	// TrustedProxyHeader, when set (for example "X-Forwarded-For"), makes the
+	// per-address authentication throttle and the access log use the address in
+	// that header instead of the TCP peer. Off by default: a client can forge the
+	// header unless every request really passes through a proxy you control.
+	// For a comma-separated list the LAST entry is used (the one the nearest
+	// trusted proxy appended).
+	TrustedProxyHeader string
+	Now                func() time.Time
 }
 
 // Server is a Memory MCP server.
@@ -101,6 +108,9 @@ func New(cfg Config) (*Server, error) {
 		if err := CheckUserID(cfg.FixedActor); err != nil {
 			return nil, fmt.Errorf("server: actor: %w", err)
 		}
+	}
+	if h := cfg.TrustedProxyHeader; h != "" && !validHeaderName(h) {
+		return nil, fmt.Errorf("server: %q is not a valid header name", h)
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -192,6 +202,53 @@ func (s *Server) resolveActor(req *mcp.CallToolRequest, claimed string) (string,
 	return actor, nil
 }
 
+// extraScope is the key under which the verified token scope travels in TokenInfo.Extra.
+const extraScope = "gabitotl.scope"
+
+// scope is what a token may reach. The zero value (stdio, no token) is "all",
+// because stdio serves one trusted local client.
+type scope struct {
+	all      bool
+	projects map[string]bool
+}
+
+func scopeOf(r store.TokenRecord) scope {
+	sc := scope{all: r.AllProjects, projects: map[string]bool{}}
+	for _, p := range r.Projects {
+		sc.projects[p] = true
+	}
+	return sc
+}
+
+// ErrOutOfScope is returned when a token is used on a project outside its allowlist.
+type ErrOutOfScope struct{ Project string }
+
+func (e ErrOutOfScope) Error() string {
+	return fmt.Sprintf("this token is not allowed to use project %q", e.Project)
+}
+
+// scopeFor returns the scope of a request. A request that carries a token but
+// no readable scope is treated as having no access at all (fail closed).
+func scopeFor(req *mcp.CallToolRequest) scope {
+	if req == nil || req.Extra == nil || req.Extra.TokenInfo == nil {
+		return scope{all: true} // stdio: no token, one trusted client
+	}
+	if sc, ok := req.Extra.TokenInfo.Extra[extraScope].(scope); ok {
+		return sc
+	}
+	return scope{}
+}
+
+// allow reports whether the request may use project.
+func (s *Server) allow(req *mcp.CallToolRequest, project string) error {
+	sc := scopeFor(req)
+	if sc.all || sc.projects[project] {
+		return nil
+	}
+	s.log.Warn("project out of scope", "actor", s.actorOf(req), "project", project, "tool", toolName(req))
+	return ErrOutOfScope{Project: project}
+}
+
 func (s *Server) project(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if p == "" {
@@ -244,4 +301,13 @@ func (s *Server) ServeStdio(ctx context.Context) error {
 		return errors.New("server: stdio needs an actor (--actor or an active identity)")
 	}
 	return s.mcp.Run(ctx, &mcp.StdioTransport{})
+}
+
+func validHeaderName(h string) bool {
+	for _, r := range h {
+		if !(r == '-' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return h != ""
 }

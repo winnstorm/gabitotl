@@ -31,9 +31,52 @@ var (
 //
 // Format: gbt_<16 hex id>.<43 base64url chars>. The id is public and selects the
 // row; the secret (256 random bits) is compared by its SHA-256 in constant time.
+//
+// NewToken creates an all-project token (the behavior of tokens that predate
+// project scopes); NewScopedToken is the explicit form.
 func NewToken(ctx context.Context, ts store.TokenStore, user string, now time.Time) (plain string, rec store.TokenRecord, err error) {
+	return NewScopedToken(ctx, ts, user, nil, true, now)
+}
+
+// MaxScopeProjects bounds a token's allowlist.
+const MaxScopeProjects = 100
+
+// CheckProjectKey validates a project key used in a token scope.
+func CheckProjectKey(p string) error {
+	switch {
+	case p == "" || strings.TrimSpace(p) != p:
+		return errors.New("a project key must be non-empty and have no surrounding spaces")
+	case len(p) > MaxProjectBytes:
+		return fmt.Errorf("project key longer than %d bytes", MaxProjectBytes)
+	case strings.ContainsAny(p, ", \t\r\n\x00"):
+		return fmt.Errorf("project key %q must not contain commas, whitespace or NUL", p)
+	}
+	return nil
+}
+
+// NewScopedToken creates a token limited to projects, or (allProjects) to
+// every project. Exactly one of the two must be given: an empty allowlist
+// without allProjects is refused rather than read as "everything".
+func NewScopedToken(ctx context.Context, ts store.TokenStore, user string, projects []string, allProjects bool, now time.Time) (plain string, rec store.TokenRecord, err error) {
 	if err := CheckUserID(user); err != nil {
 		return "", rec, err
+	}
+	if allProjects == (len(projects) > 0) {
+		return "", rec, errors.New("a token needs either an explicit project list or all-projects, not both and not neither")
+	}
+	if len(projects) > MaxScopeProjects {
+		return "", rec, fmt.Errorf("more than %d projects in one token", MaxScopeProjects)
+	}
+	seen := map[string]bool{}
+	var list []string
+	for _, p := range projects {
+		if err := CheckProjectKey(p); err != nil {
+			return "", rec, err
+		}
+		if !seen[p] {
+			seen[p] = true
+			list = append(list, p)
+		}
 	}
 	var idb [8]byte
 	var sec [32]byte
@@ -46,7 +89,7 @@ func NewToken(ctx context.Context, ts store.TokenStore, user string, now time.Ti
 	id := hex.EncodeToString(idb[:])
 	secret := base64.RawURLEncoding.EncodeToString(sec[:])
 	sum := sha256.Sum256([]byte(secret))
-	rec = store.TokenRecord{ID: id, User: user, Hash: sum[:], CreatedAt: now.UTC()}
+	rec = store.TokenRecord{ID: id, User: user, Hash: sum[:], CreatedAt: now.UTC(), AllProjects: allProjects, Projects: list}
 	if err := ts.CreateToken(ctx, rec); err != nil {
 		return "", store.TokenRecord{}, err
 	}
@@ -85,10 +128,16 @@ var dummyHash = sha256.Sum256([]byte("gabitotl-no-such-token"))
 // VerifyToken returns the user a token belongs to. Every failure is the same
 // ErrBadToken.
 func VerifyToken(ctx context.Context, ts store.TokenStore, tok string) (user string, err error) {
+	rec, err := VerifyTokenRecord(ctx, ts, tok)
+	return rec.User, err
+}
+
+// VerifyTokenRecord is VerifyToken returning the whole record (owner and scope).
+func VerifyTokenRecord(ctx context.Context, ts store.TokenStore, tok string) (store.TokenRecord, error) {
 	id, secret, ok := splitToken(tok)
 	if !ok {
 		_ = subtle.ConstantTimeCompare(dummyHash[:], dummyHash[:])
-		return "", ErrBadToken
+		return store.TokenRecord{}, ErrBadToken
 	}
 	rec, lerr := ts.TokenByID(ctx, id)
 	want := dummyHash[:]
@@ -99,9 +148,10 @@ func VerifyToken(ctx context.Context, ts store.TokenStore, tok string) (user str
 	match := subtle.ConstantTimeCompare(got[:], want) == 1
 	switch {
 	case lerr != nil && !errors.Is(lerr, store.ErrNotFound):
-		return "", lerr // the store is down: not the client's fault
+		return store.TokenRecord{}, lerr // the store is down: not the client's fault
 	case lerr != nil || !match || !rec.Active():
-		return "", ErrBadToken
+		return store.TokenRecord{}, ErrBadToken
 	}
-	return rec.User, nil
+	rec.Hash = nil
+	return rec, nil
 }

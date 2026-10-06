@@ -16,6 +16,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/winnstorm/gabitotl/internal/memory"
@@ -89,10 +90,36 @@ type TokenRecord struct {
 	Hash      []byte
 	CreatedAt time.Time
 	RevokedAt time.Time // zero when active
+	// AllProjects is true for a token that may use every project. Tokens created
+	// before project scopes existed are all-project tokens. Otherwise Projects is
+	// the allowlist (exact project keys).
+	AllProjects bool
+	Projects    []string
 }
 
 // Active reports whether the token can still authenticate.
 func (t TokenRecord) Active() bool { return t.RevokedAt.IsZero() }
+
+// Allows reports whether the token may use project.
+func (t TokenRecord) Allows(project string) bool {
+	if t.AllProjects {
+		return true
+	}
+	for _, p := range t.Projects {
+		if p == project {
+			return true
+		}
+	}
+	return false
+}
+
+// ScopeLabel describes the scope for listings: "all projects" or "projects: a, b".
+func (t TokenRecord) ScopeLabel() string {
+	if t.AllProjects {
+		return "all projects"
+	}
+	return "projects: " + strings.Join(t.Projects, ", ")
+}
 
 // TokenStore persists API tokens (hashed). Both implementations also implement it.
 type TokenStore interface {

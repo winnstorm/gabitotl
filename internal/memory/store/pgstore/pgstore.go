@@ -386,7 +386,8 @@ func (s *Store) Doctor(ctx context.Context) memory.Report {
 
 // CreateToken implements store.TokenStore.
 func (s *Store) CreateToken(ctx context.Context, t store.TokenRecord) error {
-	_, err := s.pool.Exec(ctx, `INSERT INTO api_tokens (id, user_id, hash) VALUES ($1, $2, $3)`, t.ID, t.User, t.Hash)
+	_, err := s.pool.Exec(ctx, `INSERT INTO api_tokens (id, user_id, hash, all_projects, projects) VALUES ($1, $2, $3, $4, $5)`,
+		t.ID, t.User, t.Hash, t.AllProjects, files(t.Projects))
 	if err != nil {
 		return fmt.Errorf("%w: %s", store.ErrInvalid, sqlState(err))
 	}
@@ -396,8 +397,11 @@ func (s *Store) CreateToken(ctx context.Context, t store.TokenRecord) error {
 func scanToken(row pgx.Row) (store.TokenRecord, error) {
 	var t store.TokenRecord
 	var revoked *time.Time
-	if err := row.Scan(&t.ID, &t.User, &t.Hash, &t.CreatedAt, &revoked); err != nil {
+	if err := row.Scan(&t.ID, &t.User, &t.Hash, &t.CreatedAt, &revoked, &t.AllProjects, &t.Projects); err != nil {
 		return store.TokenRecord{}, err
+	}
+	if len(t.Projects) == 0 {
+		t.Projects = nil
 	}
 	if revoked != nil {
 		t.RevokedAt = *revoked
@@ -407,7 +411,7 @@ func scanToken(row pgx.Row) (store.TokenRecord, error) {
 
 // TokenByID implements store.TokenStore.
 func (s *Store) TokenByID(ctx context.Context, id string) (store.TokenRecord, error) {
-	t, err := scanToken(s.pool.QueryRow(ctx, `SELECT id, user_id, hash, created_at, revoked_at FROM api_tokens WHERE id = $1`, id))
+	t, err := scanToken(s.pool.QueryRow(ctx, `SELECT id, user_id, hash, created_at, revoked_at, all_projects, projects FROM api_tokens WHERE id = $1`, id))
 	if err != nil {
 		return store.TokenRecord{}, wrap("token", err)
 	}
@@ -416,7 +420,7 @@ func (s *Store) TokenByID(ctx context.Context, id string) (store.TokenRecord, er
 
 // ListTokens implements store.TokenStore.
 func (s *Store) ListTokens(ctx context.Context, user string) ([]store.TokenRecord, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, user_id, ''::bytea, created_at, revoked_at FROM api_tokens
+	rows, err := s.pool.Query(ctx, `SELECT id, user_id, ''::bytea, created_at, revoked_at, all_projects, projects FROM api_tokens
 		WHERE ($1 = '' OR user_id = $1) ORDER BY created_at, id`, user)
 	if err != nil {
 		return nil, wrap("tokens", err)

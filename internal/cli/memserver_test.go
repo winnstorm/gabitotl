@@ -199,7 +199,7 @@ func TestServerFlagValidation(t *testing.T) {
 func TestTokenCommands(t *testing.T) {
 	f := newSfix(t)
 	f.envv[pgmanaged.EnvDatabaseURL] = "postgres://ignored"
-	r := f.run("", "memory", "token", "create", "--user", "gabi")
+	r := f.run("", "memory", "token", "create", "--user", "gabi", "--all-projects")
 	tok := strings.TrimSpace(r.out)
 	if r.code != 0 || !strings.HasPrefix(tok, "gbt_") || strings.Contains(tok, "\n") || !strings.Contains(r.err, "only time it is shown") {
 		t.Fatalf("create must print only the token on stdout: %+v", r)
@@ -212,13 +212,34 @@ func TestTokenCommands(t *testing.T) {
 	if strings.Contains(list.out+list.err, secret) {
 		t.Fatal("list must never show the secret")
 	}
-	if r := f.run("", "memory", "token", "create", "--user", "legacy"); r.code == 0 {
+	if r := f.run("", "memory", "token", "create", "--user", "legacy", "--all-projects"); r.code == 0 {
 		t.Fatal("legacy is reserved")
 	}
 	if r := f.run("", "memory", "token", "create"); r.code != ExitUsage {
 		t.Fatalf("--user is required: %+v", r)
 	}
-	if r := f.run("", "memory", "token", "create", "--user", "gabi", "--dsn", "postgres://u:p@h/d"); r.code == 0 || strings.Contains(r.err, "p@h") {
+	for _, args := range [][]string{
+		{"--user", "gabi"}, // no scope given: refused, never read as "everything"
+		{"--user", "gabi", "--projects", "a", "--all-projects"},
+	} {
+		if r := f.run("", append([]string{"memory", "token", "create"}, args...)...); r.code != ExitUsage || r.out != "" {
+			t.Fatalf("%v must be a usage error without a token: %+v", args, r)
+		}
+	}
+	sc := f.run("", "memory", "token", "create", "--user", "gonza", "--projects", "shop, kraken")
+	if sc.code != 0 || !strings.Contains(sc.err, "shop, kraken") {
+		t.Fatalf("scoped create: %+v", sc)
+	}
+	if l := f.run("", "memory", "token", "list", "--user", "gonza"); !strings.Contains(l.out, "projects: shop, kraken") {
+		t.Fatalf("list must show the scope: %+v", l)
+	}
+	if l := f.run("", "memory", "token", "list", "--user", "gabi"); !strings.Contains(l.out, "all projects") {
+		t.Fatalf("list must show all projects: %+v", l)
+	}
+	if w := f.run("", "memory", "token", "create", "--user", "pepe", "--all-projects"); !strings.Contains(w.err, "EVERY project") {
+		t.Fatalf("all-projects must warn: %+v", w)
+	}
+	if r := f.run("", "memory", "token", "create", "--user", "gabi", "--all-projects", "--dsn", "postgres://u:p@h/d"); r.code == 0 || strings.Contains(r.err, "p@h") {
 		t.Fatalf("a literal DSN must be refused without echoing it: %+v", r)
 	}
 	if rv := f.run("", "memory", "token", "revoke", "--user", "gabi"); rv.code != 0 || !strings.Contains(rv.out, "Revoked 1") {
@@ -248,7 +269,7 @@ func TestDSNResolutionUsesTheManagedCredentialsFile(t *testing.T) {
 func TestServeOverHTTPWithTokenAuth(t *testing.T) {
 	f := newSfix(t)
 	f.envv[pgmanaged.EnvDatabaseURL] = "x"
-	tr := f.run("", "memory", "token", "create", "--user", "gabi")
+	tr := f.run("", "memory", "token", "create", "--user", "gabi", "--all-projects")
 	tok := strings.TrimSpace(tr.out)
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -428,8 +428,23 @@ func tokens(t *testing.T, s store.Store) {
 	if err := s.CreateToken(ctx, rec); err == nil {
 		t.Fatal("duplicate id must fail")
 	}
-	if err := s.CreateToken(ctx, store.TokenRecord{ID: "def456", User: "gonza", Hash: []byte{9}}); err != nil {
+	if err := s.CreateToken(ctx, store.TokenRecord{ID: "def456", User: "gonza", Hash: []byte{9}, Projects: []string{"shop", "kraken"}}); err != nil {
 		t.Fatal(err)
+	}
+	if sc, _ := s.TokenByID(ctx, "def456"); sc.AllProjects || !sc.Allows("shop") || !sc.Allows("kraken") || sc.Allows("other") || len(sc.Projects) != 2 {
+		t.Fatalf("scoped token must round-trip its allowlist: %+v", sc)
+	}
+	if sc, _ := s.TokenByID(ctx, "abc123"); sc.AllProjects || sc.Allows("shop") {
+		t.Fatalf("a token with no scope fields allows nothing: %+v", sc)
+	}
+	if err := s.CreateToken(ctx, store.TokenRecord{ID: "ghi789", User: "pepe", Hash: []byte{7}, AllProjects: true}); err != nil {
+		t.Fatal(err)
+	}
+	if sc, _ := s.TokenByID(ctx, "ghi789"); !sc.AllProjects || !sc.Allows("anything") {
+		t.Fatalf("all-project token: %+v", sc)
+	}
+	if l, _ := s.ListTokens(ctx, "gonza"); len(l) != 1 || len(l[0].Projects) != 2 {
+		t.Fatalf("list must carry the scope: %+v", l)
 	}
 	got, err := s.TokenByID(ctx, "abc123")
 	if err != nil || got.User != "gabi" || string(got.Hash) != "\x01\x02\x03" || !got.Active() || got.CreatedAt.IsZero() {
@@ -441,7 +456,7 @@ func tokens(t *testing.T, s store.Store) {
 	if l, _ := s.ListTokens(ctx, "gabi"); len(l) != 1 || l[0].ID != "abc123" || len(l[0].Hash) != 0 {
 		t.Fatalf("list must filter by user and never expose the hash: %+v", l)
 	}
-	if l, _ := s.ListTokens(ctx, ""); len(l) != 2 {
+	if l, _ := s.ListTokens(ctx, ""); len(l) != 3 {
 		t.Fatalf("list all: %+v", l)
 	}
 	if err := s.RevokeToken(ctx, "gonza", "abc123"); !errors.Is(err, store.ErrNotFound) {
@@ -456,7 +471,7 @@ func tokens(t *testing.T, s store.Store) {
 	if err := s.RevokeToken(ctx, "gabi", "abc123"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("second revoke: %v", err)
 	}
-	if st, _ := s.Stats(ctx); st.Tokens != 1 {
+	if st, _ := s.Stats(ctx); st.Tokens != 2 {
 		t.Fatalf("active tokens: %+v", st)
 	}
 }

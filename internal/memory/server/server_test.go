@@ -764,3 +764,138 @@ func TestTokenStorageAndVerification(t *testing.T) {
 		t.Fatalf("list: %+v", list)
 	}
 }
+
+// scopedToken creates a token limited to projects.
+func (e *env) scopedToken(user string, projects ...string) string {
+	e.t.Helper()
+	plain, _, err := NewScopedToken(context.Background(), e.st, user, projects, false, e.clock.Now())
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return plain
+}
+
+func TestScopedTokenIsConfinedToItsProjects(t *testing.T) {
+	e := newEnv(t, func(c *Config) { c.DefaultProject = "shop" })
+	admin := e.client(e.token("root")) // all-project token (pre-scope behavior)
+	other := save(t, admin, "Secret of kraken", map[string]any{"project": "kraken"})
+	save(t, admin, "Visible in shop", nil)
+
+	cs := e.client(e.scopedToken("gonza", "shop"))
+	if _, msg := call(t, cs, ToolSave, map[string]any{"type": "decision", "title": "ok", "content": "c", "project": "shop"}); msg != "" {
+		t.Fatalf("in-scope write: %s", msg)
+	}
+	if out, msg := call(t, cs, ToolSearch, map[string]any{"text": "visible", "project": "shop"}); msg != "" || len(entries(t, out)) != 1 {
+		t.Fatalf("in-scope read: %v %s", out, msg)
+	}
+	denied := func(what string, tool string, args map[string]any) {
+		t.Helper()
+		out, msg := call(t, cs, tool, args)
+		if !strings.Contains(msg, "not allowed to use project") || out != nil {
+			t.Errorf("%s must be rejected as out of scope: %v %q", what, out, msg)
+		}
+	}
+	denied("search", ToolSearch, map[string]any{"text": "secret", "project": "kraken"})
+	denied("save", ToolSave, map[string]any{"type": "decision", "title": "x", "content": "c", "project": "kraken"})
+	denied("update", ToolUpdate, map[string]any{"id": other["id"], "project": "kraken", "patch": map[string]any{"title": "hijack"}})
+	denied("summary", ToolSessionSummary, map[string]any{"project": "kraken", "goal": "g"})
+	denied("active work", ToolActiveWork, map[string]any{"project": "kraken"})
+	// An update that names no project would match any project in the store.
+	if _, msg := call(t, cs, ToolUpdate, map[string]any{"id": other["id"], "patch": map[string]any{"title": "hijack"}}); msg == "" {
+		t.Error("an update without a project must be refused for a scoped token... unless the default project is in scope and the entry is not found there")
+	}
+	rs, _ := e.st.Search(context.Background(), memory.Query{Text: "secret", Project: "kraken"})
+	if len(rs) != 1 || rs[0].Title != "Secret of kraken" || rs[0].Actor != "root" {
+		t.Fatalf("the out-of-scope entry must be untouched: %+v", rs)
+	}
+}
+
+func TestScopedTokenWithoutADefaultProjectMustNameOneForUpdate(t *testing.T) {
+	e := newEnv(t, nil) // no default project
+	admin := e.client(e.token("root"))
+	id := save(t, admin, "Entry", map[string]any{"project": "kraken"})["id"]
+	cs := e.client(e.scopedToken("gonza", "shop"))
+	_, msg := call(t, cs, ToolUpdate, map[string]any{"id": id, "patch": map[string]any{"title": "x"}})
+	if !strings.Contains(msg, "project is required") {
+		t.Fatalf("got %q", msg)
+	}
+}
+
+func TestScopedTokenHidesWhatItCannotUse(t *testing.T) {
+	e := newEnv(t, func(c *Config) { c.DefaultProject = "kraken" })
+	save(t, e.client(e.token("root")), "x", map[string]any{"project": "kraken"})
+	cs := e.client(e.scopedToken("gonza", "shop"))
+	out, msg := call(t, cs, ToolCurrentProject, map[string]any{})
+	if msg != "" || out["project"] != "" || out["actor"] != "gonza" {
+		t.Fatalf("current project must not reveal an out-of-scope default: %v %q", out, msg)
+	}
+	d, msg := call(t, cs, ToolDoctor, map[string]any{})
+	if msg != "" {
+		t.Fatal(msg)
+	}
+	if strings.Contains(fmt.Sprint(d), "entries") {
+		t.Fatalf("doctor must not leak aggregate counts to a scoped token: %v", d)
+	}
+}
+
+func TestNewScopedTokenValidation(t *testing.T) {
+	e := newEnv(t, nil)
+	ctx := context.Background()
+	for name, c := range map[string]struct {
+		projects []string
+		all      bool
+	}{
+		"neither":    {nil, false},
+		"both":       {[]string{"a"}, true},
+		"comma":      {[]string{"a,b"}, false},
+		"blank":      {[]string{" "}, false},
+		"whitespace": {[]string{"a b"}, false},
+	} {
+		if _, _, err := NewScopedToken(ctx, e.st, "gabi", c.projects, c.all, time.Now()); err == nil {
+			t.Errorf("%s must be refused", name)
+		}
+	}
+	_, rec, err := NewScopedToken(ctx, e.st, "gabi", []string{"a", "b", "a"}, false, time.Now())
+	if err != nil || len(rec.Projects) != 2 || rec.AllProjects {
+		t.Fatalf("dedupe: %+v %v", rec, err)
+	}
+}
+
+func TestTrustedProxyHeaderIsOptIn(t *testing.T) {
+	post := func(e *env, xff string) int {
+		req, _ := http.NewRequest(http.MethodPost, e.ts.URL+EndpointPath, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
+		req.Header.Set("Authorization", "Bearer bad")
+		req.Header.Set("X-Forwarded-For", xff)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	// Off by default: the header is ignored, so rotating it does not escape the throttle.
+	off := newEnv(t, func(c *Config) { c.AuthFailPerMinute = 2 })
+	post(off, "1.1.1.1")
+	post(off, "2.2.2.2")
+	if c := post(off, "3.3.3.3"); c != http.StatusTooManyRequests {
+		t.Fatalf("without the opt-in the peer address is throttled whatever the header says: %d", c)
+	}
+	// On: each proxied client address has its own bucket; the last entry wins.
+	on := newEnv(t, func(c *Config) { c.AuthFailPerMinute = 2; c.TrustedProxyHeader = "X-Forwarded-For" })
+	post(on, "spoofed, 10.0.0.1")
+	post(on, "spoofed2, 10.0.0.1")
+	if c := post(on, "spoofed3, 10.0.0.1"); c != http.StatusTooManyRequests {
+		t.Fatalf("the same proxied client must be throttled, the forged leading entries ignored: %d", c)
+	}
+	if c := post(on, "10.0.0.2"); c != http.StatusUnauthorized {
+		t.Fatalf("another client behind the proxy is not throttled: %d", c)
+	}
+	if c := post(on, "not-an-ip"); c != http.StatusUnauthorized && c != http.StatusTooManyRequests {
+		t.Fatalf("garbage falls back to the peer address: %d", c)
+	}
+	if _, err := New(Config{Store: memstore.New(), TrustedProxyHeader: "bad header"}); err == nil {
+		t.Fatal("an invalid header name must be refused")
+	}
+}

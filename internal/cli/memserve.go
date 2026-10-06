@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -75,6 +76,7 @@ func runMemoryServe(env Env, args []string) int {
 	cert := fs.String("tls-cert", "", "TLS certificate (PEM) for HTTP")
 	key := fs.String("tls-key", "", "TLS private key (PEM) for HTTP")
 	insecure := fs.Bool("allow-insecure-remote", false, "allow plain HTTP on a non-loopback address (only behind a TLS-terminating proxy)")
+	proxyHeader := fs.String("trusted-proxy-header", "", "trust this header (for example X-Forwarded-For) for the client address of the auth throttle; off by default")
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
@@ -85,7 +87,7 @@ func runMemoryServe(env Env, args []string) int {
 	ctx, stop := signalCtxFn()
 	defer stop()
 
-	cfg := server.Config{DefaultProject: *project}
+	cfg := server.Config{DefaultProject: *project, TrustedProxyHeader: *proxyHeader}
 	if *stdio {
 		cfg.FixedActor = *actor
 		if r, err := resolveRoot(env, *root); err == nil {
@@ -165,7 +167,8 @@ func runMemoryToken(env Env, args []string) int {
 }
 
 type tokenFlags struct {
-	user, dsn, id, instance string
+	user, dsn, id, instance, projects string
+	allProjects                       bool
 }
 
 func parseToken(env Env, name string, args []string, withID bool) (store.Store, tokenFlags, func(), int) {
@@ -175,6 +178,10 @@ func parseToken(env Env, name string, args []string, withID bool) (store.Store, 
 	fs.StringVar(&f.user, "user", "", "user id (the actor of everything this token writes)")
 	fs.StringVar(&f.dsn, "dsn", defaultDSNRef, "database connection, as an env:NAME reference")
 	fs.StringVar(&f.instance, "instance", "", "named managed instance whose credentials file backs the default reference")
+	if name == "create" {
+		fs.StringVar(&f.projects, "projects", "", "comma-separated project keys this token may use")
+		fs.BoolVar(&f.allProjects, "all-projects", false, "explicit opt-in: the token may use EVERY project on this server")
+	}
 	if withID {
 		fs.StringVar(&f.id, "id", "", "revoke only this token id (default: every active token of the user)")
 	}
@@ -183,6 +190,11 @@ func parseToken(env Env, name string, args []string, withID bool) (store.Store, 
 	}
 	if name != "list" && f.user == "" {
 		fmt.Fprintf(env.Stderr, "Usage: gabitotl memory token %s --user ID [--dsn env:NAME]\n", name)
+		return nil, f, nil, ExitUsage
+	}
+	if name == "create" && (f.projects == "") == !f.allProjects {
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory token create --user ID (--projects a,b | --all-projects)")
+		fmt.Fprintln(env.Stderr, "A token must say which projects it may use: list them with --projects, or opt in to every project with --all-projects.")
 		return nil, f, nil, ExitUsage
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), memoryTimeout*2)
@@ -201,7 +213,13 @@ func runTokenCreate(env Env, args []string) int {
 		return code
 	}
 	defer done()
-	plain, rec, err := server.NewToken(context.Background(), st, f.user, time.Now())
+	var projects []string
+	for _, p := range strings.Split(f.projects, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			projects = append(projects, p)
+		}
+	}
+	plain, rec, err := server.NewScopedToken(context.Background(), st, f.user, projects, f.allProjects, time.Now())
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl memory token create: %v\n", err)
 		return ExitError
@@ -210,6 +228,11 @@ func runTokenCreate(env Env, args []string) int {
 	// reminder goes to stderr.
 	fmt.Fprintln(env.Stdout, plain)
 	fmt.Fprintf(env.Stderr, "Token %s for %q created. This is the only time it is shown: store it now (a password manager or a 0600 file).\n", rec.ID, f.user)
+	if f.allProjects {
+		fmt.Fprintln(env.Stderr, "OJO: this token can read and write EVERY project on this server. Prefer --projects for people who only work on some of them.")
+	} else {
+		fmt.Fprintf(env.Stderr, "It is limited to: %s.\n", strings.Join(projects, ", "))
+	}
 	fmt.Fprintf(env.Stderr, "Everything written with it is attributed to %q. Revoke it with: gabitotl memory token revoke --user %s --id %s\n", f.user, f.user, rec.ID)
 	return ExitOK
 }
@@ -234,8 +257,9 @@ func runTokenList(env Env, args []string) int {
 		if !t.Active() {
 			status = "revoked " + t.RevokedAt.UTC().Format("2006-01-02")
 		}
-		fmt.Fprintf(env.Stdout, "%s  %-20s  created %s  %s\n", t.ID, t.User, t.CreatedAt.UTC().Format("2006-01-02"), status)
+		fmt.Fprintf(env.Stdout, "%s  %-20s  created %s  %-22s  %s\n", t.ID, t.User, t.CreatedAt.UTC().Format("2006-01-02"), status, t.ScopeLabel())
 	}
+	fmt.Fprintln(env.Stdout, "Tokens created before project scopes existed are all-project tokens; to narrow one, create a scoped token and revoke the old one.")
 	return ExitOK
 }
 

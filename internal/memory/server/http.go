@@ -106,12 +106,27 @@ func (w *statusWriter) Flush() {
 	}
 }
 
-func clientIP(r *http.Request) string {
+func peerIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// clientIP is the address the throttle and the log attribute a request to: the
+// TCP peer, or, when a trusted proxy header is configured and carries a valid
+// address, the last entry of that header.
+func (s *Server) clientIP(r *http.Request) string {
+	if h := s.cfg.TrustedProxyHeader; h != "" {
+		if v := r.Header.Get(h); v != "" {
+			parts := strings.Split(v, ",")
+			if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	return peerIP(r)
 }
 
 // accessLog logs method, path, status, duration, client address and user. No
@@ -123,7 +138,7 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 		start := time.Now()
 		next.ServeHTTP(sw, r.WithContext(context.WithValue(r.Context(), ctxKey{}, info)))
 		s.log.Info("http request", "method", r.Method, "path", r.URL.Path, "status", sw.status,
-			"duration_ms", time.Since(start).Milliseconds(), "remote", clientIP(r), "user", info.user)
+			"duration_ms", time.Since(start).Milliseconds(), "remote", s.clientIP(r), "user", info.user)
 	})
 }
 
@@ -132,7 +147,7 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 // token is even looked at.
 func (s *Server) authGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := clientIP(r)
+		ip := s.clientIP(r)
 		if !s.fails.peek(ip) {
 			tooMany(w, time.Minute)
 			return
@@ -153,7 +168,7 @@ func tooMany(w http.ResponseWriter, retry time.Duration) {
 
 // verify is the bearer verifier. Failures are indistinguishable to the client.
 func (s *Server) verify(ctx context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
-	user, err := VerifyToken(ctx, s.cfg.Store, token)
+	rec, err := VerifyTokenRecord(ctx, s.cfg.Store, token)
 	switch {
 	case errors.Is(err, ErrBadToken):
 		return nil, auth.ErrInvalidToken
@@ -161,7 +176,7 @@ func (s *Server) verify(ctx context.Context, token string, _ *http.Request) (*au
 		s.log.Error("token store error", "error", err.Error())
 		return nil, errors.New("authentication unavailable")
 	}
-	return &auth.TokenInfo{UserID: user}, nil
+	return &auth.TokenInfo{UserID: rec.User, Extra: map[string]any{extraScope: scopeOf(rec)}}, nil
 }
 
 // userLimit applies the per-user rate limit after authentication.

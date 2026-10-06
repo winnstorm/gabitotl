@@ -327,6 +327,7 @@ func (s *Store) CreateToken(_ context.Context, t store.TokenRecord) error {
 		t.CreatedAt = s.now()
 	}
 	t.Hash = slices.Clone(t.Hash)
+	t.Projects = slices.Clone(t.Projects)
 	s.tokens[t.ID] = t
 	s.order = append(s.order, t.ID)
 	return nil
@@ -341,6 +342,7 @@ func (s *Store) TokenByID(_ context.Context, id string) (store.TokenRecord, erro
 		return store.TokenRecord{}, store.ErrNotFound
 	}
 	t.Hash = slices.Clone(t.Hash)
+	t.Projects = slices.Clone(t.Projects)
 	return t, nil
 }
 
@@ -352,6 +354,7 @@ func (s *Store) ListTokens(_ context.Context, user string) ([]store.TokenRecord,
 	for _, id := range s.order {
 		if t := s.tokens[id]; user == "" || t.User == user {
 			t.Hash = nil
+			t.Projects = slices.Clone(t.Projects)
 			out = append(out, t)
 		}
 	}

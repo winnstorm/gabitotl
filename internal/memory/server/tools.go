@@ -219,12 +219,15 @@ func checkFiles(files []string) error {
 	return nil
 }
 
-func (s *Server) search(ctx context.Context, _ *mcp.CallToolRequest, in SearchIn) (*mcp.CallToolResult, EntriesOut, error) {
+func (s *Server) search(ctx context.Context, req *mcp.CallToolRequest, in SearchIn) (*mcp.CallToolResult, EntriesOut, error) {
 	if err := tooLong("text", in.Text, MaxQueryBytes); err != nil {
 		return nil, EntriesOut{}, err
 	}
 	project, err := s.project(in.Project)
 	if err != nil {
+		return nil, EntriesOut{}, err
+	}
+	if err := s.allow(req, project); err != nil {
 		return nil, EntriesOut{}, err
 	}
 	typ := memory.EntryType(in.Type)
@@ -263,6 +266,9 @@ func (s *Server) save(ctx context.Context, req *mcp.CallToolRequest, in SaveIn) 
 	}
 	project, err := s.project(in.Project)
 	if err != nil {
+		return nil, SaveOut{}, err
+	}
+	if err := s.allow(req, project); err != nil {
 		return nil, SaveOut{}, err
 	}
 	for _, c := range []struct {
@@ -313,6 +319,15 @@ func (s *Server) update(ctx context.Context, req *mcp.CallToolRequest, in Update
 	if len(project) > MaxProjectBytes {
 		return nil, UpdateOut{}, fmt.Errorf("project is longer than %d bytes", MaxProjectBytes)
 	}
+	if project == "" && !scopeFor(req).all {
+		// The store would match an entry in any project: a scoped token must name one.
+		return nil, UpdateOut{}, errors.New("project is required for a project-scoped token")
+	}
+	if project != "" {
+		if err := s.allow(req, project); err != nil {
+			return nil, UpdateOut{}, err
+		}
+	}
 	p := in.Patch
 	for _, c := range []struct {
 		n string
@@ -358,6 +373,9 @@ func (s *Server) sessionSummary(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, SummaryOut{}, err
 	}
+	if err := s.allow(req, project); err != nil {
+		return nil, SummaryOut{}, err
+	}
 	for _, c := range []struct{ n, v string }{
 		{"task", in.Task}, {"branch", in.Branch}, {"goal", in.Goal}, {"discoveries", in.Discoveries},
 		{"accomplished", in.Accomplished}, {"next_steps", in.NextSteps},
@@ -388,23 +406,37 @@ func (s *Server) sessionSummary(ctx context.Context, req *mcp.CallToolRequest, i
 }
 
 func (s *Server) currentProject(_ context.Context, req *mcp.CallToolRequest, _ CurrentIn) (*mcp.CallToolResult, CurrentOut, error) {
-	return nil, CurrentOut{Project: s.cfg.DefaultProject, Actor: s.actorOf(req)}, nil
+	project := s.cfg.DefaultProject
+	if s.allow(req, project) != nil {
+		project = "" // do not reveal a project the token cannot use
+	}
+	return nil, CurrentOut{Project: project, Actor: s.actorOf(req)}, nil
 }
 
-func (s *Server) doctor(ctx context.Context, _ *mcp.CallToolRequest, _ CurrentIn) (*mcp.CallToolResult, DoctorOut, error) {
+func (s *Server) doctor(ctx context.Context, req *mcp.CallToolRequest, _ CurrentIn) (*mcp.CallToolResult, DoctorOut, error) {
 	ctx, cancel := s.callCtx(ctx)
 	defer cancel()
 	rep := s.Doctor(ctx)
 	out := DoctorOut{Provider: rep.Provider, Project: s.cfg.DefaultProject, Checks: make([]CheckOut, 0, len(rep.Checks)), OK: rep.OK()}
+	scoped := !scopeFor(req).all
 	for _, c := range rep.Checks {
+		if scoped && c.Name == "data" {
+			continue // aggregate counts span every project
+		}
 		out.Checks = append(out.Checks, CheckOut{Name: c.Name, Status: c.Status, Message: c.Message})
+	}
+	if scoped {
+		out.Project = ""
 	}
 	return nil, out, nil
 }
 
-func (s *Server) activeWork(ctx context.Context, _ *mcp.CallToolRequest, in ActiveIn) (*mcp.CallToolResult, EntriesOut, error) {
+func (s *Server) activeWork(ctx context.Context, req *mcp.CallToolRequest, in ActiveIn) (*mcp.CallToolResult, EntriesOut, error) {
 	project, err := s.project(in.Project)
 	if err != nil {
+		return nil, EntriesOut{}, err
+	}
+	if err := s.allow(req, project); err != nil {
 		return nil, EntriesOut{}, err
 	}
 	q := store.ActiveQuery{Project: project, Actor: strings.TrimSpace(in.Actor), Task: strings.TrimSpace(in.Task), Limit: in.Limit}
