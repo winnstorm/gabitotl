@@ -335,7 +335,7 @@ func Set(data []byte, path []string, value json.RawMessage) ([]byte, SetResult, 
 		return nil, SetResult{}, err
 	}
 	if len(bytes.TrimSpace(data)) == 0 && bytes.IndexByte(data, '/') < 0 {
-		data = []byte("{}\n")
+		data = []byte("{\n}\n")
 	}
 	s := scanner{data}
 	cur, err := s.root()

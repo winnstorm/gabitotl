@@ -563,7 +563,7 @@ func removeEntry(e ownership.Entry) error {
 // front matter is left, meaning the file only ever held our assets.
 func isEmpty(b []byte) bool {
 	t := bytes.TrimSpace(b)
-	if len(t) == 0 || string(t) == "{}" {
+	if len(t) == 0 || strings.Join(strings.Fields(string(t)), "") == "{}" {
 		return true
 	}
 	if d, err := gabitotl.ParseDoc(b); err == nil && d.HasFront && strings.TrimSpace(d.Body) == "" {

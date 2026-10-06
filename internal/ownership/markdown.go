@@ -107,13 +107,18 @@ func UpsertSection(content, name, body string) (string, error) {
 	return content + "\n" + block, nil
 }
 
-// RemoveBlock deletes b from content. A blank separator line left directly
-// before a trailing block is removed with it, so appending then removing a
+// RemoveBlock deletes b from content. A blank separator line left next to the
+// block is removed with it so no double gap remains, so appending then removing a
 // section restores the original text.
 func RemoveBlock(content string, b Block) string {
 	before, after := content[:b.Start], content[b.End:]
-	if after == "" && strings.HasSuffix(before, "\n\n") {
-		before = before[:len(before)-1]
+	if strings.HasSuffix(before, "\n\n") {
+		switch {
+		case after == "":
+			before = before[:len(before)-1]
+		case strings.HasPrefix(after, "\n"): // blank lines on both sides: keep one
+			after = after[1:]
+		}
 	}
 	return before + after
 }
