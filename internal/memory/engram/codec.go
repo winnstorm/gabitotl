@@ -128,3 +128,23 @@ func parseSearch(out string) []memory.Entry {
 	flush()
 	return res
 }
+
+// ExtractTrailer splits the "**Label**: value" trailer GabitoTL writes after
+// the body of an observation. It returns the body without the trailer lines, an
+// entry carrying the trailer fields (Actor, Task, Branch, Commit, Files,
+// Validation, NextStep, Ojo, Timestamp, Source) and whether any trailer line was
+// found. Without a trailer the content is returned verbatim, so observations
+// written by other tools are never reformatted.
+func ExtractTrailer(content string) (body string, e memory.Entry, found bool) {
+	for _, ln := range strings.Split(content, "\n") {
+		if trailerRe.MatchString(strings.TrimRight(ln, "\r")) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return content, memory.Entry{}, false
+	}
+	parseContent(content, &e)
+	return e.Content, e, true
+}
