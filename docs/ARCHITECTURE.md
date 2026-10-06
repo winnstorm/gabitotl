@@ -14,6 +14,9 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | `internal/identity` | Developer identity: slugged IDs, shared profile in `users/`, active identity in `local/user.md`. Never stores emails. |
 | `internal/memory` | Provider-agnostic memory contract: `Provider` (Search/Save/Update/SessionSummary/CurrentProject/Doctor), `Entry` with traceability fields, `Guard` (team mode requires `actor`; unknown authorship is `legacy`), `Factory`, relevance query builder (capped, never loads memory in full) and `Recorder` (honors `workflow.memory_after_work`). |
 | `internal/memory/engram` | Adapter over the real `engram` CLI behind a `Runner` interface (tests use a fake). Search, Save, Doctor (`engram doctor --json`, read-only), `Projects()`, `Export()`. `Update`, `SessionSummary` and keyless `CurrentProject` have no CLI equivalent and return `ErrUnsupported`; the DB file is never touched directly. Traceability fields travel in a `**Label**: value` content trailer. |
+| `internal/memory/mcp` | Abstract Memory MCP + PostgreSQL provider over a thin `Transport` (call a named tool with JSON args). Configurable tool-name mapping; connection by `env:NAME` reference only, resolved at runtime and never persisted. Ships an in-memory `FakeTransport`; no concrete server or PostgreSQL access (server not selected yet). |
+| `internal/memory/migrate` | `MemoryMigrator` + `Registry`. No concrete Engram to MCP migrator ships (only migrate with a proven adapter): `Lookup` returns `ErrNoTestedMigrator`. |
+| `internal/memory/providers` | Composition root: registers shipped providers in a `memory.Factory`. The only package that imports concrete providers. |
 | `internal/adapters/<runtime>` | (Planned, T4.) Per-runtime installers and renderers. |
 
 ## Dependency rule
