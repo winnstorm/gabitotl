@@ -25,6 +25,7 @@ type Store struct {
 	mu        sync.Mutex
 	rows      []*row
 	summaries []memory.Summary
+	sumRefs   map[string]bool
 	tokens    map[string]store.TokenRecord
 	order     []string // token ids in creation order
 }
@@ -34,7 +35,10 @@ type row struct {
 	deleted bool
 }
 
-var _ store.Store = (*Store)(nil)
+var (
+	_ store.Store    = (*Store)(nil)
+	_ store.Importer = (*Store)(nil)
+)
 
 // New returns an empty store.
 func New() *Store { return &Store{tokens: map[string]store.TokenRecord{}} }
@@ -372,4 +376,90 @@ func (s *Store) RevokeToken(_ context.Context, user, id string) error {
 	t.RevokedAt = s.now()
 	s.tokens[id] = t
 	return nil
+}
+
+// Import implements store.Importer.
+func (s *Store) Import(_ context.Context, rec store.ImportRecord) (store.ImportResult, error) {
+	if err := store.CheckImport(rec); err != nil {
+		return store.ImportResult{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.rows { // deleted rows count: an import is never resurrected
+		if r.rec.SourceRef == rec.SourceRef {
+			return store.ImportResult{ID: r.rec.ID}, nil
+		}
+	}
+	e := rec.Entry
+	res := store.ImportResult{Created: true}
+	meta := map[string]string{}
+	for k, v := range rec.Meta {
+		meta[k] = v
+	}
+	if e.TopicKey != "" {
+		for _, r := range s.rows {
+			if !r.deleted && r.rec.Project == e.Project && r.rec.TopicKey == e.TopicKey {
+				meta["dropped_topic_key"] = e.TopicKey
+				e.TopicKey, res.TopicKeyDropped = "", true
+				break
+			}
+		}
+	}
+	now := s.now()
+	created, updated := rec.CreatedAt, rec.UpdatedAt
+	if created.IsZero() {
+		created = now
+	}
+	if updated.IsZero() {
+		updated = created
+	}
+	e.ID = newID()
+	e.Timestamp = updated.UTC()
+	e.Files = slices.Clone(e.Files)
+	if e.Source == "" {
+		e.Source = memory.DefaultSource
+	}
+	if len(meta) == 0 {
+		meta = nil
+	}
+	s.rows = append(s.rows, &row{rec: store.Record{
+		Entry: e, Scope: store.DefaultScope, Revision: 1, CreatedBy: e.Actor, CreatedAt: created.UTC(), UpdatedAt: updated.UTC(),
+		SourceRef: rec.SourceRef, Meta: meta,
+	}})
+	res.ID = e.ID
+	return res, nil
+}
+
+// ImportSummary implements store.Importer.
+func (s *Store) ImportSummary(_ context.Context, ref string, sum memory.Summary) (bool, error) {
+	if err := store.CheckSummaryImport(ref, sum); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sumRefs == nil {
+		s.sumRefs = map[string]bool{}
+	}
+	if s.sumRefs[ref] {
+		return false, nil
+	}
+	s.sumRefs[ref] = true
+	if sum.Timestamp.IsZero() {
+		sum.Timestamp = s.now()
+	}
+	sum.Files = slices.Clone(sum.Files)
+	s.summaries = append(s.summaries, sum)
+	return true, nil
+}
+
+// BySourceRef implements store.Importer.
+func (s *Store) BySourceRef(_ context.Context, ref string) (store.Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.rows {
+		if r.rec.SourceRef == ref && ref != "" {
+			return clone(r.rec), nil
+		}
+	}
+	return store.Record{}, store.ErrNotFound
 }

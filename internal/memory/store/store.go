@@ -51,6 +51,9 @@ type Record struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	// Score is the relevance of a search hit (higher is better); zero elsewhere.
 	Score float64 `json:"score,omitempty"`
+	// SourceRef and Meta are set on imported entries (see Importer).
+	SourceRef string            `json:"source_ref,omitempty"`
+	Meta      map[string]string `json:"meta,omitempty"`
 }
 
 // SaveResult describes what Save did.

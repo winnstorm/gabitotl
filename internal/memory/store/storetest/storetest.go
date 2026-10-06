@@ -60,6 +60,11 @@ func Run(t *testing.T, f Factory) {
 		{"Summaries", summaries},
 		{"Tokens", tokens},
 		{"DoctorAndStats", doctorStats},
+		{"ImportIsIdempotentAndFaithful", importIdempotent},
+		{"ImportNeverOverwritesTopics", importTopics},
+		{"ImportNeverResurrects", importDeleted},
+		{"ImportSummaries", importSummaries},
+		{"ImportValidation", importValidation},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) { c.fn(t, f(t)) })
@@ -493,5 +498,165 @@ func doctorStats(t *testing.T, s store.Store) {
 		if strings.Contains(c.Message, "://") || strings.Contains(strings.ToLower(c.Message), "password") {
 			t.Fatalf("doctor leaks connection details: %+v", c)
 		}
+	}
+}
+
+func importer(t *testing.T, s store.Store) store.Importer {
+	t.Helper()
+	imp, ok := s.(store.Importer)
+	if !ok {
+		t.Fatalf("%T must implement store.Importer", s)
+	}
+	return imp
+}
+
+func legacyRec(ref, project, title string) store.ImportRecord {
+	return store.ImportRecord{
+		Entry: memory.Entry{Type: memory.TypeBugfix, Title: title, Content: "content of " + title, Project: project,
+			Actor: memory.ActorLegacy, Source: "engram/gentle-ai", TopicKey: ""},
+		SourceRef: ref,
+		CreatedAt: time.Date(2025, 3, 1, 10, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2025, 3, 2, 11, 30, 0, 0, time.UTC),
+		Meta:      map[string]string{"engram_type": "pattern"},
+	}
+}
+
+func importIdempotent(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	imp := importer(t, s)
+	rec := legacyRec("engram:abc", "shop", "Old bug")
+	rec.Entry.Files = []string{"a.go"}
+	r1, err := imp.Import(ctx, rec)
+	if err != nil || !r1.Created || r1.ID == "" {
+		t.Fatalf("first import: %+v %v", r1, err)
+	}
+	// Re-running with different content must neither duplicate nor overwrite.
+	rec2 := rec
+	rec2.Entry.Content = "changed"
+	r2, err := imp.Import(ctx, rec2)
+	if err != nil || r2.Created || r2.ID != r1.ID {
+		t.Fatalf("second import must be a no-op on the same row: %+v %v", r2, err)
+	}
+	got, err := imp.BySourceRef(ctx, "engram:abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Content != "content of Old bug" || got.Actor != memory.ActorLegacy || got.CreatedBy != memory.ActorLegacy ||
+		got.Source != "engram/gentle-ai" || got.Project != "shop" || got.Type != memory.TypeBugfix ||
+		!got.CreatedAt.Equal(rec.CreatedAt) || !got.UpdatedAt.Equal(rec.UpdatedAt) || got.Revision != 1 ||
+		got.Meta["engram_type"] != "pattern" || len(got.Files) != 1 || got.SourceRef != "engram:abc" {
+		t.Fatalf("an import must keep what the origin said: %+v", got)
+	}
+	// Visible to normal reads and searches, attributed to legacy.
+	rs, _ := s.Search(ctx, memory.Query{Text: "old bug", Project: "shop"})
+	if len(rs) != 1 || rs[0].Actor != memory.ActorLegacy || rs[0].ID != r1.ID {
+		t.Fatalf("search: %+v", rs)
+	}
+	if _, err := imp.BySourceRef(ctx, "engram:nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("unknown ref: %v", err)
+	}
+	if st, _ := s.Stats(ctx); st.Observations != 1 {
+		t.Fatalf("stats: %+v", st)
+	}
+	// An imported entry is a normal entry afterwards: it can be updated by a real user.
+	title := "Revised"
+	if rec, err := s.Update(ctx, "shop", r1.ID, memory.EntryPatch{Title: &title}, "gabi", 1); err != nil || rec.Actor != "gabi" || rec.CreatedBy != memory.ActorLegacy {
+		t.Fatalf("update after import: %+v %v", rec, err)
+	}
+	if again, _ := imp.Import(ctx, rec); again.Created {
+		t.Fatal("an update does not make the import run again")
+	}
+}
+
+func importTopics(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	imp := importer(t, s)
+	live := mustSave(t, s, memory.Entry{Type: memory.TypeDecision, Title: "Team decision", Content: "the team's own", Project: "shop", Actor: "gabi", TopicKey: "arch/db"})
+	rec := legacyRec("engram:t1", "shop", "Imported decision")
+	rec.Entry.TopicKey = "arch/db"
+	res, err := imp.Import(ctx, rec)
+	if err != nil || !res.Created || !res.TopicKeyDropped {
+		t.Fatalf("a taken topic_key must be dropped, not overwrite: %+v %v", res, err)
+	}
+	got, _ := s.Get(ctx, "shop", live.ID)
+	if got.Title != "Team decision" || got.Revision != 1 || got.Content != "the team's own" {
+		t.Fatalf("the team entry must be untouched: %+v", got)
+	}
+	imported, _ := imp.BySourceRef(ctx, "engram:t1")
+	if imported.TopicKey != "" || imported.Meta["dropped_topic_key"] != "arch/db" {
+		t.Fatalf("the dropped key must be recorded: %+v", imported)
+	}
+	// A free topic key is kept, in another project too.
+	free := legacyRec("engram:t2", "shop", "Free topic")
+	free.Entry.TopicKey = "arch/cache"
+	if r, _ := imp.Import(ctx, free); !r.Created || r.TopicKeyDropped {
+		t.Fatalf("free topic: %+v", r)
+	}
+	other := legacyRec("engram:t3", "kraken", "Other project")
+	other.Entry.TopicKey = "arch/db"
+	if r, _ := imp.Import(ctx, other); !r.Created || r.TopicKeyDropped {
+		t.Fatalf("another project has its own topics: %+v", r)
+	}
+	// Saving with the topic afterwards revises the imported live entry, as usual.
+	if r := mustSave(t, s, memory.Entry{Type: memory.TypeDecision, Title: "t", Content: "c", Project: "shop", Actor: "gabi", TopicKey: "arch/cache"}); r.Created {
+		t.Fatalf("a kept topic key is a normal upsert target: %+v", r)
+	}
+}
+
+func importDeleted(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	imp := importer(t, s)
+	r, _ := imp.Import(ctx, legacyRec("engram:d1", "shop", "To delete"))
+	if err := s.Delete(ctx, "shop", r.ID, "gabi"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := imp.Import(ctx, legacyRec("engram:d1", "shop", "To delete"))
+	if err != nil || again.Created {
+		t.Fatalf("a re-run must not resurrect a deleted import: %+v %v", again, err)
+	}
+	if rs, _ := s.Search(ctx, memory.Query{Text: "delete", Project: "shop"}); len(rs) != 0 {
+		t.Fatalf("still deleted: %+v", rs)
+	}
+}
+
+func importSummaries(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	imp := importer(t, s)
+	sum := memory.Summary{Project: "shop", Actor: memory.ActorLegacy, Goal: "Engram session s1", Accomplished: "did things",
+		Timestamp: time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)}
+	if created, err := imp.ImportSummary(ctx, "engram-session:s1", sum); err != nil || !created {
+		t.Fatalf("first: %v %v", created, err)
+	}
+	if created, err := imp.ImportSummary(ctx, "engram-session:s1", sum); err != nil || created {
+		t.Fatalf("repeat: %v %v", created, err)
+	}
+	got, _ := s.Summaries(ctx, "shop", 10)
+	if len(got) != 1 || got[0].Actor != memory.ActorLegacy || !got[0].Timestamp.Equal(sum.Timestamp) {
+		t.Fatalf("summaries: %+v", got)
+	}
+}
+
+func importValidation(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	imp := importer(t, s)
+	for name, mut := range map[string]func(*store.ImportRecord){
+		"no ref":     func(r *store.ImportRecord) { r.SourceRef = " " },
+		"no actor":   func(r *store.ImportRecord) { r.Entry.Actor = "" },
+		"no project": func(r *store.ImportRecord) { r.Entry.Project = "" },
+		"bad type":   func(r *store.ImportRecord) { r.Entry.Type = "nonsense" },
+		"nul":        func(r *store.ImportRecord) { r.Entry.Content = "a\x00b" },
+		"long ref":   func(r *store.ImportRecord) { r.SourceRef = strings.Repeat("x", store.MaxSourceRefBytes+1) },
+	} {
+		rec := legacyRec("engram:v", "shop", "Valid")
+		mut(&rec)
+		if _, err := imp.Import(ctx, rec); !errors.Is(err, store.ErrInvalid) {
+			t.Errorf("%s must be ErrInvalid, got %v", name, err)
+		}
+	}
+	if _, err := imp.ImportSummary(ctx, "", memory.Summary{Project: "p", Actor: "legacy"}); !errors.Is(err, store.ErrInvalid) {
+		t.Errorf("summary without a ref: %v", err)
+	}
+	if st, _ := s.Stats(ctx); st.Observations != 0 {
+		t.Fatalf("nothing may be stored: %+v", st)
 	}
 }
