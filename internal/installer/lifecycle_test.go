@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/winnstorm/gabitotl/internal/guard"
 )
 
 func installed(t *testing.T, f *fixture, o Options) Result {
@@ -181,5 +183,45 @@ func TestCleanupOffersOnlyExpiredLegacyInsideGabitoTLDir(t *testing.T) {
 	}
 	if _, err := ApplyCleanup(f.env, []Expired{{Kind: "legacy", Path: f.home + "/.gabitotl/legacy/../../.engram"}}); err == nil {
 		t.Fatal("traversal must be refused")
+	}
+}
+
+func TestUninstallRemovesGuardHooksAndKeepsUserHooksByteForByte(t *testing.T) {
+	f := newFixture(t)
+	hooks := filepath.Join(f.root, ".git", "hooks")
+	f.runner.Handlers["git"] = func(a []string) (string, error) {
+		if len(a) > 1 && a[0] == "rev-parse" && a[1] == "--git-path" {
+			return hooks, nil
+		}
+		return "true\n", nil
+	}
+	user := "#!/bin/sh\necho mine \t\n"
+	writeFile(t, filepath.Join(hooks, "pre-commit"), user)
+	if _, err := guard.InstallHooks(hooks, "/fake/gabitotl"); err != nil {
+		t.Fatal(err)
+	}
+	pl, err := PlanUninstall(f.env, nil)
+	if err != nil || len(pl.GuardHooks) != 2 || pl.Empty() {
+		t.Fatalf("%v %+v", err, pl.GuardHooks)
+	}
+	// A runtime filter is not a whole uninstall: hooks stay.
+	if only, _ := PlanUninstall(f.env, []string{"claude-code"}); len(only.GuardHooks) != 0 {
+		t.Fatalf("%+v", only.GuardHooks)
+	}
+	res, err := Uninstall(f.env, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.GuardRemoved) != 2 || len(res.GuardRestored) != 1 || !strings.HasSuffix(res.GuardRestored[0], "pre-commit") {
+		t.Fatalf("%+v", res)
+	}
+	if slurp(t, filepath.Join(hooks, "pre-commit")) != user {
+		t.Fatal("the user hook must come back byte for byte")
+	}
+	if _, err := os.Stat(filepath.Join(hooks, "commit-msg")); err == nil {
+		t.Fatal("our hook must be gone")
+	}
+	if left, _ := PlanUninstall(f.env, nil); len(left.GuardHooks) != 0 || !left.Empty() {
+		t.Fatalf("%+v", left)
 	}
 }

@@ -97,7 +97,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
-| `uninstall` | Remove only what GabitoTL installed, driven by its ownership state. |
+| `uninstall` | Remove only what GabitoTL installed, driven by its ownership state (including its Git guard hooks; a hook of yours that was chained is restored byte for byte). |
 | `cleanup` | Offer to delete expired snapshots and legacy copies (30 days). |
 | `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--vcs`. |
 | `scan [--json]` | Read-only project map (structure, stack, commands, recent history). |

@@ -98,6 +98,11 @@ once in `workflow.md` (`guard_hooks`), so nobody is asked twice.
   the guard with the original arguments. Uninstall restores it byte for byte. Install is
   idempotent. If both a hook and its `.gabitotl-orig` exist and neither is ours, install
   stops and asks you to resolve it.
+- **`gabitotl uninstall`** removes the hooks it installed too (by the marker, never anything else),
+  puts a chained hook of yours back byte for byte and lists both in what it removed and kept. It only
+  does so for a whole uninstall (not with `--runtime`), and it resets the remembered `guard_hooks`
+  answer to `ask`, so a later install offers the hooks again. `guard uninstall-hooks` is unchanged
+  and remembers `declined`.
 - **`core.hooksPath` and worktrees:** the hooks directory comes from
   `git rev-parse --git-path hooks`, so a custom `core.hooksPath` is honored and linked
   worktrees share the main repository's hooks.

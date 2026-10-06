@@ -230,3 +230,78 @@ func TestGuardClaudeSettingsManagedKeys(t *testing.T) {
 		t.Fatalf("uninstall must restore settings.json byte for byte:\n%s", read(t, settings))
 	}
 }
+
+// uninstall takes out the guard hooks GabitoTL installed (found by their
+// ownership marker), gives a chained user hook back byte for byte and reports
+// both. A dry run and a runtime-only uninstall leave them alone.
+func TestUninstallRemovesGuardHooksAndRestoresUserHooks(t *testing.T) {
+	m := newMachine(t)
+	proj := m.repo("hooked", map[string]string{"go.mod": "module x\n"})
+	preCommit := filepath.Join(proj, ".git/hooks/pre-commit")
+	commitMsg := filepath.Join(proj, ".git/hooks/commit-msg")
+	userHook := "#!/bin/sh\n# the user's own hook, with odd bytes: \t trailing  \necho mine\n"
+	m.write(preCommit, userHook)
+	if err := os.Chmod(preCommit, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.write(filepath.Join(m.home, ".claude/CLAUDE.md"), "# My rules\n")
+
+	m.ok(proj, "install", "--yes", "--user", "gabi", "--runtime", "claude-code")
+	if !strings.Contains(read(t, commitMsg), "gabitotl:guard:managed") || !strings.Contains(read(t, preCommit), "gabitotl:guard:managed") || read(t, preCommit+".gabitotl-orig") != userHook {
+		t.Fatal("install must have wrapped the hooks and chained the user's")
+	}
+	managed := read(t, commitMsg)
+
+	r := m.ok(proj, "uninstall", "--dry-run")
+	contains(t, "plan", r.out, "git:", "tu hook de Git original")
+	m.ok(proj, "uninstall", "--yes", "--runtime", "claude-code")
+	if read(t, commitMsg) != managed || !exists(preCommit+".gabitotl-orig") {
+		t.Fatal("a runtime-only uninstall and a dry run must not touch the hooks")
+	}
+	m.ok(proj, "install", "--yes", "--user", "gabi", "--runtime", "claude-code")
+
+	r = m.ok(proj, "uninstall", "--yes")
+	contains(t, "uninstall", r.out, "Saqué el hook de Git de GabitoTL", "Volvió tu hook original, byte por byte")
+	if exists(commitMsg) || exists(preCommit+".gabitotl-orig") {
+		t.Fatal("the guard's hooks and the aside copy must be gone")
+	}
+	if read(t, preCommit) != userHook {
+		t.Fatal("the user's hook must come back byte for byte")
+	}
+	if info, err := os.Stat(preCommit); err != nil || info.Mode().Perm()&0o100 == 0 {
+		t.Fatalf("the restored hook must stay executable: %v", err)
+	}
+	if !strings.Contains(read(t, filepath.Join(proj, ".gabitotl", "workflow.md")), "guard_hooks: ask") {
+		t.Fatal("the remembered answer must be reset so a later install offers the hooks again")
+	}
+	// Idempotent: nothing left to do.
+	r = m.ok(proj, "uninstall", "--yes")
+	if strings.Contains(r.out, "hook") {
+		t.Fatalf("second uninstall: %s", r.out)
+	}
+	if read(t, preCommit) != userHook {
+		t.Fatal("the user hook must survive a second uninstall")
+	}
+}
+
+// Only hooks with the ownership marker are ever removed: a hook the user wrote
+// in place of ours after the install is not ours to delete.
+func TestUninstallLeavesForeignHooksAlone(t *testing.T) {
+	m := newMachine(t)
+	proj := m.repo("foreign", map[string]string{"go.mod": "module x\n"})
+	m.write(filepath.Join(m.home, ".claude/CLAUDE.md"), "# My rules\n")
+	m.ok(proj, "install", "--yes", "--user", "gabi", "--runtime", "claude-code")
+	preCommit := filepath.Join(proj, ".git/hooks/pre-commit")
+	mine := "#!/bin/sh\necho replaced by the user\n"
+	m.write(preCommit, mine)
+	if err := os.Chmod(preCommit, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.ok(proj, "uninstall", "--yes")
+	if read(t, preCommit) != mine {
+		t.Fatal("a hook that is not ours must be left alone")
+	}
+	if exists(filepath.Join(proj, ".git/hooks/commit-msg")) {
+		t.Fatal("the hook that is ours must be removed")
+	}
+}

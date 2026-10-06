@@ -137,7 +137,7 @@ func runUninstall(env Env, args []string) int {
 		return ExitUsage
 	}
 	ui.RenderUninstallPlan(env.Stdout, m, pl, paths)
-	if *dry || len(pl.Runtimes) == 0 {
+	if *dry || pl.Empty() {
 		return ExitOK
 	}
 	if ok, refused := confirmed(env, m, *yes, m.Format("uninstall.confirm")); refused {
@@ -152,6 +152,11 @@ func runUninstall(env Env, args []string) int {
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("result.failed", "detail", err.Error()))
 		return ExitError
+	}
+	ui.RenderUninstallResult(env.Stdout, m, res, paths)
+	if res.Backup == "" {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("uninstall.done.nobackup"))
+		return ExitOK
 	}
 	fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("uninstall.done", "path", paths.Short(res.Backup)))
 	return ExitOK

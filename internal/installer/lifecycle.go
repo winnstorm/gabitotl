@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,6 +11,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/guard"
 )
 
 // DefaultRetentionDays is how long legacy snapshots are kept (spec 25).
@@ -89,7 +93,23 @@ type UninstallPlan struct {
 	Runtimes  []string // runtimes with GabitoTL assets in the ownership state
 	Files     map[string][]string
 	Preserved []string // reason codes, see UninstallPreserved
+	// GuardHooks are the Git hooks of the authorship guard that GabitoTL installed
+	// in the project (found by their ownership marker). Only whole-installation
+	// uninstalls (no runtime filter) include them.
+	GuardHooks []GuardHook
 }
+
+// GuardHook is one Git hook installed by GabitoTL. Chained means a hook of the
+// user was moved aside when it was installed and goes back in place byte for
+// byte; without it the slot is simply left empty.
+type GuardHook struct {
+	Name    string
+	Path    string
+	Chained bool
+}
+
+// Empty reports whether there is nothing to remove.
+func (p UninstallPlan) Empty() bool { return len(p.Runtimes) == 0 && len(p.GuardHooks) == 0 }
 
 // UninstallPreserved are the things uninstall never deletes (spec 46).
 var UninstallPreserved = []string{"engram", "memory", "code", "project", "backups"}
@@ -113,6 +133,9 @@ func PlanUninstall(env Env, only []string) (UninstallPlan, error) {
 			p.Runtimes = append(p.Runtimes, a.Name())
 		}
 	}
+	if len(only) == 0 {
+		p.GuardHooks = guardHooksOf(env)
+	}
 	for _, only := range only {
 		if _, ok := env.Runtimes.Get(only); !ok {
 			return p, fmt.Errorf("%w %q (known: %s)", ErrUnknownRuntime, only, strings.Join(env.Runtimes.Names(), ", "))
@@ -121,12 +144,37 @@ func PlanUninstall(env Env, only []string) (UninstallPlan, error) {
 	return p, nil
 }
 
+// guardHooksOf lists the guard hooks GabitoTL installed in the project's hooks
+// directory. It only reads (one `git rev-parse` query); anything that is not ours
+// is never listed.
+func guardHooksOf(env Env) []GuardHook {
+	if env.ProjectRoot == "" || env.Runner == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	dir, err := guard.HooksDir(ctx, gitRunner{env.Runner}, env.ProjectRoot)
+	if err != nil {
+		return nil
+	}
+	var out []GuardHook
+	for _, h := range guard.HookStatus(dir) {
+		if h.Installed {
+			out = append(out, GuardHook{Name: h.Name, Path: h.Path, Chained: h.Chained})
+		}
+	}
+	return out
+}
+
 // UninstallResult reports an uninstall.
 type UninstallResult struct {
-	Removed  map[string][]string
-	Manual   []string
-	Backup   string
-	Warnings []string
+	// GuardRemoved are the guard hooks taken out; GuardRestored the user hooks that
+	// had been chained and are back in place, untouched.
+	GuardRemoved, GuardRestored []string
+	Removed                     map[string][]string
+	Manual                      []string
+	Backup                      string
+	Warnings                    []string
 }
 
 // Uninstall removes only what GabitoTL wrote, driven by the ownership state
@@ -139,11 +187,56 @@ func Uninstall(env Env, only []string, obs Observer) (UninstallResult, error) {
 	if err != nil {
 		return res, err
 	}
-	if len(pl.Runtimes) == 0 {
+	if pl.Empty() {
 		return res, nil
 	}
+	if len(pl.Runtimes) > 0 {
+		if err := removeRuntimeAssets(env, only, pl, &res, obs); err != nil {
+			return res, err
+		}
+	}
+	return res, uninstallGuardHooks(env, pl, &res)
+}
+
+// uninstallGuardHooks removes the guard hooks GabitoTL installed, restoring any
+// user hook that was chained (guard.UninstallHooks: marker-owned files only), and
+// forgets the remembered "installed" answer so a later install offers them again.
+func uninstallGuardHooks(env Env, pl UninstallPlan, res *UninstallResult) error {
+	if len(pl.GuardHooks) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	dir, err := guard.HooksDir(ctx, gitRunner{env.Runner}, env.ProjectRoot)
+	if err != nil {
+		return fmt.Errorf("git hooks: %w", err)
+	}
+	if _, err := guard.UninstallHooks(dir); err != nil {
+		return fmt.Errorf("git hooks: %w", err)
+	}
+	for _, h := range pl.GuardHooks {
+		res.GuardRemoved = append(res.GuardRemoved, h.Path)
+		if h.Chained {
+			res.GuardRestored = append(res.GuardRestored, h.Path)
+		}
+	}
+	l := gabitotl.NewLayout(env.ProjectRoot)
+	if _, err := os.Stat(l.Workflow()); err != nil {
+		return nil // no workflow.md: nothing remembered, and none is created here
+	}
+	if wf, err := gabitotl.LoadWorkflow(l); err == nil && wf.GuardHooks == gabitotl.HooksInstalled {
+		wf.GuardHooks = gabitotl.HooksAsk
+		if err := gabitotl.SaveWorkflow(l, wf); err != nil {
+			res.Warnings = append(res.Warnings, "workflow.md: "+err.Error())
+		}
+	}
+	return nil
+}
+
+// removeRuntimeAssets backs up and removes what GabitoTL wrote in the runtimes.
+func removeRuntimeAssets(env Env, only []string, pl UninstallPlan, res *UninstallResult, obs Observer) error {
 	if err := EnsureGlobalLayout(env); err != nil {
-		return res, err
+		return err
 	}
 	res.Backup = filepath.Join(env.StateDir(), "backups", env.Clock().Format("2006-01-02_1504")+"_uninstall")
 	for n := 2; ; n++ {
@@ -156,7 +249,7 @@ func Uninstall(env Env, only []string, obs Observer) (UninstallResult, error) {
 		for _, p := range pl.Files[name] {
 			dst := filepath.Join(res.Backup, name, "files", strings.TrimLeft(strings.NewReplacer(":", "_", `\`, "/").Replace(p), "/"))
 			if _, _, err := copyFile(p, dst); err != nil {
-				return res, fmt.Errorf("backup before uninstall: %w", err) // nothing was removed yet
+				return fmt.Errorf("backup before uninstall: %w", err) // nothing was removed yet
 			}
 		}
 	}
@@ -171,10 +264,10 @@ func Uninstall(env Env, only []string, obs Observer) (UninstallResult, error) {
 			res.Manual = append(res.Manual, name+": "+x.Path)
 		}
 		if err != nil {
-			return res, fmt.Errorf("%s: %w", name, err)
+			return fmt.Errorf("%s: %w", name, err)
 		}
 	}
-	return res, nil
+	return nil
 }
 
 // Expired is a cleanup candidate.

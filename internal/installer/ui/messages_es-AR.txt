@@ -167,8 +167,12 @@ uninstall.keep.memory = las memorias (Engram o Memory MCP)
 uninstall.keep.code = tu código
 uninstall.keep.project = el .gabitotl del proyecto
 uninstall.keep.backups = los backups
+uninstall.keep.userhook = tu hook de Git original ({detail}): lo dejo exactamente como estaba
 uninstall.confirm = ¿Desinstalo?
 uninstall.done = Listo. Saqué solo lo que había puesto GabitoTL. Guardé una copia de esos archivos en {path}.
+uninstall.done.nobackup = Listo. Saqué solo lo que había puesto GabitoTL.
+uninstall.hook.removed = Saqué el hook de Git de GabitoTL: {detail}
+uninstall.hook.restored = Volvió tu hook original, byte por byte: {detail}
 uninstall.manual = Esto lo tenés que revisar a mano: {detail}
 
 cleanup.none = No hay nada vencido para limpiar.

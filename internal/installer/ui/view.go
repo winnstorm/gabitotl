@@ -261,7 +261,7 @@ func RenderRestorePlan(w io.Writer, m Messages, changes []installer.RestoreChang
 
 // RenderUninstallPlan shows what uninstall removes and what it keeps (spec 46).
 func RenderUninstallPlan(w io.Writer, m Messages, pl installer.UninstallPlan, paths Paths) {
-	if len(pl.Runtimes) == 0 {
+	if pl.Empty() {
 		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.none"))
 		return
 	}
@@ -273,9 +273,28 @@ func RenderUninstallPlan(w io.Writer, m Messages, pl installer.UninstallPlan, pa
 			fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("uninstall.remove.item", "name", n, "detail", paths.Short(f)))
 		}
 	}
+	for _, h := range pl.GuardHooks {
+		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("uninstall.remove.item", "name", "git", paths.Short(h.Path)))
+	}
 	fmt.Fprintf(w, "\n%s\n\n", m.Format("uninstall.keep"))
+	for _, h := range pl.GuardHooks {
+		if h.Chained {
+			fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.keep.userhook", "detail", paths.Short(h.Path)))
+		}
+	}
 	for _, k := range pl.Preserved {
 		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.keep."+k))
+	}
+}
+
+// RenderUninstallResult lists what an uninstall did to the project's Git hooks
+// (the runtime part is reported by the caller).
+func RenderUninstallResult(w io.Writer, m Messages, res installer.UninstallResult, paths Paths) {
+	for _, p := range res.GuardRemoved {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.hook.removed", "detail", paths.Short(p)))
+	}
+	for _, p := range res.GuardRestored {
+		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("uninstall.hook.restored", "detail", paths.Short(p)))
 	}
 }
 
