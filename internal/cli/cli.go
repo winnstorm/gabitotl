@@ -70,6 +70,8 @@ func commands() map[string]Command {
 		{"restore", "Restore files from a local backup", notImplemented("restore")},
 		{"uninstall", "Remove GabitoTL from a runtime", notImplemented("uninstall")},
 		{"init", "Create .gabitotl/ in a project", runInit},
+		{"memory", "Memory provider tools (doctor, search)", runMemory},
+		{"scan", "Scan the project and print its map", runScan},
 		{"version", "Print the version", runVersion},
 	}
 	m := make(map[string]Command, len(list)+1)

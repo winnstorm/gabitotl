@@ -8,7 +8,7 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 | Path | Responsibility |
 |------|----------------|
 | `cmd/gabitotl` | Thin `main`: calls `cli.Run`. No logic. |
-| `internal/cli` | Subcommand dispatcher and commands (`init`, `version`, `help`; stubs for `install`, `doctor`, `migrate`, `restore`, `uninstall`). Takes an `Env` (stdin/stdout/stderr/cwd/TTY) so commands run in-process in tests. |
+| `internal/cli` | Subcommand dispatcher and commands (`init`, `memory doctor|search`, `scan [--root] [--json]`, `version`, `help`; stubs for `install`, `doctor`, `migrate`, `restore`, `uninstall`). Takes an `Env` (stdin/stdout/stderr/cwd/TTY) so commands run in-process in tests. |
 | `internal/version` | Build metadata. |
 | `internal/gabitotl` | Project layer: `Layout` (all `.gabitotl/` paths), Markdown + YAML front matter codec (`ParseDoc`, `RenderDoc`), typed configs, secret guard, `Init`, `DetectKind`, `FindRoot`. |
 | `internal/identity` | Developer identity: slugged IDs, shared profile in `users/`, active identity in `local/user.md`. Never stores emails. |
@@ -24,6 +24,8 @@ dependency is `gopkg.in/yaml.v3` (front matter).
 
 ```text
 cmd -> cli -> identity -> gabitotl
+          cli -> memory/providers -> memory/{engram,mcp} -> memory -> gabitotl
+          cli -> scanner -> memory
                   adapters/* -> core (never the reverse)
 ```
 
