@@ -15,7 +15,7 @@ ojo.overlap = {who} está trabajando ahora sobre {area}. Conviene coordinar ante
 tip.long_chat = Este chat ya viene bastante largo. Dejé el estado y lo pendiente guardados en memoria, así que podés abrir una sesión nueva y seguimos desde ahí sin arrancar de cero.
 
 # Authorship guard (docs/GUARD.md). Authorship belongs to the person who asked for the work.
-guard.stripped = Saqué {n} línea(s) de atribución a una IA {where}. La autoría es de quien pidió el trabajo, no de la herramienta.
+guard.stripped = Saqué {n} línea(s) de atribución a una IA en {where}. La autoría es de quien pidió el trabajo, no de la herramienta.
 guard.blocked = Frené {where}: tiene atribución a una IA y no la puedo sacar sin riesgo. Quitá esa línea a mano y volvé a probar.
 guard.warned = Ojo: {where} tiene atribución a una IA ({n}). Estás en modo warn, así que sigo igual.
 guard.where.commit = el commit
