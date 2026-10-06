@@ -3,6 +3,7 @@ package gabitotl
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -69,7 +70,14 @@ type MemoryConfig struct {
 	Token string `yaml:"token,omitempty"`
 	// Role is "host" on the machine that runs the server and "client" elsewhere.
 	Role string `yaml:"role,omitempty"`
+	// Instance is the NAME of the managed server instance this machine hosts (host
+	// role only; empty for the default instance). A plain name, never a reference.
+	Instance string `yaml:"instance,omitempty"`
 }
+
+// instanceNameRe mirrors the instance names of the managed PostgreSQL
+// (internal/pgmanaged), which this package cannot import.
+var instanceNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}$`)
 
 // Memory roles for provider memory-mcp.
 const (
@@ -94,6 +102,9 @@ func (c *MemoryConfig) Validate() error {
 		if err := oneOf("role", c.Role, RoleHost, RoleClient); err != nil {
 			return err
 		}
+	}
+	if c.Instance != "" && !instanceNameRe.MatchString(c.Instance) {
+		return fmt.Errorf("instance: must be a plain name (lowercase letters, digits and dashes, at most 31 characters)")
 	}
 	if c.URL != "" {
 		u, err := url.Parse(c.URL)

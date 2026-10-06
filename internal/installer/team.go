@@ -102,6 +102,15 @@ type TeamPlan struct {
 	Unchanged bool
 }
 
+// instance is the named managed instance this setup serves: only a host has one
+// ("" is the default instance).
+func (t *TeamPlan) instance() string {
+	if t.Role == gabitotl.RoleHost && t.Server != nil {
+		return t.Server.Instance
+	}
+	return ""
+}
+
 // ServerResult is what the host setup did.
 type ServerResult struct {
 	Created     bool
@@ -113,6 +122,8 @@ type ServerResult struct {
 // TeamResult is the connection summary presenters print.
 type TeamResult struct {
 	Role, URL, TokenEnv, Project string
+	// Instance is the named managed instance a host serves ("" for the default).
+	Instance string
 }
 
 // IssuedToken is a token created for a teammate. It is held in memory only:
@@ -253,7 +264,7 @@ func teamUnchanged(ctx context.Context, env Env, inv Inventory, opts Options, t 
 	}
 	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(env.ProjectRoot))
 	if err != nil || cfg.Mode != gabitotl.ModeTeam || cfg.Provider != gabitotl.MemoryMemoryMCP ||
-		cfg.URL != t.URL || cfg.Token != "env:"+t.TokenEnv || cfg.Role != t.Role {
+		cfg.URL != t.URL || cfg.Token != "env:"+t.TokenEnv || cfg.Role != t.Role || cfg.Instance != t.instance() {
 		return false
 	}
 	if t.Role == gabitotl.RoleClient {
@@ -317,6 +328,7 @@ func (r *run) teamConfig(l gabitotl.Layout) error {
 	}
 	cfg.Mode, cfg.Provider = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP
 	cfg.URL, cfg.Token, cfg.Role = t.URL, "env:"+t.TokenEnv, t.Role
+	cfg.Instance = t.instance()
 	return gabitotl.SaveMemory(l, cfg)
 }
 

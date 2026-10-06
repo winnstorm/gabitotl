@@ -314,7 +314,7 @@ func teamDoctor(ctx context.Context, env Env, cfg gabitotl.MemoryConfig) []Line 
 		out = append(out, Line{st, code, strings.TrimSpace(c.Name + ": " + c.Message)})
 	}
 	if cfg.Role == gabitotl.RoleHost && env.Team.Manager != nil {
-		if m, err := env.Team.Manager("", "auto", 0); err == nil {
+		if m, err := env.Team.Manager(cfg.Instance, "auto", 0); err == nil { // the instance recorded in memory.md, if any
 			st, err := m.Status(dctx)
 			switch {
 			case err != nil:

@@ -36,7 +36,9 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
   tracked by id in `~/.gabitotl/memory-tokens.json`, so tokens never pile up; tokens you created by hand
   with `memory token create` are never revoked) and one token per `--memory-invite`
   (printed once at the end, never stored), writes `.gabitotl/memory.md` (`mode: team`,
-  `provider: memory-mcp`, `role: host`, `url`, `token: env:NAME`: references only) and registers the
+  `provider: memory-mcp`, `role: host`, `url`, `token: env:NAME`: references only; with `--memory-instance NAME`
+  also `instance: NAME`, a plain name, so `gabitotl doctor` and the printed `memory serve` / `memory token`
+  hints follow that instance) and registers the
   bridge in the selected runtimes. It does **not** start the server process: the result tells you to
   run `gabitotl memory serve --http 127.0.0.1:8765` (put it behind TLS to reach it over a network).
   Rollback after a failure removes the container and network this run created and **keeps the data

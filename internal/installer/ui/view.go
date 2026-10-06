@@ -379,8 +379,8 @@ func renderTeam(w io.Writer, m Messages, res installer.Result, paths Paths) {
 			}
 		}
 		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.token_stored"))
-		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.serve"))
-		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.connect", "url", t.URL, "env", t.TokenEnv, "project", t.Project))
+		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.serve", "instance", instanceFlag(t.Instance)))
+		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.connect", "url", t.URL, "env", t.TokenEnv, "project", t.Project, "instance", instanceFlag(t.Instance)))
 		if len(res.Tokens) > 0 {
 			fmt.Fprintf(w, "\n%s %s\n", SymWarn, m.Format("result.team.invites"))
 			for _, tk := range res.Tokens {
@@ -398,4 +398,13 @@ func renderTeam(w io.Writer, m Messages, res installer.Result, paths Paths) {
 		}
 		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.import_note"))
 	}
+}
+
+// instanceFlag is the flag that points a command at a named managed instance
+// (empty for the default one), ready to append to a command line.
+func instanceFlag(name string) string {
+	if name == "" {
+		return ""
+	}
+	return " --instance " + name
 }

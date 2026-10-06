@@ -145,7 +145,7 @@ func (r *run) ropts() rt.Options {
 func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hooks Hooks) (Result, error) {
 	res := Result{Runtime: map[string]rt.Result{}}
 	if pl.Team != nil {
-		res.Team = &TeamResult{Role: pl.Team.Role, URL: pl.Team.URL, TokenEnv: pl.Team.TokenEnv, Project: inv.Project.Key}
+		res.Team = &TeamResult{Role: pl.Team.Role, URL: pl.Team.URL, TokenEnv: pl.Team.TokenEnv, Project: inv.Project.Key, Instance: pl.Team.instance()}
 	}
 	r := &run{env: env, inv: inv, pl: pl, obs: obs, hooks: hooks, res: &res}
 	r.phase(PhasePlan)

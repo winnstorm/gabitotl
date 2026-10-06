@@ -128,3 +128,20 @@ func TestPathsTildeShortensEmbeddedHome(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestTeamHintsFollowTheNamedInstance(t *testing.T) {
+	render := func(instance string) string {
+		var b bytes.Buffer
+		renderTeam(&b, Default(), installer.Result{
+			Team:   &installer.TeamResult{Role: "host", URL: "http://127.0.0.1:8765/mcp", TokenEnv: "GABITOTL_MEMORY_TOKEN", Project: "shop", Instance: instance},
+			Server: &installer.ServerResult{Port: 54329, Created: true},
+		}, Paths{})
+		return b.String()
+	}
+	if out := render("trial"); strings.Count(out, "--instance trial") != 2 {
+		t.Errorf("both the serve and the token hints must name the instance:\n%s", out)
+	}
+	if out := render(""); strings.Contains(out, "--instance") {
+		t.Errorf("the default instance keeps the plain hints:\n%s", out)
+	}
+}
