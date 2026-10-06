@@ -17,6 +17,8 @@ func layoutOf(root string) gabitotl.Layout { return gabitotl.NewLayout(root) }
 
 func runWork(env Env, args []string) int {
 	return subcommands(env, "work", args, map[string]func(Env, []string) int{
+		"start":   func(e Env, a []string) int { return runWorkWrite(e, a, true) },
+		"update":  func(e Env, a []string) int { return runWorkWrite(e, a, false) },
 		"status":  runWorkStatus,
 		"overlap": runWorkOverlap,
 	})
@@ -126,4 +128,74 @@ func runWorkOverlap(env Env, args []string) int {
 		fmt.Fprintf(env.Stderr, "warning: %s\n", w)
 	}
 	return ExitOK // advisory: never fails because of an overlap
+}
+
+// runWorkWrite implements `work start` (create) and `work update` (merge) for
+// the caller's own active-work file, so soft locks see what they are touching.
+func runWorkWrite(env Env, args []string, start bool) int {
+	name := "work update"
+	if start {
+		name = "work start"
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(env.Stderr)
+	root := fs.String("root", "", "project root")
+	user := fs.String("user", "", "developer id (default: active identity)")
+	task := fs.String("task", "", "task id (required)")
+	areas := fs.String("areas", "", "comma-separated areas (modules or paths) you touch")
+	files := fs.String("files", "", "comma-separated files you touch")
+	branch := fs.String("branch", "", "task branch")
+	status := fs.String("status", "", "in-progress, blocked, paused or done (default for start: in-progress)")
+	objective := fs.String("objective", "", "one-line objective")
+	next := fs.String("next", "", "next step")
+	if err := fs.Parse(args); err != nil {
+		return flagExit(err)
+	}
+	if *task == "" {
+		fmt.Fprintf(env.Stderr, "Usage: gabitotl %s --task ID [--areas a,b] [--files x,y] [--branch B] [--status S] [--objective T] [--next T] [--user ID] [--root DIR]\n", name)
+		return ExitUsage
+	}
+	dir, err := resolveRoot(env, *root)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl %s: %v\n", name, err)
+		return ExitError
+	}
+	u, err := userID(dir, *user)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl %s: %v\n", name, err)
+		return ExitError
+	}
+	layout := layoutOf(dir)
+	t, rerr := coordination.ReadTask(layout, u, *task)
+	switch {
+	case start && rerr != nil:
+		t = coordination.Task{ActiveWork: coordination.ActiveWork{ID: *task, Owner: u, Status: coordination.StatusInProgress}}
+	case rerr != nil:
+		fmt.Fprintf(env.Stderr, "gabitotl %s: no task %s/%s (use `work start`): %v\n", name, u, *task, rerr)
+		return ExitError
+	}
+	if *areas != "" {
+		t.Areas = splitList(*areas)
+	}
+	if *files != "" {
+		t.Files = splitList(*files)
+	}
+	if *branch != "" {
+		t.Branch = *branch
+	}
+	if *status != "" {
+		t.Status = *status
+	}
+	if *objective != "" {
+		t.State.Objective = *objective
+	}
+	if *next != "" {
+		t.State.Next = *next
+	}
+	if err := coordination.WriteTask(layout, t); err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl %s: %v\n", name, err)
+		return ExitError
+	}
+	fmt.Fprintf(env.Stdout, "%s/%s [%s] branch=%s areas=%s\n", t.Owner, t.ID, t.Status, dash(t.Branch), dash(strings.Join(t.Areas, ",")))
+	return ExitOK
 }

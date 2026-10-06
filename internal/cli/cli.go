@@ -75,7 +75,9 @@ func commands() map[string]Command {
 		{"vcs", "Git status and provider (status)", runVCS},
 		{"backup", "Local file backups (create, list, restore, prune)", runBackup},
 		{"worktree", "Git worktrees for teams (add, list, remove)", runWorktree},
-		{"work", "Active work and overlap checks (status, overlap)", runWork},
+		{"work", "Active work and overlap checks (start, update, status, overlap)", runWork},
+		{"runtime", "Runtimes and models (list, detect, plan, apply, verify, remove, set)", runRuntime},
+		{"import", "Import knowledge from other harnesses (detect, run)", runImport},
 		{"persona", "Show the installed persona (print)", runPersona},
 		{"version", "Print the version", runVersion},
 	}

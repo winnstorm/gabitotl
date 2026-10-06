@@ -4,6 +4,8 @@
 package providers
 
 import (
+	"context"
+
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/memory/engram"
@@ -16,4 +18,28 @@ func NewFactory() *memory.Factory {
 	f.Register(gabitotl.MemoryEngram, engram.FromConfig)
 	f.Register(gabitotl.MemoryMemoryMCP, mcp.FromConfig)
 	return f
+}
+
+// EngramProject is one row of `engram projects list`.
+type EngramProject struct {
+	Name         string
+	Observations int
+}
+
+// EngramProjects lists Engram projects through the real CLI (read-only). It
+// fails when the engram binary is not installed.
+func EngramProjects(ctx context.Context) ([]EngramProject, error) {
+	r, err := engram.NewExecRunner("")
+	if err != nil {
+		return nil, err
+	}
+	ps, err := engram.New(engram.Options{Runner: r}).Projects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]EngramProject, len(ps))
+	for i, p := range ps {
+		out[i] = EngramProject{p.Name, p.Observations}
+	}
+	return out, nil
 }
