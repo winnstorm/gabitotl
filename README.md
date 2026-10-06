@@ -13,7 +13,7 @@ coordination, so a project "remembers how to work" across chats, models and peop
 - **What it never does:** run an agent swarm, own a database (it adopts Engram or a Memory
   MCP), store secrets, or take over config files it did not create.
 
-> Status: V1 core. Licensing is TBD (the owner has not chosen a license yet).
+> Status: V1 core. Licensed under the [MIT License](LICENSE).
 > See [Status and limitations](#status-and-limitations) before relying on it.
 
 ## 30-second quickstart
