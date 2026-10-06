@@ -33,70 +33,87 @@ func box(w io.Writer, title, subtitle string) {
 	fmt.Fprintf(w, "╭%s╮\n│%s│\n│%s│\n╰%s╯\n", strings.Repeat("─", width), pad(title), pad(subtitle), strings.Repeat("─", width))
 }
 
-// RenderInventory prints the detection summary (spec 2): what was found, not
-// what will be asked.
-func RenderInventory(w io.Writer, m Messages, inv installer.Inventory) {
-	box(w, m.Format("inv.title"), m.Format("inv.subtitle"))
-	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.system"))
+// Line is one symbol-prefixed row of a screen.
+type Line struct{ Sym, Text string }
+
+// Section is a titled group of lines (system, agents, memory, other harness).
+type Section struct {
+	Title string
+	Lines []Line
+}
+
+// InventorySections is the detection summary (spec 2) as data, so the plain
+// renderer and the TUI show exactly the same rows.
+func InventorySections(m Messages, inv installer.Inventory) []Section {
+	sys := Section{Title: m.Format("inv.section.system")}
 	os := osNames[inv.Platform.OS]
 	if os == "" {
 		os = inv.Platform.OS
 	}
-	line(w, SymOK, m.Format("inv.os", "name", os))
+	sys.Lines = append(sys.Lines, Line{SymOK, m.Format("inv.os", "name", os)})
 	if inv.Platform.Git {
-		line(w, SymOK, m.Format("inv.git"))
+		sys.Lines = append(sys.Lines, Line{SymOK, m.Format("inv.git")})
 	} else {
-		line(w, SymError, m.Format("inv.git.missing"))
+		sys.Lines = append(sys.Lines, Line{SymError, m.Format("inv.git.missing")})
 	}
 	if inv.Project.Root != "" {
-		line(w, SymOK, m.Format("inv.project", "name", inv.Project.Name))
+		sys.Lines = append(sys.Lines, Line{SymOK, m.Format("inv.project", "name", inv.Project.Name)})
 	} else {
-		line(w, SymWarn, m.Format("inv.project.none"))
+		sys.Lines = append(sys.Lines, Line{SymWarn, m.Format("inv.project.none")})
 	}
 
-	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.agents"))
+	agents := Section{Title: m.Format("inv.section.agents")}
 	for _, r := range inv.Runtimes {
 		switch {
 		case r.Usable():
-			line(w, SymOK, m.Format("inv.runtime.ready", "name", r.Label))
+			agents.Lines = append(agents.Lines, Line{SymOK, m.Format("inv.runtime.ready", "name", r.Label)})
 		case r.State == rt.StateDetectedHistory:
-			line(w, SymWarn, m.Format("inv.runtime.history", "name", r.Label))
+			agents.Lines = append(agents.Lines, Line{SymWarn, m.Format("inv.runtime.history", "name", r.Label)})
 		}
 	}
 
-	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.memory"))
+	memS := Section{Title: m.Format("inv.section.memory")}
 	mem := inv.Memory
 	switch {
 	case mem.Present():
-		line(w, SymOK, m.Format("inv.engram.found"))
+		memS.Lines = append(memS.Lines, Line{SymOK, m.Format("inv.engram.found")})
 		if mem.Observations > 0 {
-			line(w, SymOK, m.Format("inv.engram.obs", "count", strconv.Itoa(mem.Observations)))
+			memS.Lines = append(memS.Lines, Line{SymOK, m.Format("inv.engram.obs", "count", strconv.Itoa(mem.Observations))})
 		}
 		if mem.DoctorRan && mem.DoctorOK {
-			line(w, SymOK, m.Format("inv.engram.healthy"))
+			memS.Lines = append(memS.Lines, Line{SymOK, m.Format("inv.engram.healthy")})
 		} else if mem.DoctorRan {
-			line(w, SymError, m.Format("inv.engram.unhealthy"))
+			memS.Lines = append(memS.Lines, Line{SymError, m.Format("inv.engram.unhealthy")})
 		}
 	default:
-		line(w, SymWarn, m.Format("inv.engram.none"))
+		memS.Lines = append(memS.Lines, Line{SymWarn, m.Format("inv.engram.none")})
 	}
 
-	fmt.Fprintf(w, "\n%s\n", m.Format("inv.section.other"))
+	other := Section{Title: m.Format("inv.section.other")}
 	if g := inv.Other.GentleAI; g.Found {
-		detail := ""
-		if g.Version != "" {
-			detail = g.Version
-		}
-		line(w, SymWarn, strings.TrimSpace(m.Format("inv.gentle.found", "detail", detail)))
+		other.Lines = append(other.Lines, Line{SymWarn, strings.TrimSpace(m.Format("inv.gentle.found", "detail", g.Version))})
 		if len(g.Agents) > 0 {
 			var ids []string
 			for _, a := range g.Agents {
 				ids = append(ids, a.ID)
 			}
-			line(w, " ", m.Format("inv.gentle.agents", "detail", strings.Join(ids, ", ")))
+			other.Lines = append(other.Lines, Line{" ", m.Format("inv.gentle.agents", "detail", strings.Join(ids, ", "))})
 		}
 	} else {
-		line(w, SymOK, m.Format("inv.other.none"))
+		other.Lines = append(other.Lines, Line{SymOK, m.Format("inv.other.none")})
+	}
+	return []Section{sys, agents, memS, other}
+}
+
+// RenderInventory prints the detection summary (spec 2): what was found, not
+// what will be asked.
+func RenderInventory(w io.Writer, m Messages, inv installer.Inventory) {
+	box(w, m.Format("inv.title"), m.Format("inv.subtitle"))
+	for _, s := range InventorySections(m, inv) {
+		fmt.Fprintf(w, "\n%s\n", s.Title)
+		for _, l := range s.Lines {
+			line(w, l.Sym, l.Text)
+		}
 	}
 	fmt.Fprintln(w)
 }

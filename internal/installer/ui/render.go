@@ -47,11 +47,17 @@ var planGroups = []struct {
 	{rt.NoAction, "NO ACTION"},
 }
 
-// RenderPlan prints the plan grouped as CREATE / MODIFY / PRESERVE / IMPORT /
-// REMOVE AFTER VERIFY / NO ACTION. It is pure output: nothing is changed.
-func RenderPlan(w io.Writer, m Messages, pl installer.Plan, paths Paths) {
-	fmt.Fprintln(w, m.Format(KeyPlanTitle))
-	any := false
+// PlanGroup is one verb of the plan with its display lines.
+type PlanGroup struct {
+	Kind  rt.Kind
+	Label string
+	Lines []string // "<target>  - <why>", no indentation
+}
+
+// PlanGroups returns the non-empty groups of the plan in the spec-42 order. The
+// plain renderer and the TUI both read it.
+func PlanGroups(m Messages, pl installer.Plan, paths Paths) []PlanGroup {
+	var out []PlanGroup
 	for _, g := range planGroups {
 		var lines []string
 		for _, it := range pl.Items {
@@ -63,7 +69,7 @@ func RenderPlan(w io.Writer, m Messages, pl installer.Plan, paths Paths) {
 				p, rest, _ := strings.Cut(it.Target, " [")
 				target = paths.Short(p) + " [" + paths.Tilde(rest)
 			}
-			line := "  " + target
+			line := target
 			switch {
 			case it.Why == "" && it.Count > 0:
 				line += "  - " + m.Format(KeyPlanImport, "count", strconv.Itoa(it.Count))
@@ -74,13 +80,25 @@ func RenderPlan(w io.Writer, m Messages, pl installer.Plan, paths Paths) {
 			}
 			lines = append(lines, line)
 		}
-		if len(lines) == 0 {
-			continue
+		if len(lines) > 0 {
+			out = append(out, PlanGroup{Kind: g.kind, Label: g.label, Lines: lines})
 		}
-		any = true
-		fmt.Fprintf(w, "\n%s\n%s\n", g.label, strings.Join(lines, "\n"))
 	}
-	if !any {
+	return out
+}
+
+// RenderPlan prints the plan grouped as CREATE / MODIFY / PRESERVE / IMPORT /
+// REMOVE AFTER VERIFY / NO ACTION. It is pure output: nothing is changed.
+func RenderPlan(w io.Writer, m Messages, pl installer.Plan, paths Paths) {
+	fmt.Fprintln(w, m.Format(KeyPlanTitle))
+	groups := PlanGroups(m, pl, paths)
+	for _, g := range groups {
+		fmt.Fprintf(w, "\n%s\n", g.Label)
+		for _, l := range g.Lines {
+			fmt.Fprintf(w, "  %s\n", l)
+		}
+	}
+	if len(groups) == 0 {
 		fmt.Fprintln(w, m.Format(KeyPlanEmpty))
 	}
 }
