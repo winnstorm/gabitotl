@@ -10,13 +10,18 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
+	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/memory/providers"
 )
 
 // newProvider builds the configured memory provider. It is a variable so tests
 // can inject a fake; the CLI is the composition root that may import providers.
 var newProvider = func(cfg gabitotl.MemoryConfig) (memory.Provider, error) {
-	return providers.NewFactory().New(cfg)
+	var r mcp.Resolver
+	if renv, err := runtimeEnvFn(""); err == nil {
+		r = mcp.Resolver{Getenv: renv.Getenv, Home: renv.Home}
+	}
+	return providers.NewFactoryEnv(r).New(cfg)
 }
 
 const memoryTimeout = 30 * time.Second

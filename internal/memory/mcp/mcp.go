@@ -1,9 +1,9 @@
 // Package mcp is the Memory MCP provider: a memory.Provider that talks to the
 // GabitoTL Memory MCP server (internal/memory/server) through a thin Transport
 // (call a named MCP tool with JSON arguments). No PostgreSQL access lives here;
-// the real transport (stdio bridge or streamable HTTP with a bearer token) is
-// bound at the composition root, and Transport stays abstract so the provider
-// is testable with FakeTransport.
+// the real transport (SDKTransport: streamable HTTP with a bearer token, or a
+// stdio child process) is built by FromConfig, and Transport stays abstract so
+// the provider is testable with FakeTransport.
 //
 // Tool names and wire contract (JSON) match the server's tools:
 //
@@ -38,9 +38,6 @@ import (
 
 // Name is the provider name in memory.md.
 const Name = gabitotl.MemoryMemoryMCP
-
-// ErrNoTransport means no transport to the Memory MCP server is bound yet.
-var ErrNoTransport = errors.New("memory-mcp: no Memory MCP transport configured")
 
 // Transport calls a named MCP tool with JSON arguments and returns the JSON result.
 type Transport interface {
@@ -117,7 +114,7 @@ var _ memory.Provider = (*Provider)(nil)
 // reference but does not resolve it.
 func New(opt Options) (*Provider, error) {
 	if opt.Transport == nil {
-		return nil, ErrNoTransport
+		return nil, errors.New("memory-mcp: a transport is required")
 	}
 	if opt.ConnectionRef != "" && !envRefRe.MatchString(opt.ConnectionRef) {
 		return nil, fmt.Errorf("memory-mcp: connection must be an env:NAME reference")
@@ -257,14 +254,4 @@ func (p *Provider) Doctor(ctx context.Context) memory.Report {
 		rep.Checks = append(rep.Checks, c)
 	}
 	return rep
-}
-
-// FromConfig is the factory constructor. The Transport to the server is bound
-// by the composition root (the real client is a separate step), so until then
-// it returns ErrNoTransport after validating the configuration.
-func FromConfig(cfg gabitotl.MemoryConfig) (memory.Provider, error) {
-	if cfg.PostgresConnection != "" && !envRefRe.MatchString(cfg.PostgresConnection) {
-		return nil, fmt.Errorf("memory-mcp: postgres_connection must be an env:NAME reference")
-	}
-	return nil, ErrNoTransport
 }

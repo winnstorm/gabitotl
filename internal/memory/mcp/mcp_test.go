@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 )
 
@@ -98,13 +97,9 @@ func TestDoctorNeverLeaksSecret(t *testing.T) {
 	}
 }
 
-func TestFromConfigWithoutServer(t *testing.T) {
-	_, err := FromConfig(gabitotl.MemoryConfig{Provider: gabitotl.MemoryMemoryMCP, PostgresConnection: "env:X"})
-	if !errors.Is(err, ErrNoTransport) {
-		t.Fatalf("want ErrNoTransport, got %v", err)
-	}
-	if _, err := New(Options{}); !errors.Is(err, ErrNoTransport) {
-		t.Fatal("nil transport must be ErrNoTransport")
+func TestNewNeedsATransport(t *testing.T) {
+	if _, err := New(Options{}); err == nil {
+		t.Fatal("nil transport must be refused")
 	}
 }
 

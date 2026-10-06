@@ -5,6 +5,7 @@ package providers
 
 import (
 	"context"
+	"os"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
@@ -14,9 +15,18 @@ import (
 
 // NewFactory returns a factory with every shipped provider registered.
 func NewFactory() *memory.Factory {
+	home, _ := os.UserHomeDir()
+	return NewFactoryEnv(mcp.Resolver{Home: home})
+}
+
+// NewFactoryEnv is NewFactory with an explicit environment for the memory-mcp
+// client (variables and the home that holds its secrets file).
+func NewFactoryEnv(r mcp.Resolver) *memory.Factory {
 	f := memory.NewFactory()
 	f.Register(gabitotl.MemoryEngram, engram.FromConfig)
-	f.Register(gabitotl.MemoryMemoryMCP, mcp.FromConfig)
+	f.Register(gabitotl.MemoryMemoryMCP, func(cfg gabitotl.MemoryConfig) (memory.Provider, error) {
+		return mcp.NewFromConfig(cfg, r)
+	})
 	return f
 }
 

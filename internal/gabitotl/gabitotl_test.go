@@ -138,7 +138,7 @@ func TestSpecExamplesParse(t *testing.T) {
 	if err := d.Decode(&m); err != nil {
 		t.Fatal(err)
 	}
-	want := MemoryConfig{ModeTeam, MemoryMemoryMCP, "postgresql", "ecommerce", "env:GABITOTL_MEMORY_DATABASE_URL"}
+	want := MemoryConfig{Mode: ModeTeam, Provider: MemoryMemoryMCP, Backend: "postgresql", ProjectKey: "ecommerce", PostgresConnection: "env:GABITOTL_MEMORY_DATABASE_URL"}
 	if !reflect.DeepEqual(m, want) || m.Validate() != nil {
 		t.Fatalf("got %+v", m)
 	}
@@ -458,5 +458,24 @@ func TestFindRootAndValidateRoot(t *testing.T) {
 	}
 	if err := ValidateRoot(plain); err != nil {
 		t.Errorf("subdir of tmp must be allowed: %v", err)
+	}
+}
+
+func TestMemoryConfigTeamFields(t *testing.T) {
+	ok := MemoryConfig{Mode: ModeTeam, Provider: MemoryMemoryMCP, ProjectKey: "p", URL: "https://memoria.example.com/mcp", Token: "env:GABITOTL_MEMORY_TOKEN", Role: RoleClient}
+	if err := ok.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, mut := range map[string]func(*MemoryConfig){
+		"literal token":  func(c *MemoryConfig) { c.Token = "gbt_0123456789abcdef.secretsecretsecretsecret" },
+		"url with creds": func(c *MemoryConfig) { c.URL = "https://u:p@memoria.example.com/mcp" },
+		"bad url":        func(c *MemoryConfig) { c.URL = "memoria" },
+		"bad role":       func(c *MemoryConfig) { c.Role = "boss" },
+	} {
+		c := ok
+		mut(&c)
+		if c.Validate() == nil {
+			t.Errorf("%s must be refused", name)
+		}
 	}
 }

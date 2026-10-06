@@ -2,7 +2,9 @@ package gabitotl
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
+	"strings"
 )
 
 // Enumerations (front matter values are exactly these strings).
@@ -61,7 +63,19 @@ type MemoryConfig struct {
 	Backend            string `yaml:"backend,omitempty"`
 	ProjectKey         string `yaml:"project_key"`
 	PostgresConnection string `yaml:"postgres_connection,omitempty"`
+	// Team memory (provider memory-mcp): the server endpoint and the NAME of the
+	// environment variable that holds this developer's token. Never the token.
+	URL   string `yaml:"url,omitempty"`
+	Token string `yaml:"token,omitempty"`
+	// Role is "host" on the machine that runs the server and "client" elsewhere.
+	Role string `yaml:"role,omitempty"`
 }
+
+// Memory roles for provider memory-mcp.
+const (
+	RoleHost   = "host"
+	RoleClient = "client"
+)
 
 func (c *MemoryConfig) Validate() error {
 	if err := oneOf("mode", c.Mode, ModeSolo, ModeTeam); err != nil {
@@ -75,6 +89,20 @@ func (c *MemoryConfig) Validate() error {
 	}
 	if c.PostgresConnection != "" && !IsSafeRef(c.PostgresConnection) {
 		return fmt.Errorf("postgres_connection: must be a reference (env:NAME or keychain:NAME)")
+	}
+	if c.Role != "" {
+		if err := oneOf("role", c.Role, RoleHost, RoleClient); err != nil {
+			return err
+		}
+	}
+	if c.URL != "" {
+		u, err := url.Parse(c.URL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+			return fmt.Errorf("url: must look like https://host:port/mcp (no credentials)")
+		}
+	}
+	if c.Token != "" && !(strings.HasPrefix(c.Token, "env:") && len(c.Token) > 4) {
+		return fmt.Errorf("token: must be an env:NAME reference to the variable that holds your token, never the token itself")
 	}
 	return nil
 }
