@@ -9,7 +9,7 @@ import (
 )
 
 func runVCS(env Env, args []string) int {
-	return subcommands(env, "vcs", args, map[string]func(Env, []string) int{"status": runVCSStatus})
+	return subcommands(env, "vcs", args, map[string]func(Env, []string) int{"status": runVCSStatus, "branch": runVCSBranch})
 }
 
 func runVCSStatus(env Env, args []string) int {
@@ -63,4 +63,37 @@ func dash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func runVCSBranch(env Env, args []string) int {
+	fs := flag.NewFlagSet("vcs branch", flag.ContinueOnError)
+	fs.SetOutput(env.Stderr)
+	root := fs.String("root", "", "project root (default: Git top-level of the current directory)")
+	task := fs.String("task", "", "task id; the branch is feature/<task> (required)")
+	if err := fs.Parse(args); err != nil {
+		return flagExit(err)
+	}
+	if *task == "" {
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl vcs branch --task ID [--root DIR]")
+		return ExitUsage
+	}
+	dir, err := resolveRoot(env, *root)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl vcs branch: %v\n", err)
+		return ExitError
+	}
+	repo, err := openRepo(env, dir)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl vcs branch: %v\n", err)
+		return ExitError
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	name, err := repo.CreateTaskBranch(ctx, *task)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl vcs branch: %v\n", err)
+		return ExitError
+	}
+	fmt.Fprintf(env.Stdout, "switched to new branch %s\n", name)
+	return ExitOK
 }

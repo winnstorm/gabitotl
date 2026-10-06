@@ -48,6 +48,21 @@ func TestVCSStatusCommand(t *testing.T) {
 	if r.code != 0 || !strings.Contains(r.out, "branch: main") || !strings.Contains(r.out, "provider: local") || !strings.Contains(r.out, "commits=ask") {
 		t.Fatalf("status = %+v", r)
 	}
+	// Default permission is "ask": a non-interactive run must not proceed.
+	if r := runIn(t, "", false, root, "vcs", "branch", "--task", "auth"); r.code == 0 || !strings.Contains(r.err, "confirmation") {
+		t.Fatalf("branch under ask: %+v", r)
+	}
+	v, _ := gabitotl.LoadVCS(gabitotl.NewLayout(root))
+	v.Permissions.Branches = gabitotl.PermAllow
+	if err := gabitotl.SaveVCS(gabitotl.NewLayout(root), v); err != nil {
+		t.Fatal(err)
+	}
+	if r := runIn(t, "", false, root, "vcs", "branch", "--task", "auth"); r.code != 0 || !strings.Contains(r.out, "feature/auth") {
+		t.Fatalf("branch allowed: %+v", r)
+	}
+	if r := runIn(t, "", false, root, "vcs", "status"); !strings.Contains(r.out, "branch: feature/auth") {
+		t.Fatalf("status after branch: %+v", r)
+	}
 	if r := runIn(t, "", false, root, "vcs"); r.code != ExitUsage {
 		t.Fatalf("missing subcommand: %+v", r)
 	}
