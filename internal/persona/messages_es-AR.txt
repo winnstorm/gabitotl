@@ -13,3 +13,32 @@ small.done = Listo.
 ojo.overlap = {who} está trabajando ahora sobre {area}. Conviene coordinar antes de que los dos cambiemos la misma parte.
 
 tip.long_chat = Este chat ya viene bastante largo. Dejé el estado y lo pendiente guardados en memoria, así que podés abrir una sesión nueva y seguimos desde ahí sin arrancar de cero.
+
+# Authorship guard (docs/GUARD.md). Authorship belongs to the person who asked for the work.
+guard.stripped = Saqué {n} línea(s) de atribución a una IA {where}. La autoría es de quien pidió el trabajo, no de la herramienta.
+guard.blocked = Frené {where}: tiene atribución a una IA y no la puedo sacar sin riesgo. Quitá esa línea a mano y volvé a probar.
+guard.warned = Ojo: {where} tiene atribución a una IA ({n}). Estás en modo warn, así que sigo igual.
+guard.where.commit = el commit
+guard.where.pr = el pull request
+guard.where.memory = la memoria
+guard.where.staged = lo que vas a commitear
+guard.finding = {file}:{line} [{class}] {text}
+guard.finding.nofile = línea {line} [{class}] {text}
+guard.scan.clean = Listo: no encontré atribución a ninguna IA.
+guard.scan.found = Encontré {n} línea(s) con atribución a una IA. La autoría del código es de quien pidió el trabajo.
+guard.history.note = Ojo: {n} commit(s) ya hechos llevan atribución a una IA. No reescribo la historia; si hace falta, decidilo con tu equipo.
+guard.history.clean = La historia del repo está limpia de atribución a IA.
+guard.fix.nothing = No hay nada para arreglar automáticamente.
+guard.fix.plan = Voy a sacar {n} línea(s) en {files} archivo(s):
+guard.fix.manual = {n} caso(s) quedan para revisar a mano: la atribución comparte línea con código o texto que no debo tocar.
+guard.fix.done = Listo. Saqué {n} línea(s) en {files} archivo(s). Backup en .gabitotl/.bak/{user}/{snapshot}.
+guard.fix.skipped = No toqué {path}: {reason}.
+guard.fix.confirm = ¿Aplico los cambios? (s/N)
+guard.fix.noconfirm = No cambié nada. Para aplicar usá --yes (o --dry-run para ver el plan).
+guard.hooks.installed = Hooks del guard instalados en {dir}.
+guard.hooks.chained = Conservé tu hook {name} y lo sigo llamando después del guard.
+guard.hooks.removed = Hooks del guard sacados de {dir}.
+guard.hooks.state = {name}: {state}
+guard.hooks.ask = ¿Instalo los hooks de Git que cuidan la autoría (commit-msg y pre-commit)? (S/n)
+guard.hooks.declined = Dale, no instalo los hooks. Podés hacerlo cuando quieras con: gabitotl guard install-hooks
+guard.mode = Modo del guard: {mode}

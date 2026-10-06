@@ -69,6 +69,13 @@ func DefaultMessages() Messages {
 	return m
 }
 
+// Msg formats a template of the embedded es-AR file by key. Keys that are not
+// required (the authorship guard texts) are looked up here, so a custom messages
+// file written before they existed still works.
+func Msg(key string, pairs ...string) string {
+	return DefaultMessages().Format(key, pairs...)
+}
+
 // Format returns the template for key with {name} placeholders replaced by the
 // given name/value pairs.
 func (m Messages) Format(key string, pairs ...string) string {

@@ -74,6 +74,7 @@ func commands() map[string]Command {
 		{"memory", "Memory tools (doctor, search, server, serve, token, mcp, migrate)", runMemory},
 		{"scan", "Scan the project and print its map", runScan},
 		{"vcs", "Git status and provider (status)", runVCS},
+		{"guard", "Authorship guard: no AI branding (scan, fix, install-hooks, uninstall-hooks, status)", runGuard},
 		{"backup", "Local file backups (create, list, restore, prune)", runBackup},
 		{"worktree", "Git worktrees for teams (add, list, remove)", runWorktree},
 		{"work", "Active work and overlap checks (start, update, status, overlap)", runWork},

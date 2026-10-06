@@ -87,6 +87,10 @@ func openRepo(env Env, root string) (*vcs.Repo, error) {
 	}
 	r := vcs.New(root, cfg)
 	r.Confirm = confirmFunc(env)
+	if wf, err := workflowConfig(gabitotl.NewLayout(root)); err == nil {
+		r.Branding = vcs.PolicyFromWorkflow(wf)
+	}
+	r.OnBranding = reportBranding(env)
 	return r, nil
 }
 

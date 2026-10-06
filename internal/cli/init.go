@@ -11,11 +11,12 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/identity"
+	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
 type initFlags struct {
 	root, name, kind, userID, userName, mode, provider, vcs string
-	yes                                                     bool
+	yes, noHooks                                            bool
 }
 
 func runInit(env Env, args []string) int {
@@ -31,6 +32,7 @@ func runInit(env Env, args []string) int {
 	fs.StringVar(&f.provider, "provider", "", "memory provider: engram|memory-mcp (default: by mode)")
 	fs.StringVar(&f.vcs, "vcs", "", "VCS provider: github|bitbucket|gitlab|azure-devops|git|local (default: git)")
 	fs.BoolVar(&f.yes, "yes", false, "non-interactive: accept defaults, never prompt")
+	fs.BoolVar(&f.noHooks, "no-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return ExitOK
@@ -93,6 +95,7 @@ func doInit(env Env, f initFlags) error {
 	for _, p := range res.Created {
 		fmt.Fprintf(env.Stdout, "  + %s\n", p)
 	}
+	offerHooks(env, root, f)
 	switch {
 	case user != nil:
 		fmt.Fprintf(env.Stdout, "  identity: %s (%s)\n", user.ID, user.Name)
@@ -156,4 +159,33 @@ func (p *prompter) ask(question, def string) string {
 		return line
 	}
 	return def
+}
+
+// offerHooks installs the authorship guard hooks in a Git project unless the
+// answer is already remembered in workflow.md (guard_hooks). Installing is the
+// default; the user declines with --no-hooks or by answering "n", and the answer
+// is remembered so it is asked once.
+func offerHooks(env Env, root string, f initFlags) {
+	wf, err := gabitotl.LoadWorkflow(gabitotl.NewLayout(root))
+	if err != nil || wf.GuardHooks != gabitotl.HooksAsk {
+		return
+	}
+	_, dir, err := hooksDirFor(env, root)
+	if err != nil {
+		return // not a Git project: nothing to hook
+	}
+	install := !f.noHooks
+	if install && env.IsTTY && !f.yes {
+		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
+		a := strings.ToLower(p.ask(persona.Msg("guard.hooks.ask"), "s"))
+		install = a != "n" && a != "no"
+	}
+	if !install {
+		rememberHooks(root, gabitotl.HooksDeclined)
+		fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.declined"))
+		return
+	}
+	if err := installHooks(env, root, dir); err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl init: guard hooks: %v\n", err)
+	}
 }
