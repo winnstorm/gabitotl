@@ -167,6 +167,12 @@ func (m *Model) frame() frame {
 	case scrMemory:
 		fr.subtitle = f("tui.memory.title")
 		fr.body, fr.focus = m.memoryBody()
+	case scrTeam:
+		fr.subtitle = f("tui.team.title")
+		fr.body, fr.focus = m.teamBody()
+	case scrEngram:
+		fr.subtitle = f("tui.engram.title")
+		fr.body, fr.focus = m.engramBody()
 	case scrForm:
 		fr.body, fr.help = strings.Split(m.form.View(), "\n"), f("tui.help.form")
 		if m.formKind == "runtimes" {
@@ -303,6 +309,31 @@ func (m *Model) memoryBody() ([]string, int) {
 		}
 	}
 	body = append(body, "", m.msg.Format("tui.memory.intro"), "")
+	menu, focus := m.menu(m.items())
+	return append(body, menu...), len(body) + focus
+}
+
+func (m *Model) teamBody() ([]string, int) {
+	f := m.msg.Format
+	body := []string{m.section(f("tui.team.title")), ""}
+	if m.inv.Server.Engine == "" {
+		body = append(body, m.st.line(ui.SymWarn, f("tui.team.noengine.title")), f("tui.team.noengine.body"), "")
+	} else {
+		body = append(body, f("tui.team.intro"), "", m.st.line(ui.SymOK, f("tui.team.engine", "name", m.inv.Server.Engine)), f("tui.team.promise"), "")
+	}
+	menu, focus := m.menu(m.items())
+	return append(body, menu...), len(body) + focus
+}
+
+func (m *Model) engramBody() ([]string, int) {
+	f := m.msg.Format
+	body := []string{m.section(f("tui.engram.title")), ""}
+	if secs := ui.InventorySections(m.msg, m.inv); len(secs) > 2 {
+		for _, l := range secs[2].Lines {
+			body = append(body, "  "+m.st.line(l.Sym, l.Text))
+		}
+	}
+	body = append(body, "", f("tui.engram.intro"), "")
 	menu, focus := m.menu(m.items())
 	return append(body, menu...), len(body) + focus
 }

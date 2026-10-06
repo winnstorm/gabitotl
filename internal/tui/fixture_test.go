@@ -217,6 +217,8 @@ func (d *driver) key(names ...string) {
 			k = tea.KeyPressMsg{Code: tea.KeyDown}
 		case "up":
 			k = tea.KeyPressMsg{Code: tea.KeyUp}
+		case "pgdown":
+			k = tea.KeyPressMsg{Code: tea.KeyPgDown}
 		case "space":
 			k = tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 		case "ctrl+c":

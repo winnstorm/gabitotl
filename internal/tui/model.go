@@ -47,6 +47,8 @@ const (
 	scrHome
 	scrDetails
 	scrMemory
+	scrTeam
+	scrEngram
 	scrForm
 	scrPersona
 	scrBuilding
@@ -63,6 +65,8 @@ const (
 	stMemory stage = iota
 	stName
 	stMode
+	stTeam
+	stEngram
 	stGit
 	stRuntimes
 	stPlan
@@ -103,9 +107,13 @@ type Model struct {
 	scroll int
 
 	memoryAsked, modeDecided, personaAsked bool
+	teamAsked, engramAsked                 bool
+	teamAsked2                             []string
 	form                                   *huh.Form
 	formKind                               string
 	nameVal, modeVal                       string
+	urlVal, tokenEnvVal, storeVal          string
+	secretVal, invitesVal                  string
 	gitVal                                 bool
 	rtVal                                  []string
 
@@ -269,6 +277,20 @@ func (m *Model) items() []menuItem {
 			{id: "use", label: f("tui.memory.use"), desc: f("tui.memory.use.desc")},
 			{id: "team", label: f("tui.memory.team"), desc: f("tui.memory.team.desc") + " " + f("tui.memory.team.limit")},
 		}
+	case scrTeam:
+		var it []menuItem
+		if m.inv.Server.Engine != "" {
+			it = append(it, menuItem{id: "team-host", label: f("tui.team.host"), desc: f("tui.team.host.desc")})
+		}
+		return append(it,
+			menuItem{id: "team-client", label: f("tui.team.client"), desc: f("tui.team.client.desc")},
+			menuItem{id: "team-stay", label: f("tui.team.stay"), desc: f("tui.team.stay.desc")})
+	case scrEngram:
+		return []menuItem{
+			{id: "engram-import", label: f("tui.engram.import"), desc: f("tui.engram.import.desc")},
+			{id: "engram-keep", label: f("tui.engram.keep"), desc: f("tui.engram.keep.desc")},
+			{id: "engram-empty", label: f("tui.engram.empty"), desc: f("tui.engram.empty.desc")},
+		}
 	case scrPersona:
 		return []menuItem{{id: "persona-do", label: f("tui.persona.do")}, {id: "persona-keep", label: f("tui.persona.keep")}}
 	case scrPlan:
@@ -368,6 +390,7 @@ func (m *Model) reset() {
 	m.screen, m.stage, m.cur, m.scroll = scrHome, stMemory, 0, 0
 	m.opts = m.cfg.Options
 	m.memoryAsked, m.modeDecided, m.personaAsked, m.showDetails = false, false, false, false
+	m.teamAsked, m.engramAsked, m.teamAsked2 = false, false, nil
 	m.form, m.personaBlocks = nil, nil
 }
 
@@ -394,6 +417,12 @@ func (m *Model) choose(id string) tea.Cmd {
 		} else {
 			m.opts.Mode = gabitotl.ModeSolo
 		}
+		return m.advance()
+	case "team-host", "team-client", "team-stay":
+		return m.chooseTeam(id)
+	case "engram-import", "engram-keep", "engram-empty":
+		m.engramAsked = true
+		m.opts.ImportEngram = id == "engram-import"
 		return m.advance()
 	case "persona-do", "persona-keep":
 		m.personaAsked = true
@@ -426,6 +455,22 @@ func (m *Model) advance() tea.Cmd {
 		case stMode:
 			if m.need.Mode && !m.modeDecided {
 				return m.startForm("mode")
+			}
+		case stTeam:
+			if m.wantsTeam() && !m.teamAsked && m.opts.MemoryRole == "" {
+				m.stage-- // come back here with the answer
+				m.screen = scrTeam
+				return nil
+			}
+			if next := m.nextTeamForm(); next != "" {
+				m.stage-- // come back to this stage until every form is answered
+				return m.startForm(next)
+			}
+		case stEngram:
+			if m.wantsTeam() && m.opts.MemoryRole == gabitotl.RoleHost && m.inv.Memory.Present() && m.inv.Memory.ProjectMatch != "" &&
+				m.inv.Server.CanImport && !m.engramAsked && !m.opts.ImportEngram {
+				m.screen = scrEngram
+				return nil
 			}
 		case stGit:
 			if m.need.Git {
@@ -472,4 +517,57 @@ func (m *Model) onPlan(p planMsg) tea.Cmd {
 		m.plan, m.screen = p.plan, scrPlan
 	}
 	return nil
+}
+
+// wantsTeam reports whether the choices so far lead to team memory.
+func (m *Model) wantsTeam() bool {
+	return m.opts.Memory == gabitotl.MemoryMemoryMCP || m.opts.Mode == gabitotl.ModeTeam
+}
+
+// chooseTeam applies the role the user picked on the team screen.
+func (m *Model) chooseTeam(id string) tea.Cmd {
+	m.teamAsked = true
+	switch id {
+	case "team-stay":
+		m.opts.Mode, m.opts.Memory, m.opts.MemoryRole = gabitotl.ModeSolo, "", ""
+	case "team-host":
+		m.opts.Mode, m.opts.Memory, m.opts.MemoryRole = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP, gabitotl.RoleHost
+	case "team-client":
+		m.opts.Mode, m.opts.Memory, m.opts.MemoryRole = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP, gabitotl.RoleClient
+	}
+	return m.advance()
+}
+
+// nextTeamForm returns the next question the chosen role still needs ("" when
+// done). Answers given through flags are never asked again.
+func (m *Model) nextTeamForm() string {
+	if !m.wantsTeam() || m.opts.MemoryRole == "" {
+		return ""
+	}
+	asked := func(k string) bool {
+		for _, a := range m.teamAsked2 {
+			if a == k {
+				return true
+			}
+		}
+		return false
+	}
+	switch m.opts.MemoryRole {
+	case gabitotl.RoleHost:
+		if !asked("invites") && len(m.cfg.Options.Invites) == 0 {
+			return "invites"
+		}
+	case gabitotl.RoleClient:
+		switch {
+		case !asked("url") && m.opts.MemoryURL == "":
+			return "url"
+		case !asked("tokenenv") && m.opts.MemoryTokenEnv == "":
+			return "tokenenv"
+		case !asked("storetoken") && !m.opts.StoreToken:
+			return "storetoken"
+		case m.opts.StoreToken && !asked("secret") && m.storeVal == "yes":
+			return "secret"
+		}
+	}
+	return ""
 }

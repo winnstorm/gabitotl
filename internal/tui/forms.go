@@ -3,11 +3,13 @@ package tui
 import (
 	"errors"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/installer"
 )
 
 // startForm opens one huh form with a single question: onboarding asks one
@@ -24,6 +26,48 @@ func (m *Model) startForm(kind string) tea.Cmd {
 		field = huh.NewSelect[string]().Title(f("ask.mode")).Description(f("tui.mode.limit")).
 			Options(huh.NewOption(f("ask.mode.solo"), gabitotl.ModeSolo), huh.NewOption(f("ask.mode.team"), gabitotl.ModeTeam)).
 			Value(&m.modeVal)
+	case "invites":
+		m.invitesVal = ""
+		field = huh.NewInput().Title(f("tui.team.invites")).Description(f("tui.team.invites.desc")).Value(&m.invitesVal).
+			Validate(func(v string) error {
+				for _, id := range splitIDs(v) {
+					if !installer.ValidTeamUser(id) {
+						return errors.New(id + " no es un id válido")
+					}
+				}
+				return nil
+			})
+	case "url":
+		m.urlVal = ""
+		field = huh.NewInput().Title(f("tui.team.url")).Description(f("tui.team.url.desc")).Value(&m.urlVal).
+			Validate(func(v string) error {
+				if err := installer.ValidateTeamURL(strings.TrimSpace(v)); err != nil {
+					return errors.New(f("tui.team.badurl", "detail", err.Error()))
+				}
+				return nil
+			})
+	case "tokenenv":
+		m.tokenEnvVal = installer.DefaultTokenEnv
+		field = huh.NewInput().Title(f("tui.team.tokenenv")).Description(f("tui.team.tokenenv.desc")).Value(&m.tokenEnvVal).
+			Validate(func(v string) error {
+				if !installer.ValidTokenEnv(strings.TrimSpace(v)) {
+					return errors.New(f("tui.team.badenv"))
+				}
+				return nil
+			})
+	case "storetoken":
+		m.storeVal = "no"
+		field = huh.NewSelect[string]().Title(f("tui.team.store")).
+			Options(huh.NewOption(f("tui.team.store.yes"), "yes"), huh.NewOption(f("tui.team.store.no"), "no")).Value(&m.storeVal)
+	case "secret":
+		m.secretVal = ""
+		field = huh.NewInput().Title(f("tui.team.secret")).Description(f("tui.team.secret.desc")).EchoMode(huh.EchoModePassword).Value(&m.secretVal).
+			Validate(func(v string) error {
+				if strings.TrimSpace(v) == "" || strings.ContainsAny(v, "\r\n") {
+					return errors.New(f("tui.team.badenv"))
+				}
+				return nil
+			})
 	case "git":
 		m.gitVal = false
 		field = huh.NewSelect[bool]().Title(f("ask.git")).
@@ -88,7 +132,33 @@ func (m *Model) formDone() tea.Cmd {
 		m.opts.AutomateGit = m.gitVal
 	case "runtimes":
 		m.opts.Runtimes = slices.Clone(m.rtVal)
+	case "invites":
+		m.opts.Invites = splitIDs(m.invitesVal)
+		m.teamAsked2 = append(m.teamAsked2, "invites")
+	case "url":
+		m.opts.MemoryURL = strings.TrimSpace(m.urlVal)
+		m.teamAsked2 = append(m.teamAsked2, "url")
+	case "tokenenv":
+		m.opts.MemoryTokenEnv = strings.TrimSpace(m.tokenEnvVal)
+		m.teamAsked2 = append(m.teamAsked2, "tokenenv")
+	case "storetoken":
+		m.opts.StoreToken = m.storeVal == "yes"
+		m.teamAsked2 = append(m.teamAsked2, "storetoken")
+	case "secret":
+		m.opts.TokenSecret = m.secretVal // held in memory for the apply only
+		m.secretVal = ""
+		m.teamAsked2 = append(m.teamAsked2, "secret")
 	}
 	m.form = nil
 	return m.advance()
+}
+
+func splitIDs(v string) []string {
+	var out []string
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

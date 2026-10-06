@@ -205,24 +205,6 @@ func TestFullInstallAsksOnlyWhatCannotBeDetectedOneAtATime(t *testing.T) {
 	}
 }
 
-func TestTeamMemoryShowsTheHonestLimitation(t *testing.T) {
-	d := newDriver(t, newMachine(t).config(opts()))
-	d.pick(lbl("ask.action.keep"))
-	d.require(lbl("tui.memory.title"))
-	d.require("todavía no hay un migrador probado")
-	d.pick(lbl("tui.memory.team"))
-	d.until("runtimes", func() bool { return d.m.screen == scrForm })
-	d.key("enter")
-	d.until("plan", func() bool { return d.m.screen == scrPlan || d.m.screen == scrPersona })
-	if d.m.screen == scrPersona {
-		d.pick(lbl("tui.persona.keep"))
-		d.until("plan", func() bool { return d.m.screen == scrPlan })
-	}
-	d.require(msgsNote(installer.NoteNoMigrator))
-}
-
-func msgsNote(code string) string { return msgs.Format("note." + code)[:40] }
-
 // gate blocks the pipeline when a phase starts so a test can act mid-apply.
 type gate struct {
 	Backend
