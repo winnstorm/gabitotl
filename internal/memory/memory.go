@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/branding"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
@@ -175,6 +176,11 @@ type Guard struct {
 	Provider
 	Mode string
 	Now  func() time.Time
+	// Branding is the authorship guard for entry text; the zero value strips
+	// attribution lines (store-level defense in depth, see Policy).
+	Branding Policy
+	// OnBranding is told what was removed or only reported. May be nil.
+	OnBranding func(removed, warned []branding.Finding)
 }
 
 func (g Guard) now() time.Time {
@@ -186,6 +192,13 @@ func (g Guard) now() time.Time {
 
 // Save validates, stamps and forwards the entry.
 func (g Guard) Save(ctx context.Context, e Entry) (ID, error) {
+	e, rem, warned, err := g.Branding.Sanitize(e)
+	if err != nil {
+		return "", err
+	}
+	if g.OnBranding != nil && len(rem)+len(warned) > 0 {
+		g.OnBranding(rem, warned)
+	}
 	if err := e.Validate(g.Mode); err != nil {
 		return "", err
 	}
@@ -198,10 +211,29 @@ func (g Guard) Save(ctx context.Context, e Entry) (ID, error) {
 	return g.Provider.Save(ctx, e)
 }
 
+// Update cleans the patch the same way Save cleans an entry.
+func (g Guard) Update(ctx context.Context, id ID, patch EntryPatch) error {
+	patch, rem, warned, err := g.Branding.SanitizePatch(patch)
+	if err != nil {
+		return err
+	}
+	if g.OnBranding != nil && len(rem)+len(warned) > 0 {
+		g.OnBranding(rem, warned)
+	}
+	return g.Provider.Update(ctx, id, patch)
+}
+
 // SessionSummary enforces the team-mode actor rule and stamps the time.
 func (g Guard) SessionSummary(ctx context.Context, s Summary) error {
 	if g.Mode == gabitotl.ModeTeam && strings.TrimSpace(s.Actor) == "" {
 		return ErrActorRequired
+	}
+	s, rem, warned, err := g.Branding.SanitizeSummary(s)
+	if err != nil {
+		return err
+	}
+	if g.OnBranding != nil && len(rem)+len(warned) > 0 {
+		g.OnBranding(rem, warned)
 	}
 	if s.Timestamp.IsZero() {
 		s.Timestamp = g.now()

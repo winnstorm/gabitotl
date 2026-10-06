@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/branding"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
@@ -95,11 +96,16 @@ func SessionEntry(s Summary) Entry {
 type Recorder struct {
 	Provider Provider
 	Enabled  bool
+	// Branding is the authorship guard from workflow.md. Entries are cleaned
+	// before they reach the provider, whatever the provider is.
+	Branding Policy
+	// OnBranding reports what was removed or only reported. May be nil.
+	OnBranding func(removed, warned []branding.Finding)
 }
 
 // NewRecorder builds a Recorder from the workflow configuration.
 func NewRecorder(p Provider, wf gabitotl.WorkflowConfig) Recorder {
-	return Recorder{Provider: p, Enabled: wf.MemoryAfterWork}
+	return Recorder{Provider: p, Enabled: wf.MemoryAfterWork, Branding: PolicyFromWorkflow(wf)}
 }
 
 // RecordChange saves the change record. recorded is false (with a nil error)
@@ -108,6 +114,11 @@ func (r Recorder) RecordChange(ctx context.Context, c Change) (id ID, recorded b
 	if !r.Enabled {
 		return "", false, nil
 	}
+	c, rem, warned, err := r.Branding.SanitizeChange(c)
+	if err != nil {
+		return "", false, err
+	}
+	r.report(rem, warned)
 	id, err = r.Provider.Save(ctx, ChangeEntry(c))
 	return id, err == nil, err
 }
@@ -118,9 +129,20 @@ func (r Recorder) RecordSession(ctx context.Context, s Summary) (recorded bool, 
 	if !r.Enabled {
 		return false, nil
 	}
+	s, rem, warned, err := r.Branding.SanitizeSummary(s)
+	if err != nil {
+		return false, err
+	}
+	r.report(rem, warned)
 	err = r.Provider.SessionSummary(ctx, s)
 	if errors.Is(err, ErrUnsupported) {
 		_, err = r.Provider.Save(ctx, SessionEntry(s))
 	}
 	return err == nil, err
+}
+
+func (r Recorder) report(removed, warned []branding.Finding) {
+	if r.OnBranding != nil && len(removed)+len(warned) > 0 {
+		r.OnBranding(removed, warned)
+	}
 }

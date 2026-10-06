@@ -314,6 +314,10 @@ func (s *Server) save(ctx context.Context, req *mcp.CallToolRequest, in SaveIn) 
 		Actor: actor, Task: in.Task, Branch: in.Branch, Commit: in.Commit, Files: in.Files, Validation: in.Validation,
 		NextStep: in.NextStep, Ojo: in.Ojo, Source: in.Source,
 	}
+	e, _, _, err = memory.Policy{}.Sanitize(e)
+	if err != nil {
+		return nil, SaveOut{}, err
+	}
 	if err := e.Validate("team"); err != nil {
 		return nil, SaveOut{}, err
 	}
@@ -377,6 +381,10 @@ func (s *Server) update(ctx context.Context, req *mcp.CallToolRequest, in Update
 		t := memory.EntryType(*p.Type)
 		patch.Type = &t
 	}
+	patch, _, _, err = memory.Policy{}.SanitizePatch(patch)
+	if err != nil {
+		return nil, UpdateOut{}, err
+	}
 	ctx, cancel := s.callCtx(ctx)
 	defer cancel()
 	rec, err := s.cfg.Store.Update(ctx, project, memory.ID(in.ID), patch, actor, in.ExpectedRevision)
@@ -411,6 +419,10 @@ func (s *Server) sessionSummary(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 	sum := memory.Summary{Project: project, Actor: actor, Task: in.Task, Branch: in.Branch, Goal: in.Goal,
 		Discoveries: in.Discoveries, Accomplished: in.Accomplished, NextSteps: in.NextSteps, Files: in.Files}
+	sum, _, _, err = memory.Policy{}.SanitizeSummary(sum)
+	if err != nil {
+		return nil, SummaryOut{}, err
+	}
 	ctx, cancel := s.callCtx(ctx)
 	defer cancel()
 	if err := s.cfg.Store.SaveSummary(ctx, sum); err != nil {

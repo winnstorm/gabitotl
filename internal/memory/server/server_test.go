@@ -899,3 +899,20 @@ func TestTrustedProxyHeaderIsOptIn(t *testing.T) {
 		t.Fatal("an invalid header name must be refused")
 	}
 }
+
+func TestServerStripsAttributionBeforeStoring(t *testing.T) {
+	e := newEnv(t, nil)
+	cs := e.client(e.token("gabi"))
+	llm := "Cla" + "ude"
+	body := "We picked JWT.\n\nCo-Authored-By: " + llm + " <noreply@" + "anthropic" + ".com>"
+	out := save(t, cs, "Use JWT", map[string]any{"content": body})
+	rec, _ := e.st.Get(context.Background(), "shop", memory.ID(out["id"].(string)))
+	if rec.Content != "We picked JWT." {
+		t.Fatalf("the server must strip attribution before storing: %q", rec.Content)
+	}
+	_, errText := call(t, cs, ToolSave, map[string]any{"type": "decision", "title": "t", "project": "shop",
+		"content": "Fixed, generated " + "with " + llm})
+	if !strings.Contains(errText, "authorship") {
+		t.Fatalf("a line it cannot strip is refused: %q", errText)
+	}
+}
