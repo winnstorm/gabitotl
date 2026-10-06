@@ -223,7 +223,7 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 			}
 		}
 	}
-	t.Unchanged = teamUnchanged(env, inv, opts, t)
+	t.Unchanged = teamUnchanged(ctx, env, inv, opts, t)
 	if opts.ImportEngram {
 		switch {
 		case role != gabitotl.RoleHost:
@@ -247,7 +247,7 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 
 // teamUnchanged reports whether the team setup of this run is already in place
 // exactly as requested, so applying it would change nothing. It only reads.
-func teamUnchanged(env Env, inv Inventory, opts Options, t *TeamPlan) bool {
+func teamUnchanged(ctx context.Context, env Env, inv Inventory, opts Options, t *TeamPlan) bool {
 	if opts.ImportEngram || t.Import != nil || len(t.Invites) > 0 || t.StoreToken || !inv.Project.Exists {
 		return false
 	}
@@ -267,7 +267,16 @@ func teamUnchanged(env Env, inv Inventory, opts Options, t *TeamPlan) bool {
 			return false
 		}
 	}
-	return (mcp.Resolver{Getenv: func(string) string { return "" }, Home: env.Home}).Lookup(t.TokenEnv) != ""
+	if env.Team.OpenStore == nil || inv.Project.Key == "" {
+		return false
+	}
+	st, closeFn, err := env.Team.OpenStore(ctx, t.Server.Instance) // read-only: is the stored token still valid?
+	if err != nil {
+		return false
+	}
+	defer closeFn()
+	_, ok := reusableToken(ctx, env, st, t.TokenEnv, opts.User, inv.Project.Key)
+	return ok
 }
 
 func serverKind(action string) rt.Kind {
@@ -404,14 +413,9 @@ func (r *run) setupServer(ctx context.Context) error {
 	if projects[0] == "" {
 		return errors.New("the project has no key to scope the tokens to")
 	}
-	tok, err := r.env.Team.NewToken(ctx, st, r.pl.Options.User, projects)
-	if err != nil {
-		return fmt.Errorf("create your token: %w", err)
+	if err := r.hostToken(ctx, st, t.Server.Instance, r.pl.Options.User, projects); err != nil {
+		return fmt.Errorf("your token: %w", err)
 	}
-	if err := r.storeToken(tok); err != nil {
-		return fmt.Errorf("store your token: %w", err)
-	}
-	r.emit(PhaseServer, "ok", "your token", "stored in the 0600 secrets file")
 	for _, u := range t.Invites {
 		it, err := r.env.Team.NewToken(ctx, st, u, projects)
 		if err != nil {
@@ -431,6 +435,7 @@ func (r *run) setupServer(ctx context.Context) error {
 // is ever deleted by a rollback).
 func (r *run) rollbackTeam(ctx context.Context) {
 	r.restoreSecrets()
+	r.discardNewToken(context.WithoutCancel(ctx))
 	if r.serverCreated && r.serverMgr != nil {
 		if _, err := r.serverMgr.Remove(context.WithoutCancel(ctx), pgmanaged.RemoveOptions{}); err != nil {
 			r.warn("rollback: managed server: %v", err)

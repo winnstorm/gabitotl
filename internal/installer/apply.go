@@ -103,6 +103,11 @@ type run struct {
 	secrets       secretBackup
 	serverMgr     *pgmanaged.Manager
 	serverCreated bool
+
+	// The host's own token (see team_tokens.go).
+	tokenID    string
+	tokenNew   bool
+	tokenStale []string
 }
 
 func (r *run) phase(p Phase) {
@@ -174,6 +179,7 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 	if err := r.mutate(ctx); err != nil {
 		var partial *PartialError
 		if errors.As(err, &partial) { // after Gentle-AI's own uninstall: keep GabitoTL, point to the snapshot
+			r.commitTokens(ctx) // GabitoTL stays configured with the new token
 			r.snap.Manifest.Status = "partial"
 			_ = r.snap.Save(r.env)
 			r.warn("GabitoTL stays configured. Gentle-AI may be partially removed: `gabitotl restore %s` returns the saved configuration files", r.snap.ID)
@@ -221,7 +227,11 @@ func (r *run) mutate(ctx context.Context) error {
 	if err := r.retire(ctx); err != nil {
 		return err
 	}
-	return r.finish(ctx)
+	if err := r.finish(ctx); err != nil {
+		return err
+	}
+	r.commitTokens(ctx) // last: after this nothing can roll the run back
+	return nil
 }
 
 // projectProvider is the VCS provider written to vcs.md.

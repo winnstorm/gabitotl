@@ -31,7 +31,10 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
 ```
 
 - **Host.** Installs the managed PostgreSQL (below), creates your token (scoped to this project,
-  stored in `~/.gabitotl/secrets/memory-client.env`, mode 0600) and one token per `--memory-invite`
+  stored in `~/.gabitotl/secrets/memory-client.env`, mode 0600; a re-run reuses it while the server still
+  accepts it, and otherwise mints a new one and revokes the previous token the installer issued for you,
+  tracked by id in `~/.gabitotl/memory-tokens.json`, so tokens never pile up; tokens you created by hand
+  with `memory token create` are never revoked) and one token per `--memory-invite`
   (printed once at the end, never stored), writes `.gabitotl/memory.md` (`mode: team`,
   `provider: memory-mcp`, `role: host`, `url`, `token: env:NAME`: references only) and registers the
   bridge in the selected runtimes. It does **not** start the server process: the result tells you to
