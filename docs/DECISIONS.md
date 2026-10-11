@@ -333,3 +333,15 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   (a legacy loopback `url` becomes the local override), preserving the Markdown body and unknown front matter keys. The file
   is never deleted. The local file is part of the install snapshot, so a rollback restores it too.
 - **Init:** `init` no longer writes `postgres_connection` into the committed file for memory-mcp; it goes to the local one.
+- **Host flow:** the installer asks a host (interactive questions and TUI form, optional) for the address teammates use and
+  validates that it is not loopback; `--memory-url` is the same answer for non-interactive runs. It is written to the shared
+  file while the host's own process keeps `http://127.0.0.1:8765/mcp` as its local override. Without an address the host
+  is set up locally, nothing is shared, and one line says teammates cannot connect until `gabitotl memory use memory-mcp
+  --role host --url URL` publishes one (`memory use` with team flags on a team project re-runs the idempotent setup). A
+  loopback `--memory-url` is an error; omitting it is the local-only mode (no extra flag).
+- **Teammate flow:** a project whose committed `memory.md` says memory-mcp with a reachable `url` and whose local file is
+  missing is recognized by `install` and `doctor`: role client, no role or url question, only the token variable name; an
+  unset variable prints how to get a token from the host. `doctor` also warns about a committed loopback `url` and about
+  per-machine fields still in the shared file, with the exact fix.
+- **Warning fix:** the skipped-import message is a coded notice (`Result.Notices`, `note.import-skipped-*`) with advice by
+  role: hosts are told to start the server, clients to ask the host for a token when their variable is unset.

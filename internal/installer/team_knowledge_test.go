@@ -47,6 +47,7 @@ func (l *liveTeam) url() string { return l.ts.URL + server.EndpointPath }
 // provider is the authenticated client of the server, reading the token from the
 // fixture's 0600 secrets file like every real client.
 func (l *liveTeam) provider(home string, cfg gabitotl.MemoryConfig) (memory.Provider, error) {
+	cfg.URL = l.url() // the live server stands in for whichever address this machine uses
 	return mcp.NewFromConfig(cfg, mcp.Resolver{Getenv: func(string) string { return "" }, Home: home})
 }
 
@@ -114,7 +115,7 @@ func teamKnowledgeRig(t *testing.T, st *memstore.Store) (*teamRig, *liveTeam) {
 
 func hostKnowledgeOpts(live *liveTeam) Options {
 	o := hostOpts()
-	o.MemoryURL = live.url()
+	o.MemoryURL = "https://memoria.example.com/mcp" // what teammates use; the live server answers locally
 	return o
 }
 
@@ -181,8 +182,8 @@ func TestUnreachableTeamMemoryDefersTheImportWithoutMutatingOnRerun(t *testing.T
 	if err != nil {
 		t.Fatalf("an unreachable server must not fail the install: %v", err)
 	}
-	if !warned(res.Warnings, "unreachable") {
-		t.Fatalf("the warning must say the server is unreachable: %v", res.Warnings)
+	if len(res.Notices) != 1 || res.Notices[0].Code != NoticeImportSkippedHost || res.Notices[0].Detail != "unreachable" {
+		t.Fatalf("the host is told its server is not reachable: %+v", res.Notices)
 	}
 	if len(res.Imports) != 0 {
 		t.Fatalf("nothing may be recorded as imported: %+v", res.Imports)

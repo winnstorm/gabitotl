@@ -21,9 +21,10 @@ you already run: skip `memory server install` and point `--dsn env:NAME` at it.
 else: detect, snapshot first, apply, verify, roll back on failure.
 
 ```text
-# host: this machine runs the server (needs Docker or Podman; never installed for you)
-gabitotl install --memory memory-mcp --memory-role host --user gabi [--memory-invite gonza] [--import-engram] --dry-run
-gabitotl install --memory memory-mcp --memory-role host --user gabi [--memory-invite gonza] [--import-engram]
+# host: this machine runs the server (needs Docker or Podman; never installed for you).
+# --memory-url is the address your TEAMMATES use (committed); never a loopback address.
+gabitotl install --memory memory-mcp --memory-role host --memory-url https://memoria.example.com/mcp --user gabi [--memory-invite gonza] [--import-engram] --dry-run
+gabitotl install --memory memory-mcp --memory-role host --memory-url https://memoria.example.com/mcp --user gabi [--memory-invite gonza] [--import-engram]
 
 # client: connect to an existing server (URL + the NAME of the variable holding your token)
 gabitotl install --memory memory-mcp --memory-role client --memory-url https://memoria.example.com/mcp \
@@ -35,26 +36,46 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
   accepts it, and otherwise mints a new one and revokes the previous token the installer issued for you,
   tracked by id in `~/.gabitotl/memory-tokens.json`, so tokens never pile up; tokens you created by hand
   with `memory token create` are never revoked) and one token per `--memory-invite`
-  (printed once at the end, never stored), writes `.gabitotl/memory.md` (`mode: team`,
-  `provider: memory-mcp`, `role: host`, `url`, `token: env:NAME`: references only; with `--memory-instance NAME`
-  also `instance: NAME`, a plain name, so `gabitotl doctor` and the printed `memory serve` / `memory token`
-  hints follow that instance) and registers the
+  (printed once at the end, never stored), writes the team memory settings (references only, split by
+  owner, see "Where the settings live") and registers the
   bridge in the selected runtimes. It does **not** start the server process: the result tells you to
   run `gabitotl memory serve --http 127.0.0.1:8765` (put it behind TLS to reach it over a network).
   Rollback after a failure removes the container and network this run created and **keeps the data
   volume and the credentials**; a server that already existed is never touched by a rollback.
-- **Client.** Writes `memory.md` (`role: client`, `url` and `token: env:NAME` only: a client has no
-  database, so no `postgres_connection`), registers the bridge and validates with
+- **Client.** Writes `role: client` and `token: env:NAME` to your own local file (a client has no
+  database, so no `postgres_connection`) and the server `url` to the shared one, registers the bridge and validates with
   `memory doctor` (a server that does not answer rolls the install back; a token that is simply not
   exported yet only warns). `--memory-store-token` copies the token from the variable into the 0600
   file (the TUI offers to take it from a password prompt instead); the token is never put in a
   command line, the repo, a log or a report.
+- **Teammate after `git pull`.** When the committed `memory.md` already says `provider: memory-mcp`
+  with a team `url` and you have no local file yet, `gabitotl install` (and `doctor`) recognise it:
+  the role is client, no role or URL question is asked, and the only question is the NAME of the
+  variable that will hold your token (default `GABITOTL_MEMORY_TOKEN`). If that variable is not set,
+  the install tells you to ask the host for a token (`gabitotl memory token create --user <your-id>`,
+  run by whoever hosts the server). `--yes` does the same without a prompt (`--memory-token-env NAME`
+  to choose the variable).
+- **Where the settings live.** The committed `.gabitotl/memory.md` holds `mode`, `provider`,
+  `backend`, `project_key` and `url`, the address teammates reach the server at; it never holds a
+  loopback or unspecified address. Your own, never committed
+  `.gabitotl/local/users/<id>/memory.md` holds `role`, `instance` (`--memory-instance NAME`, so `doctor`
+  and the printed `memory serve` / `memory token` hints follow that instance), `token: env:NAME`,
+  `postgres_connection` and an optional `url` that overrides the shared one on this machine (a host
+  reaches its own server on `http://127.0.0.1:8765/mcp` while the shared file holds the public
+  address). `gabitotl.MemoryConfig` is the merged view, local wins. A `memory.md` from an older
+  install that still carries those fields keeps working and is split on the next write.
+- **Host without a team address.** Without `--memory-url` the host is set up locally and nothing
+  is shared: one line says teammates cannot connect until you publish an address with
+  `gabitotl memory use memory-mcp --role host --url https://memoria.example.com/mcp`. A loopback
+  `--memory-url` is refused with a clear error (nobody else could use it); leave it out for a
+  local-only setup. If an earlier run already shared an address, it is kept. `doctor` warns when a
+  committed `url` is loopback (the old behavior) and prints the fix.
 - **Knowledge import.** The project knowledge GabitoTL reads from other harnesses (`AGENTS.md`,
   `CLAUDE.md`, ...) is saved through the authenticated client. No actor is sent: the server derives it
   from the token, so the entries belong to whoever runs the install and keep `source: gabitotl-import`.
-  If the server is not running yet (you start it by hand), the install warns that it is *unreachable*,
-  records nothing as imported and a re-run changes nothing (no new snapshot); once the server is up,
-  run `gabitotl import run`.
+  If the server is not running yet (you start it by hand), the install says so (a host is told to start
+  it; a client whose token variable is not set is told to ask the host for a token), records nothing as
+  imported and a re-run changes nothing (no new snapshot); once the server is up, run `gabitotl import run`.
 - **No container engine.** The plan says so and nothing changes: choose the client role or stay
   with Engram. GabitoTL never installs Docker.
 - **Engram memory.** With the host role, `--import-engram` runs the tested migrator over the

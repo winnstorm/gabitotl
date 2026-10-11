@@ -19,6 +19,10 @@ import (
 // the Engram import, a snapshot of memory.md before any change, the tested
 // Engram migrator (safety export, no duplicates, Engram untouched, verified) and
 // a rollback that leaves memory.md on the old provider when anything fails.
+//
+// On a project that already uses memory-mcp it is also how a host publishes the
+// address teammates use (--role host --url URL) or a person changes their token
+// variable; without those flags it only reports that nothing changes.
 func runMemoryUse(env Env, args []string) int {
 	const usage = "Usage: gabitotl memory use <engram|memory-mcp> [--migrate] [--yes] [--dry-run] [--role host|client] [--url URL] [--token-env NAME] [--instance NAME] [--root DIR]"
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
@@ -33,7 +37,7 @@ func runMemoryUse(env Env, args []string) int {
 	yes := fs.Bool("yes", false, "do not ask; required when there is no terminal")
 	dry := fs.Bool("dry-run", false, "show the plan, with the number of entries to import, and change nothing")
 	role := fs.String("role", "", "team memory role: host (this machine runs the server) or client (connect to one)")
-	url := fs.String("url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client)")
+	url := fs.String("url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client: the server; host: the address your teammates use, never loopback)")
 	tokenEnv := fs.String("token-env", "", "NAME of the environment variable that holds your token (default "+installer.DefaultTokenEnv+"); never the token itself")
 	instance := fs.String("instance", "", "host: named instance of the managed server")
 	if err := fs.Parse(args[1:]); err != nil {
@@ -60,7 +64,7 @@ func runMemoryUse(env Env, args []string) int {
 		return ExitError
 	}
 	switch {
-	case cfg.Provider == target:
+	case cfg.Provider == target && !(target == gabitotl.MemoryMemoryMCP && (*role != "" || *url != "" || *tokenEnv != "")):
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("memory.use.same", "provider", target))
 		return ExitOK
 	case target == gabitotl.MemoryEngram:

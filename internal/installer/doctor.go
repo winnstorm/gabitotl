@@ -48,6 +48,9 @@ const (
 	DocMemTeamNone       = "doctor.memory.team-none"
 	DocMemChosen         = "doctor.memory.chosen"
 	DocMemMismatch       = "doctor.memory.mismatch"
+	DocMemSharedLoopback = "doctor.memory.shared-loopback"
+	DocMemLegacyFields   = "doctor.memory.legacy-fields"
+	DocMemTeammate       = "doctor.memory.teammate"
 	DocRuntimeOK         = "doctor.runtime.ok"
 	DocRuntimeDrift      = "doctor.runtime.drift"
 	DocRuntimeTodo       = "doctor.runtime.todo"
@@ -71,7 +74,7 @@ var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "a
 var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
-	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocRuntimeOK, DocRuntimeDrift,
+	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
 	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
@@ -129,6 +132,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	var proj []Line
 	provider := gabitotl.MemoryEngram
 	var memCfg gabitotl.MemoryConfig
+	var memOrigin gabitotl.MemoryOrigin
 	hasProject := false
 	switch {
 	case env.ProjectRoot == "":
@@ -151,6 +155,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		check("memory.md", err)
 		if err == nil {
 			provider, memCfg = m.Provider, m
+			memOrigin = gabitotl.InspectMemory(l, identity.OSUserID())
 		}
 		_, err = gabitotl.LoadRuntime(l)
 		check("runtime.md", err)
@@ -173,6 +178,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	usesEngram := hasProject && provider == gabitotl.MemoryEngram
 	if hasProject {
 		mem = append(mem, providerLines(memCfg)...)
+		mem = append(mem, originLines(memCfg, memOrigin)...)
 	}
 	switch {
 	case m.HasBinary:
@@ -319,6 +325,23 @@ func providerLines(cfg gabitotl.MemoryConfig) []Line {
 	return out
 }
 
+// originLines flags what is wrong with where the team settings are kept: a
+// loopback url in the committed file (teammates would inherit an address that only
+// works on one machine) and per-machine fields that a legacy file still shares.
+func originLines(cfg gabitotl.MemoryConfig, o gabitotl.MemoryOrigin) []Line {
+	if cfg.Provider != gabitotl.MemoryMemoryMCP {
+		return nil
+	}
+	var out []Line
+	if cfg.Mode == gabitotl.ModeTeam && o.SharedURL != "" && gabitotl.IsLoopbackURL(o.SharedURL) {
+		out = append(out, Line{LineWarn, DocMemSharedLoopback, o.SharedURL})
+	}
+	if len(o.LegacyFields) > 0 {
+		out = append(out, Line{LineWarn, DocMemLegacyFields, strings.Join(o.LegacyFields, ", ")})
+	}
+	return out
+}
+
 // teamDoctor is the read-only health check of team memory (provider
 // memory-mcp): the server (reachable, token accepted, schema version, project
 // key present and allowed) and, on the host, the managed container. It only
@@ -326,6 +349,9 @@ func providerLines(cfg gabitotl.MemoryConfig) []Line {
 // status queries.
 func teamDoctor(ctx context.Context, env Env, cfg gabitotl.MemoryConfig) []Line {
 	var out []Line
+	if cfg.AwaitsClientSetup() { // a teammate after `git pull`: the server is known, the token is not
+		return append(out, Line{LineWarn, DocMemTeammate, cfg.URL})
+	}
 	if cfg.URL == "" || cfg.Token == "" {
 		return append(out, Line{LineWarn, DocMemMCPPending, ""})
 	}

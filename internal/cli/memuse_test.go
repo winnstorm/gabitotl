@@ -175,3 +175,64 @@ func TestInitRerunOffersTheChangeForAnEngramProject(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+func TestMemoryUseHostRefusesALoopbackAddressForTeammates(t *testing.T) {
+	f := engramProjectFix(t)
+	before := f.memoryMd()
+	r := f.run("", false, "memory", "use", "memory-mcp", "--yes", "--role", "host", "--url", "http://127.0.0.1:8765/mcp")
+	if r.code != ExitUsage || !strings.Contains(r.err, "teammates cannot use it") || f.memoryMd() != before {
+		t.Fatalf("a loopback address must never reach the shared file: %+v", r)
+	}
+}
+
+// A teammate after `git pull`: the committed memory.md names the server, nothing
+// is configured for this person, so only the token variable is asked.
+func TestInstallAsksATeammateOnlyForTheTokenVariable(t *testing.T) {
+	f := engramProjectFix(t)
+	l := gabitotl.NewLayout(f.root)
+	cfg, _ := gabitotl.LoadMemory(l)
+	cwrite(t, f.root+"/.gabitotl/memory.md", "---\nmode: team\nprovider: memory-mcp\nbackend: postgresql\nproject_key: "+cfg.ProjectKey+"\nurl: https://memoria.example.com/mcp\n---\n\n# Memory\n")
+
+	// token variable -> apply yes
+	r := f.run("MI_TOKEN\ns\n", true, "install", "--no-tui")
+	if r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	for _, unwanted := range []string{"¿Cómo te conectás", "URL del servidor", "¿Trabajás solo"} {
+		if strings.Contains(r.out, unwanted) {
+			t.Fatalf("a teammate is not asked %q:\n%s", unwanted, r.out)
+		}
+	}
+	if !strings.Contains(r.out, "https://memoria.example.com/mcp") || !strings.Contains(r.out, "gabitotl memory token create") {
+		t.Fatalf("the shared server is shown and the person is told how to get a token:\n%s", r.out)
+	}
+	got, err := gabitotl.LoadMemory(l)
+	if err != nil || got.Role != "client" || got.Token != "env:MI_TOKEN" || got.URL != "https://memoria.example.com/mcp" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if md := f.memoryMd(); strings.Contains(md, "MI_TOKEN") || strings.Contains(md, "role:") {
+		t.Fatalf("per-person settings must not reach the committed file:\n%s", md)
+	}
+	local, _ := l.LocalMemory(gabitotl.ActiveUserID())
+	if md := slurpT(t, local); !strings.Contains(md, "token: env:MI_TOKEN") {
+		t.Fatalf("local file:\n%s", md)
+	}
+}
+
+func TestMemoryUseWithTeamFlagsOnATeamProjectUpdatesTheSharedAddress(t *testing.T) {
+	f := engramProjectFix(t)
+	if r := f.run("", false, "memory", "use", "memory-mcp", "--yes", "--role", "client", "--url", "https://memoria.example.com/mcp"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	// Without flags the same provider is still a no-op.
+	if r := f.run("", false, "memory", "use", "memory-mcp"); r.code != 0 || !strings.Contains(r.out, "ya usa memory-mcp") {
+		t.Fatalf("%+v", r)
+	}
+	// With flags it is how the address teammates use is changed.
+	if r := f.run("", false, "memory", "use", "memory-mcp", "--yes", "--role", "client", "--url", "https://otra.example.com/mcp"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if md := f.memoryMd(); !strings.Contains(md, "url: https://otra.example.com/mcp") || strings.Contains(md, "memoria.example.com") {
+		t.Fatalf("the shared address must follow:\n%s", md)
+	}
+}

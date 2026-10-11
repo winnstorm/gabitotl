@@ -187,19 +187,23 @@ change reaches teammates when they pull; `doctor` reports the chosen provider an
 mismatch (for example team memory without a server).
 
 ```text
-gabitotl install --memory memory-mcp --memory-role host --user gabi        # montar el servidor
+gabitotl install --memory memory-mcp --memory-role host --memory-url https://memoria.example.com/mcp --user gabi   # montar el servidor (la URL es la que usan tus compañeros)
 gabitotl memory serve --http 127.0.0.1:8765                                # run it (behind TLS for a network)
 gabitotl memory token create --user gonza --projects shop                  # one scoped token per teammate
 
 gabitotl install --memory memory-mcp --memory-role client \
     --memory-url https://memoria.example.com/mcp --memory-token-env GABITOTL_MEMORY_TOKEN   # conectarme
+
+git pull && gabitotl install                                               # a teammate: only asks the token variable
 ```
 
 - The actor of every write is the owner of the token; a request naming someone else is rejected.
 - A token is limited to the projects it was created for (`--projects a,b`); `--all-projects`
   is an explicit, warned opt-in.
-- `.gabitotl/memory.md` holds references only (`url`, `token: env:NAME`); the token itself lives in
-  your environment or a 0600 file under `~/.gabitotl/secrets/`.
+- `.gabitotl/memory.md` (committed) holds the team-reachable server `url`; your own `role`,
+  `token: env:NAME` and database reference live in `.gabitotl/local/users/<id>/memory.md`, which is
+  never committed. Both hold references only; the token itself lives in your environment or a 0600
+  file under `~/.gabitotl/secrets/`.
 - With no Docker or Podman the installer says so and offers the client role or Engram; it never
   installs Docker.
 - An existing Engram memory can be imported (`--import-engram` on the host, or

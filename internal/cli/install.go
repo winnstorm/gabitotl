@@ -115,7 +115,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.BoolVar(&f.noTUI, "no-tui", false, "use the plain text flow even on a terminal")
 	fs.BoolVar(&f.migratePersona, "migrate-persona", false, "retire the managed Gentleman/Gentle-AI persona block after verification")
 	fs.StringVar(&f.memoryRole, "memory-role", "", "team memory role with --memory memory-mcp: host (this machine runs the server) or client (connect to one)")
-	fs.StringVar(&f.memoryURL, "memory-url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client; host: the URL teammates use)")
+	fs.StringVar(&f.memoryURL, "memory-url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client: the server; host: the address teammates use, never loopback; omit it for a local-only host)")
 	fs.StringVar(&f.memoryTokenEnv, "memory-token-env", "", "NAME of the environment variable that holds your token (default "+installer.DefaultTokenEnv+"); never the token itself")
 	fs.BoolVar(&f.memoryStoreToken, "memory-store-token", false, "client: copy your token from that variable into the 0600 secrets file of your user")
 	fs.Var(&f.memoryInvites, "memory-invite", "host: create a token for this teammate id (repeatable; shown once at the end)")
@@ -196,6 +196,10 @@ func openQuestions(root string, inv installer.Inventory, opts installer.Options)
 	configured := known && cfg.Provider == gabitotl.MemoryMemoryMCP && cfg.URL != ""
 	need.Pending = known && cfg.Provider == gabitotl.MemoryMemoryMCP && !configured && opts.Memory == ""
 	need.Team = opts.MemoryRole == "" && opts.MemoryURL == "" && !configured
+	// A teammate after `git pull`: the committed file names the server, this person
+	// has nothing configured yet, so only the token variable is asked.
+	need.Teammate = known && cfg.AwaitsClientSetup() && opts.MemoryRole == "" && opts.MemoryURL == "" && (opts.Memory == "" || opts.Memory == cfg.Provider)
+	need.SharedURL = cfg.URL
 	need.CanImport = inv.Memory.Present() && inv.Memory.ProjectMatch != "" && inv.Server.CanImport
 	return need
 }

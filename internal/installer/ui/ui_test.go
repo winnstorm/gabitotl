@@ -169,9 +169,19 @@ func TestOnboardQuestionPicksTheProvider(t *testing.T) {
 		t.Fatalf("bad url: %+v\n%s", o, out)
 	}
 	// Host with Engram memory to import asks the import question.
-	o, _ = ask("2\n2\ns\n", installer.Options{}, Need{Mode: true, Team: true, CanImport: true})
-	if o.MemoryRole != "host" || !o.ImportEngram {
+	o, _ = ask("2\n2\n\ns\n", installer.Options{}, Need{Mode: true, Team: true, CanImport: true})
+	if o.MemoryRole != "host" || !o.ImportEngram || o.MemoryURL != "" {
 		t.Fatalf("host: %+v", o)
+	}
+	// A host is asked for the address teammates use; a loopback one is explained and
+	// asked again, and the answer can stay empty.
+	o, out = ask("2\n2\nhttp://127.0.0.1:8765/mcp\nhttps://memoria.example.com/mcp\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.MemoryRole != "host" || o.MemoryURL != "https://memoria.example.com/mcp" || !strings.Contains(out, "teammates cannot use it") && !strings.Contains(out, "Esa URL no sirve") {
+		t.Fatalf("host url: %+v\n%s", o, out)
+	}
+	o, out = ask("2\n2\n\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.MemoryURL != "" || !strings.Contains(out, "dejala vacía") {
+		t.Fatalf("host without a team url: %+v\n%s", o, out)
 	}
 	// "Not yet" goes back to the local default.
 	o, _ = ask("2\n3\n", installer.Options{}, Need{Mode: true, Team: true})
@@ -210,5 +220,44 @@ func TestOnboardOffersToChangeTheProviderOfAnExistingProject(t *testing.T) {
 	NewPrompter(strings.NewReader("1\nhttps://memoria.example.com/mcp\n\n"), &out, m).Onboard(&o, Need{Pending: true, Team: true}, "")
 	if o.Memory != "memory-mcp" || o.MemoryURL == "" {
 		t.Fatalf("pending: %+v", o)
+	}
+}
+
+// A teammate right after `git pull`: the committed memory.md names the server, so
+// neither the role nor the url is asked, only the token variable.
+func TestOnboardTeammateAsksOnlyTheTokenVariable(t *testing.T) {
+	m := Default()
+	need := Need{Team: false, Teammate: true, SharedURL: "https://memoria.example.com/mcp"}
+	var out bytes.Buffer
+	o := installer.Options{}
+	NewPrompter(strings.NewReader("MI_TOKEN\n"), &out, m).Onboard(&o, need, "")
+	if o.MemoryRole != "client" || o.MemoryURL != need.SharedURL || o.MemoryTokenEnv != "MI_TOKEN" {
+		t.Fatalf("teammate: %+v\n%s", o, out.String())
+	}
+	if strings.Contains(out.String(), "¿Cómo te conectás") || strings.Contains(out.String(), "URL del servidor") {
+		t.Fatalf("no role or url question:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), need.SharedURL) {
+		t.Fatalf("the shared server must be shown:\n%s", out.String())
+	}
+	// The default is offered, and a bad name is explained and asked again.
+	out.Reset()
+	o = installer.Options{}
+	NewPrompter(strings.NewReader("\n"), &out, m).Onboard(&o, need, "")
+	if o.MemoryTokenEnv != installer.DefaultTokenEnv {
+		t.Fatalf("default variable: %+v", o)
+	}
+	out.Reset()
+	o = installer.Options{}
+	NewPrompter(strings.NewReader("1 bad\nMI_TOKEN\n"), &out, m).Onboard(&o, need, "")
+	if o.MemoryTokenEnv != "MI_TOKEN" || !strings.Contains(out.String(), "nombre de variable") {
+		t.Fatalf("bad variable: %+v\n%s", o, out.String())
+	}
+	// A flag that already answered is not asked again.
+	out.Reset()
+	o = installer.Options{MemoryTokenEnv: "FLAG_TOKEN"}
+	NewPrompter(strings.NewReader(""), &out, m).Onboard(&o, need, "")
+	if o.MemoryTokenEnv != "FLAG_TOKEN" || o.MemoryRole != "client" {
+		t.Fatalf("flag: %+v", o)
 	}
 }
