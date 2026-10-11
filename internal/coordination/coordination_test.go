@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
@@ -100,55 +99,6 @@ func TestWorktreeRefusesTempAndBadInput(t *testing.T) {
 	r.Config.Permissions.Branches = gabitotl.PermDeny
 	if _, err := w.Add(context.Background(), "gabi", "t", "feature/new"); !errors.Is(err, vcs.ErrDenied) {
 		t.Fatalf("want ErrDenied, got %v", err)
-	}
-}
-
-func TestSessionLock(t *testing.T) {
-	layout := gabitotl.NewLayout(t.TempDir())
-	now := time.Now()
-	l, err := Acquire(layout, "gabi", now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if h, ok := Inspect(layout); !ok || h.User != "gabi" || h.PID != os.Getpid() {
-		t.Fatalf("inspect = %+v %v", h, ok)
-	}
-	// Same process re-acquires.
-	if _, err := Acquire(layout, "gabi", now); err != nil {
-		t.Fatalf("re-acquire: %v", err)
-	}
-	// Another live process (pretend pid 1 owns it).
-	if err := os.WriteFile(filepath.Join(layout.Local(), LockFile), []byte("pid: 1\nuser: gonza\nstarted: 2026-10-05T10:00:00Z\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	saved := pidAlive
-	defer func() { pidAlive = saved }()
-	pidAlive = func(pid int) bool { return true }
-	_, err = Acquire(layout, "gabi", now)
-	var busy *BusyError
-	if !errors.As(err, &busy) || !errors.Is(err, ErrBusy) || busy.Holder.User != "gonza" {
-		t.Fatalf("want BusyError for gonza, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "gabitotl worktree add") {
-		t.Fatalf("error must tell the user to create a worktree: %v", err)
-	}
-	// The holder died: stale lock is replaced.
-	pidAlive = func(pid int) bool { return false }
-	l2, err := Acquire(layout, "gabi", now)
-	if err != nil || l2.Holder().User != "gabi" {
-		t.Fatalf("stale takeover: %v", err)
-	}
-	if err := l2.Release(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(layout.Local(), LockFile)); !os.IsNotExist(err) {
-		t.Fatal("lock should be removed on release")
-	}
-	_ = l
-	// Garbage lock file is treated as stale.
-	_ = os.WriteFile(filepath.Join(layout.Local(), LockFile), []byte("not yaml: ["), 0o644)
-	if _, err := Acquire(layout, "gabi", now); err != nil {
-		t.Fatalf("garbage lock: %v", err)
 	}
 }
 

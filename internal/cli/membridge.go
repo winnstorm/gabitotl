@@ -88,6 +88,11 @@ func runMemoryMCP(env Env, args []string) int {
 	}
 	ctx, stop := signalCtxFn()
 	defer stop()
+	// Like `memory serve --stdio`, this process lives as long as the agent
+	// session. Notices go to stderr: stdout belongs to the protocol.
+	if r, err := resolveRoot(env, *root); err == nil {
+		defer joinSession(env, r, presence{longLived: true, runtime: "memory-bridge"})()
+	}
 	if err := server.ServeBridge(ctx, srv, env.Stdin, env.Stdout); err != nil && !errors.Is(err, context.Canceled) {
 		return fail("%v", err)
 	}

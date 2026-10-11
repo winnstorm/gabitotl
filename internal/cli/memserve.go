@@ -135,6 +135,11 @@ func runMemoryServe(env Env, args []string) int {
 		return ExitError
 	}
 	if *stdio {
+		// This process lives as long as the agent session that spawned it, so it
+		// is the session's liveness anchor. Notices go to stderr: stdout is the protocol.
+		if r, err := resolveRoot(env, *root); err == nil {
+			defer joinSession(env, r, presence{longLived: true, runtime: "memory-stdio"})()
+		}
 		if err := srv.ServeStdio(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			fmt.Fprintf(env.Stderr, "gabitotl memory serve: %v\n", err)
 			return ExitError

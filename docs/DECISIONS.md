@@ -51,7 +51,7 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 
 ## D9. Soft locks only
 - **Decision:** overlapping work is detected from active-work files (shared through Git) and memory search and reported as
-  an advisory OJO. It never blocks; Git decides real conflicts. A session lock only prevents two users in one working directory.
+  an advisory OJO. It never blocks; Git decides real conflicts. The old exclusive session lock was replaced by an advisory registry (D26).
 
 ## D10. History is never rewritten
 - **Decision:** force-push, `reset --hard`, amend, rebase, filter-branch and ref updates are rejected by `CheckHistorySafe`
@@ -216,3 +216,24 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Per-person local state:** `session.md` and the runtime override move to `.gabitotl/local/users/<id>/` so two OS users
   sharing one directory never overwrite each other. A legacy `local/runtime.md` is read as a fallback, never migrated
   or deleted. Backups already live in `.bak/<id>/`.
+
+## D26. An advisory session registry replaces the exclusive lock
+- **Decision:** `workdir.lock` and `BusyError` are gone. Every live session registers
+  `.gabitotl/local/sessions/<id>-<pid>.yaml` (user, pid, started, last_seen, optional task, branch, areas, runtime);
+  each person writes only their own files, the directory is group-writable (0o775, files 0o664, subject to the umask).
+  Other people's live sessions are shown as a short advisory line ("ana is also active in this directory since 12 min
+  ago (task auth-refactor)"); `gabitotl worktree add` is mentioned only as an optional tip. A directory that cannot be
+  written is a warning, never an error.
+- **Liveness:** a session is live when its anchor PID exists (EPERM counts as alive) and `last_seen` is within
+  `SessionTTL` (12 h). Dead or expired entries are pruned lazily by whoever reads. Where PIDs cannot be probed
+  (non-Unix) only the TTL applies.
+- **Anchor:** there are no agent-runtime hooks in GabitoTL (the guard hooks are Git hooks, children of a short-lived
+  `git`), and most CLI commands exit in milliseconds, so their own PID proves nothing. Long-lived entry points
+  (`memory serve --stdio`, `memory mcp`, which an agent runtime spawns for the whole session) use their own PID,
+  refresh `last_seen` every 10 min and unregister on exit. Short-lived ones (`work start|update`) use the parent PID
+  (the shell or agent that ran them) and rely on the TTL when that parent is a throwaway shell.
+- **Where it speaks:** notices go to stderr (`work start|update`, both stdio servers: stdout is the MCP protocol),
+  to stdout in status views (`work status`, `gabitotl`). Git hooks (`guard commit-msg|scan --hook`) neither register
+  nor print: their output is shown inside `git commit` and they have no stable anchor.
+- **Why:** several people in one working directory is normal; blocking the second one only pushed them to work around
+  the lock. Git still decides real conflicts (D9).

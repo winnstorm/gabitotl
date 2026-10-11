@@ -39,8 +39,13 @@ func runWorkStatus(env Env, args []string) int {
 		return ExitError
 	}
 	layout := layoutOf(dir)
-	if h, ok := coordination.Inspect(layout); ok {
-		fmt.Fprintf(env.Stdout, "session: %s (pid %d) holds this working directory\n", h.User, h.PID)
+	if sessions, err := coordination.Sessions(layout, activeID(dir), nowFn()); err == nil {
+		for _, line := range coordination.Notices(sessions, nowFn()) {
+			fmt.Fprintf(env.Stdout, "session: %s\n", line)
+		}
+		if len(coordination.Others(sessions)) > 0 {
+			fmt.Fprintln(env.Stdout, "tip: for your own checkout, `gabitotl worktree add --task <task> --branch <branch>` (optional)")
+		}
 	}
 	tasks, err := coordination.ListTasks(layout, *user)
 	if err != nil {
@@ -204,6 +209,10 @@ func runWorkWrite(env Env, args []string, start bool) int {
 		return ExitError
 	}
 	fmt.Fprintf(env.Stdout, "%s/%s [%s] branch=%s areas=%s\n", t.Owner, t.ID, t.Status, dash(t.Branch), dash(strings.Join(t.Areas, ",")))
+	// Make the work visible to people sharing this directory (advisory, stderr).
+	if t.Active() && u == activeID(dir) {
+		joinSession(env, dir, presence{task: t.ID, branch: t.Branch, areas: t.Areas})
+	}
 	// Soft lock: tell the developer when someone else's active work overlaps.
 	// Active-work files only (cheap, no memory query); `work overlap` also
 	// searches memory. Never blocks.

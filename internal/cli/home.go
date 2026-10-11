@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/winnstorm/gabitotl/internal/coordination"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
@@ -54,6 +55,11 @@ func runHome(env Env) int {
 			d += " / " + r.Model
 		}
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("home.status.runtime", "detail", d))
+	}
+	if sessions, err := coordination.Sessions(l, activeID(root), nowFn()); err == nil {
+		for _, line := range coordination.Notices(sessions, nowFn()) {
+			fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, line)
+		}
 	}
 	fmt.Fprintf(env.Stdout, "\n%s\n", m.Format("home.status.hint"))
 	return ExitOK
