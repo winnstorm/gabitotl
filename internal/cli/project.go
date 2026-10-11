@@ -47,6 +47,15 @@ func userID(root, flagUser string) (string, error) {
 	return u.ID, nil
 }
 
+// activeID returns the id of the active identity, or "" when none can be
+// derived (callers then skip per-person local state).
+func activeID(root string) string {
+	if u, err := identity.Active(root); err == nil {
+		return u.ID
+	}
+	return ""
+}
+
 // vcsConfig loads vcs.md, falling back to conservative defaults (every
 // operation asks) when the project has not been initialized.
 func vcsConfig(layout gabitotl.Layout) (gabitotl.VCSConfig, error) {

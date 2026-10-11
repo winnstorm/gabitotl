@@ -298,7 +298,7 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 	}
 	if len(r.pl.RuntimeOrder) > 0 {
 		if cur, err := gabitotl.LoadRuntime(l); err == nil && cur.Runtime == "unset" {
-			if err := rt.SetRuntime(l, r.pl.RuntimeOrder[0], "", false); err != nil {
+			if err := rt.SetRuntime(l, "", r.pl.RuntimeOrder[0], "", false); err != nil {
 				return err
 			}
 		}

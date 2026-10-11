@@ -213,3 +213,6 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   The OS user is already the boundary the operating system enforces.
 - **Consequence:** the same person on another machine is the same id only if the usernames match; otherwise they are a
   different user, by design (set `GABITOTL_USER` to align them).
+- **Per-person local state:** `session.md` and the runtime override move to `.gabitotl/local/users/<id>/` so two OS users
+  sharing one directory never overwrite each other. A legacy `local/runtime.md` is read as a fallback, never migrated
+  or deleted. Backups already live in `.bak/<id>/`.

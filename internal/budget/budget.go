@@ -71,7 +71,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// sessionState is persisted in .gabitotl/local/session.md (never committed).
+// sessionState is persisted in .gabitotl/local/users/<id>/session.md (never committed).
 type sessionState struct {
 	Started     string `yaml:"started"`
 	UsedTokens  int    `yaml:"used_tokens"`
@@ -94,6 +94,7 @@ type Decision struct {
 // concurrent use.
 type Monitor struct {
 	Layout gabitotl.Layout
+	User   string // person whose session this is (local/users/<User>/session.md)
 	Config Config
 	Msgs   persona.Messages
 	// Now is the clock; nil means time.Now.
@@ -102,13 +103,18 @@ type Monitor struct {
 	state sessionState
 }
 
-// New loads the session state (if any) and returns a Monitor.
-func New(layout gabitotl.Layout, cfg Config) (*Monitor, error) {
+// New loads the session state of user (if any) and returns a Monitor. Each
+// person has their own session file, so two people never share counters.
+func New(layout gabitotl.Layout, user string, cfg Config) (*Monitor, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	m := &Monitor{Layout: layout, Config: cfg, Msgs: persona.DefaultMessages()}
-	d, err := gabitotl.ReadDoc(layout.LocalSession())
+	path, err := layout.LocalSession(user)
+	if err != nil {
+		return nil, err
+	}
+	m := &Monitor{Layout: layout, User: user, Config: cfg, Msgs: persona.DefaultMessages()}
+	d, err := gabitotl.ReadDoc(path)
 	switch {
 	case err == nil:
 		if d.Decode(&m.state) != nil {
@@ -131,7 +137,14 @@ func (m *Monitor) now() time.Time {
 }
 
 func (m *Monitor) save() error {
-	return gabitotl.WriteDoc(m.Layout.LocalSession(), m.state, "\n# Session\n\nLocal session state. Not committed.\n")
+	path, err := m.Layout.LocalSession(m.User)
+	if err != nil {
+		return err
+	}
+	if _, err := gabitotl.EnsureLocalUserDir(m.Layout, m.User); err != nil {
+		return err
+	}
+	return gabitotl.WriteDoc(path, m.state, "\n# Session\n\nLocal session state. Not committed.\n")
 }
 
 // NewSession resets the counters and re-arms the checkpoint.

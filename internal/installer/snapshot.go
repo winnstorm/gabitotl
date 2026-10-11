@@ -81,7 +81,10 @@ func projectPaths(env Env, pl Plan) []string {
 	}
 	l := gabitotl.NewLayout(env.ProjectRoot)
 	out := projectFiles(l)
-	out = append(out, filepath.Join(l.Work(), ".gitkeep"), l.LocalRuntime())
+	out = append(out, filepath.Join(l.Work(), ".gitkeep"))
+	if f, err := l.LocalRuntime(identity.OSUserID()); err == nil {
+		out = append(out, f)
+	}
 	if pl.Options.UserName != "" {
 		if u, err := identity.New(pl.Options.User, pl.Options.UserName, ""); err == nil {
 			if f, err := l.UserFile(u.ID); err == nil {
