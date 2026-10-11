@@ -232,6 +232,9 @@ func Notices(sessions []Session, now time.Time) []string {
 	return lines
 }
 
+// Ago renders a duration the way notices and `who` show it ("12 min ago").
+func Ago(d time.Duration) string { return ago(d) }
+
 func ago(d time.Duration) string {
 	switch {
 	case d < time.Minute:
