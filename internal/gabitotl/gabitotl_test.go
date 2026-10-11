@@ -43,7 +43,7 @@ func TestLayoutPaths(t *testing.T) {
 		l.Project(): "/p/.gabitotl/project.md", l.Memory(): "/p/.gabitotl/memory.md",
 		l.Runtime(): "/p/.gabitotl/runtime.md", l.VCS(): "/p/.gabitotl/vcs.md",
 		l.Workflow(): "/p/.gabitotl/workflow.md", l.Imports(): "/p/.gabitotl/imports.md",
-		l.LocalUser(): "/p/.gabitotl/local/user.md", l.LocalRuntime(): "/p/.gabitotl/local/runtime.md",
+		l.LocalRuntime(): "/p/.gabitotl/local/runtime.md",
 		l.LocalSession(): "/p/.gabitotl/local/session.md", l.Bak(): "/p/.gabitotl/.bak",
 		l.Tmp(): "/p/.gabitotl/tmp", l.Gitignore(): "/p/.gabitotl/.gitignore",
 	}

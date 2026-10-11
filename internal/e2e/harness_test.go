@@ -92,6 +92,7 @@ type machine struct {
 	dir  string // FAKE_DIR: state of the fake executables
 	log  string // FAKE_LOG
 	base string // where repositories are created
+	user string // GABITOTL_USER: the OS user the binary runs as
 }
 
 // newMachine builds a fixture machine and installs its environment into the
@@ -107,7 +108,7 @@ func newMachineIn(t *testing.T, base string) *machine {
 	t.Helper()
 	root := t.TempDir()
 	m := &machine{t: t, root: root, home: filepath.Join(root, "home"), bin: filepath.Join(root, "bin"),
-		dir: filepath.Join(root, "fake"), log: filepath.Join(root, "fake", "calls.log"), base: base}
+		dir: filepath.Join(root, "fake"), log: filepath.Join(root, "fake", "calls.log"), base: base, user: "ana"}
 	for _, d := range []string{m.home, m.bin, m.dir, filepath.Join(root, "tmp")} {
 		mustMkdir(t, d)
 	}
@@ -141,6 +142,7 @@ func (m *machine) envMap() map[string]string {
 		"LANG":                "C",
 		"GIT_CONFIG_GLOBAL":   filepath.Join(m.home, ".gitconfig"),
 		"GIT_CONFIG_NOSYSTEM": "1",
+		"GABITOTL_USER":       m.user,
 		"XDG_CONFIG_HOME":     "", "ENGRAM_DATA_DIR": "", "OPENCODE_CONFIG": "", "OPENCODE_CONFIG_DIR": "",
 	}
 }

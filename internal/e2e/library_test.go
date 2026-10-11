@@ -59,6 +59,7 @@ func TestTwoUsersTwoWorktreesOverlapOjo(t *testing.T) {
 		t.Skip("worktrees refuse temporary directories and the package sources live under one")
 	}
 	m := newMachineIn(t, base)
+	m.user = "owner"
 	main := m.repo("team", map[string]string{"go.mod": "module team\n", "main.go": "package main\n", "src/auth/login.go": "package auth\n"})
 	m.ok(main, "init", "--yes", "--mode", "team", "--user-name", "Owner")
 	m.allowVCS(main)
@@ -75,12 +76,16 @@ func TestTwoUsersTwoWorktreesOverlapOjo(t *testing.T) {
 	list := m.ok(main, "worktree", "list").out
 	contains(t, "worktree list", list, "feature/auth", "feature/billing")
 
-	// Each worktree has its own identity; the main worktree keeps its own.
-	m.ok(wtAna, "init", "--yes", "--user-name", "Ana")
-	m.ok(wtBob, "init", "--yes", "--user-name", "Bob")
-	contains(t, "ana identity", read(t, filepath.Join(wtAna, ".gabitotl/local/user.md")), "ana")
-	contains(t, "bob identity", read(t, filepath.Join(wtBob, ".gabitotl/local/user.md")), "bob")
-	contains(t, "main identity", read(t, filepath.Join(main, ".gabitotl/local/user.md")), "owner")
+	// The identity is the OS user of whoever runs the command: ana and bob
+	// each get their own profile, the owner keeps theirs.
+	m.user = "ana"
+	m.ok(wtAna, "init", "--yes")
+	m.user = "bob"
+	m.ok(wtBob, "init", "--yes")
+	contains(t, "ana profile", read(t, filepath.Join(wtAna, ".gabitotl/users/ana.md")), "ana")
+	contains(t, "bob profile", read(t, filepath.Join(wtBob, ".gabitotl/users/bob.md")), "bob")
+	contains(t, "main profile", read(t, filepath.Join(main, ".gabitotl/users/owner.md")), "owner")
+	m.user = "ana"
 
 	// Ana starts on src/auth and shares her work file through her branch.
 	m.ok(wtAna, "work", "start", "--task", "auth", "--areas", "src/auth", "--branch", "feature/auth")
@@ -88,6 +93,7 @@ func TestTwoUsersTwoWorktreesOverlapOjo(t *testing.T) {
 	m.git(wtAna, "commit", "-q", "-m", "chore: share work state")
 	// Bob picks up the shared work state from Ana's branch (what a pull does).
 	m.git(wtBob, "checkout", "feature/auth", "--", ".gabitotl/work")
+	m.user = "bob"
 
 	r = m.ok(wtBob, "work", "start", "--task", "billing", "--areas", "src/billing")
 	absent(t, "non-overlapping start", r.out, "overlap with")
@@ -106,6 +112,7 @@ func TestTwoUsersTwoWorktreesOverlapOjo(t *testing.T) {
 	m.git(wtBob, "add", "-A")
 	m.git(wtBob, "commit", "-q", "-m", "chore: bob work state")
 	// Removing a worktree never touches the main one.
+	m.user = "owner"
 	m.ok(main, "worktree", "remove", "billing")
 	if !exists(main) || exists(wtBob) {
 		t.Fatal("remove must delete only the named worktree")

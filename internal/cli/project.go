@@ -32,7 +32,7 @@ func subcommands(env Env, group string, args []string, subs map[string]func(Env,
 	return ExitUsage
 }
 
-// userID returns the --user flag or the active local identity.
+// userID returns the --user flag or the identity derived from the OS user.
 func userID(root, flagUser string) (string, error) {
 	if flagUser != "" {
 		if !gabitotl.ValidID(flagUser) {
@@ -42,7 +42,7 @@ func userID(root, flagUser string) (string, error) {
 	}
 	u, err := identity.Active(root)
 	if err != nil {
-		return "", fmt.Errorf("%w (pass --user or run `gabitotl init`)", err)
+		return "", fmt.Errorf("%w (pass --user or set GABITOTL_USER)", err)
 	}
 	return u.ID, nil
 }

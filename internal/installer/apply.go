@@ -291,6 +291,11 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 			return err
 		}
 	}
+	// The active identity is the OS user; Active creates its shared profile
+	// silently when the project has none.
+	if _, err := identity.Active(r.env.ProjectRoot); err != nil && !errors.Is(err, identity.ErrNoActive) {
+		return err
+	}
 	if len(r.pl.RuntimeOrder) > 0 {
 		if cur, err := gabitotl.LoadRuntime(l); err == nil && cur.Runtime == "unset" {
 			if err := rt.SetRuntime(l, r.pl.RuntimeOrder[0], "", false); err != nil {
@@ -411,8 +416,7 @@ func (r *run) verifyProject() []Check {
 	add("vcs.md", err)
 	_, err = gabitotl.LoadWorkflow(l)
 	add("workflow.md", err)
-	if r.pl.Options.UserName != "" {
-		_, err = identity.Active(r.env.ProjectRoot)
+	if _, err = identity.Active(r.env.ProjectRoot); !errors.Is(err, identity.ErrNoActive) {
 		add("identity", err)
 	}
 	return out

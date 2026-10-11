@@ -26,8 +26,8 @@ func runInit(env Env, args []string) int {
 	fs.StringVar(&f.root, "root", "", "project root (default: Git top-level of the current directory)")
 	fs.StringVar(&f.name, "name", "", "project name (default: directory name)")
 	fs.StringVar(&f.kind, "kind", "", "project kind: new|existing (default: detected)")
-	fs.StringVar(&f.userID, "user-id", "", "developer id (default: slug of the user name)")
-	fs.StringVar(&f.userName, "user-name", "", "developer name")
+	fs.StringVar(&f.userID, "user-id", "", "explicit developer profile id (default: slug of the user name)")
+	fs.StringVar(&f.userName, "user-name", "", "explicit developer profile name (the active identity comes from the OS user)")
 	fs.StringVar(&f.mode, "mode", "", "memory mode: solo|team (default: solo)")
 	fs.StringVar(&f.provider, "provider", "", "memory provider: engram|memory-mcp (default: by mode)")
 	fs.StringVar(&f.vcs, "vcs", "", "VCS provider: github|bitbucket|gitlab|azure-devops|git|local (default: git)")
@@ -56,20 +56,11 @@ func doInit(env Env, f initFlags) error {
 		return err
 	}
 	l := gabitotl.NewLayout(root)
-	_, activeErr := identity.Active(root)
-	hasActive := activeErr == nil
 
 	if env.IsTTY && !f.yes {
 		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
 		if f.mode == "" {
 			f.mode = p.ask("Memory mode (solo/team)", gabitotl.ModeSolo)
-		}
-		if f.userName == "" && !hasActive {
-			def := ""
-			if s, ok := identity.SuggestFromGit(); ok {
-				def = s.Name
-			}
-			f.userName = p.ask("Your name", def)
 		}
 	}
 
@@ -96,19 +87,17 @@ func doInit(env Env, f initFlags) error {
 		fmt.Fprintf(env.Stdout, "  + %s\n", p)
 	}
 	offerHooks(env, root, f)
-	switch {
-	case user != nil:
-		fmt.Fprintf(env.Stdout, "  identity: %s (%s)\n", user.ID, user.Name)
-	case hasActive:
-		fmt.Fprintln(env.Stdout, "  identity: unchanged")
-	default:
-		fmt.Fprintln(env.Stdout, "  identity: not set (use --user-name)")
+	if user != nil {
+		fmt.Fprintf(env.Stdout, "  profile: %s (%s)\n", user.ID, user.Name)
+	}
+	if a, err := identity.Active(root); err == nil {
+		fmt.Fprintf(env.Stdout, "  identity: %s (%s)\n", a.ID, a.Name)
 	}
 	return nil
 }
 
-// resolveUser returns the identity to save, or nil when none should change.
-// The git user.name is only offered as a prompt default, never applied silently.
+// resolveUser returns the explicit profile to save, or nil when the flags give
+// none. The active identity itself always comes from the OS user.
 func resolveUser(f initFlags) (*identity.User, error) {
 	if f.userName == "" {
 		if f.userID != "" {

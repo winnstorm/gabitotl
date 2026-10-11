@@ -87,8 +87,11 @@ func projectPaths(env Env, pl Plan) []string {
 			if f, err := l.UserFile(u.ID); err == nil {
 				out = append(out, f)
 			}
-			out = append(out, l.LocalUser())
 		}
+	}
+	// Active creates the profile of the OS user when it is missing.
+	if f, err := l.UserFile(identity.OSUserID()); err == nil {
+		out = append(out, f)
 	}
 	return out
 }

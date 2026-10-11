@@ -351,7 +351,7 @@ func TestServeArgumentChecks(t *testing.T) {
 		"remote plain":   {[]string{"memory", "serve", "--http", "0.0.0.0:0"}, ExitError},
 		"literal dsn":    {[]string{"memory", "serve", "--http", "127.0.0.1:0", "--dsn", "postgres://u:p@h/d"}, ExitError},
 		"actor on http":  {[]string{"memory", "serve", "--http", "127.0.0.1:0", "--actor", "gabi"}, ExitUsage},
-		"stdio no actor": {[]string{"memory", "serve", "--stdio"}, ExitError},
+		"stdio os actor": {[]string{"memory", "serve", "--stdio"}, ExitOK}, // actor derived from the OS user
 		"tls half":       {[]string{"memory", "serve", "--http", "127.0.0.1:0", "--tls-cert", "c.pem"}, ExitError},
 	} {
 		if r := f.run("", tc.args...); r.code != tc.code || strings.Contains(r.err+r.out, "p@h") {

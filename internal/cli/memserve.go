@@ -103,7 +103,7 @@ func runMemoryServe(env Env, args []string) int {
 			}
 		}
 		if cfg.FixedActor == "" {
-			fmt.Fprintln(env.Stderr, "gabitotl memory serve: stdio needs an actor: pass --actor, or run inside a project with an active identity")
+			fmt.Fprintln(env.Stderr, "gabitotl memory serve: stdio needs an actor: pass --actor, or set GABITOTL_USER")
 			return ExitError
 		}
 	} else if *actor != "" {
