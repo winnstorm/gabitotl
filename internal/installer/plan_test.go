@@ -85,8 +85,37 @@ func TestBuildPlanRejectsUnknownRuntimeAndHandlesMissingEngram(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, pl := buildPlan(t, f, Options{})
-	if pl.Memory.Command != "" || !pl.HasNote(NoteEngramMissing) {
+	if !pl.HasNote(NoteEngramMissing) || len(pl.MemoryExtra) != 0 {
 		t.Fatalf("a missing Engram is never installed or wired: %+v", pl)
+	}
+	// The bridge does not depend on Engram: the team provider keeps working.
+	if pl.Memory.Name != "gabitotl-memory" {
+		t.Fatalf("the bridge is registered whether or not Engram exists: %+v", pl.Memory)
+	}
+	// The entry of a vanished binary is the only obsolete one (still ownership-guarded).
+	if len(pl.RetireMemory) != 1 || pl.RetireMemory[0] != "engram" {
+		t.Fatalf("retire = %v", pl.RetireMemory)
+	}
+}
+
+func TestBuildPlanReportsBothProvidersIndependently(t *testing.T) {
+	// Engram present: the bridge AND Engram's own entry, nothing retired, whatever the project chooses.
+	for _, mode := range []string{"", "team"} {
+		f := newFixture(t)
+		_, pl := buildPlan(t, f, Options{Mode: mode})
+		if pl.HasNote(NoteEngramMissing) || len(pl.MemoryExtra) != 1 || pl.MemoryExtra[0].Name != "engram" || len(pl.RetireMemory) != 0 {
+			t.Fatalf("mode %q: engram present: %+v", mode, pl)
+		}
+		if pl.Memory.Name != "gabitotl-memory" {
+			t.Fatalf("mode %q: %+v", mode, pl.Memory)
+		}
+	}
+	// Engram absent in team mode: no failure, the bridge alone, a hint only.
+	f := newFixture(t)
+	f.bins["engram"] = false
+	_, pl := buildPlan(t, f, Options{Mode: "team"})
+	if !pl.HasNote(NoteEngramMissing) || pl.Memory.Name != "gabitotl-memory" || len(pl.MemoryExtra) != 0 {
+		t.Fatalf("team without Engram: %+v", pl)
 	}
 }
 
@@ -97,10 +126,10 @@ func TestBuildPlanTeamMemoryConfiguresTheBridge(t *testing.T) {
 		t.Fatalf("%+v", pl)
 	}
 	if pl.Memory.Name != "gabitotl-memory" || pl.Memory.Command != "gabitotl" || strings.Join(pl.Memory.Args, " ") != "memory mcp" {
-		t.Fatalf("team mode registers ONE stdio entry running the bridge: %+v", pl.Memory)
+		t.Fatalf("the bridge is the stdio entry running `memory mcp`: %+v", pl.Memory)
 	}
-	if len(pl.RetireMemory) != 1 || pl.RetireMemory[0] != "engram" {
-		t.Fatalf("the engram entry is retired only if GabitoTL created it: %v", pl.RetireMemory)
+	if len(pl.RetireMemory) != 0 || len(pl.MemoryExtra) != 1 || pl.MemoryExtra[0].Name != "engram" {
+		t.Fatalf("the Engram entry stays: another project may still use it: %v %v", pl.RetireMemory, pl.MemoryExtra)
 	}
 }
 

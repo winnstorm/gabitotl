@@ -258,3 +258,35 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   (`engine.PlanKey` would replace the whole array and `PlanItem` handles strings only), see the README.
 - **Why:** presence is only useful if it covers every way of working (agents, shells, other worktrees, other machines)
   and only trustworthy if it can never get in the way (D25, D26).
+
+## D28. The memory provider is chosen per project; one bridge entry routes by project
+- **Decision:** both providers (Engram, local; memory-mcp, the shared server) are available on every machine and the choice lives
+  in `provider` of each project's `.gabitotl/memory.md`. Every runtime gets the same registration, whichever provider a project
+  uses: the `gabitotl-memory` entry running `gabitotl memory mcp`, plus Engram's own `engram` entry when the binary is on
+  `PATH`. `rt.MemoryFor(provider, engramPresent)` returns `(bridge, extra, retire)`; a known provider always yields the same
+  setup, `none` configures nothing.
+- **Path taken, and why:** the existing bridge did NOT route (it started only for memory-mcp projects, from the memory.md read
+  once at startup, and refused Engram projects). It now reads `.gabitotl/memory.md` from the project it runs in (Git top-level
+  of its working directory, or `--root`) on EVERY call (`cli.memoryRouter`): memory-mcp projects are forwarded to the team
+  server with the project's URL, token reference and key; Engram projects are served through the engram CLI provider
+  (search, save, current project, doctor). A directory without a usable memory.md still starts the server and every tool answers
+  `no memory provider configured for this project`. Explicit `--url` keeps the old plain-bridge behavior. This is the smallest
+  change that makes a single GLOBAL registration per-project; the fallback of "global registers nothing, `--scope project`
+  registers the project's provider" was not needed. Reading per call also means switching a project's provider needs no restart.
+- **Engram through the bridge is a subset:** the CLI has no update and no session summary, so `memory_update` reports
+  `unsupported` (save again with the same `topic_key`), a session summary is stored as a progress entry (as `memory.Recorder`
+  does) and `memory_active_work` is team-only. This is why Engram's own entry is kept next to the bridge: Engram-backed
+  projects keep its full native toolset. The trade-off is that a team project also sees `engram` tools in that runtime; the
+  persona and the project's memory.md decide which one to use.
+- **Retirement:** `RetireMemory` no longer removes a provider another project may use. The only obsolete entry is Engram's own
+  once its binary is gone, and the adapter removes it only when the ownership state says GabitoTL created that exact entry (user
+  entries are never touched; backups and rollback are unchanged). `PlanRetireServers` takes the list of entries that stay
+  configured, so a configured entry can never be retired.
+- **Availability reporting:** `doctor` reports Engram (binary, `engram doctor`, data) and the team server (configured,
+  reachable) as separate lines; install verification reports Engram as its own informational check. A missing Engram is a
+  warning only for a project that uses it (an error only if its data exists but the binary does not) and an informational line
+  otherwise; an unhealthy Engram in a team project is a warning. The installer never downloads or installs Engram; it prints
+  the repository URL as a hint.
+- **Migration for existing installs:** the next `gabitotl install`/`runtime apply` adds the bridge entry (Engram users) or
+  Engram's entry (team users with the binary); nothing GabitoTL created earlier is removed while Engram exists. The default
+  provider written by `init` is unchanged; the explicit per-project choice UX is a separate task.

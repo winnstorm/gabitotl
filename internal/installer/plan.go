@@ -107,9 +107,10 @@ type Plan struct {
 	Install      map[string][]rt.Action
 	Retire       map[string][]rt.Action
 	RuntimeOrder []string
-	ProjectFiles []string // .gabitotl files Init would create (absolute paths)
-	Memory       rt.MemoryMCP
-	RetireMemory []string // memory MCP entries of the other provider that a switch retires
+	ProjectFiles []string       // .gabitotl files Init would create (absolute paths)
+	Memory       rt.MemoryMCP   // the bridge: it routes by the provider of each project
+	MemoryExtra  []rt.MemoryMCP // Engram's own entry, when its binary is present
+	RetireMemory []string       // memory MCP entries that are obsolete (Engram's entry once its binary is gone)
 	Team         *TeamPlan
 	MemoryChoice string
 	GentleArgs   []string // gentle-ai uninstall arguments, nil when not retiring
@@ -216,8 +217,10 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	if err := planTeam(ctx, env, inv, opts, &pl); err != nil {
 		return pl, err
 	}
-	pl.Memory, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.Present())
-	if pl.MemoryChoice == gabitotl.MemoryEngram && !inv.Memory.Present() {
+	// Both providers are available on every machine; the choice only decides what
+	// this project's memory.md says. A missing Engram is a hint, never a failure.
+	pl.Memory, pl.MemoryExtra, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.HasBinary)
+	if !inv.Memory.HasBinary {
 		pl.note(NoteEngramMissing, "")
 	}
 	if pl.MemoryChoice == gabitotl.MemoryMemoryMCP && inv.Memory.Present() && env.Migrators != nil {
@@ -253,7 +256,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: pl.Memory, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)

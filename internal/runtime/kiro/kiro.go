@@ -136,15 +136,17 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		opts.Scope = rt.ScopeGlobal
 	}
 	plan := []rt.Action{engine.PlanSection(c.name, c.steeringPath(env, opts.Scope), "persona", opts.PersonaText, steeringHeader)}
-	if m := opts.Memory; m.Command != "" {
+	var kept []string
+	for _, m := range opts.MemoryServers() {
 		name := m.Name
 		if name == "" {
 			name = "engram"
 		}
+		kept = append(kept, name)
 		val, _ := json.Marshal(map[string]any{"command": m.Command, "args": m.Args})
 		plan = append(plan, engine.PlanServer(c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
-	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, opts.Memory.Name, opts.RetireMemory)...)
+	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	return plan, nil
 }
 

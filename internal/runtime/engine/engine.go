@@ -146,9 +146,10 @@ func PlanServer(runtime, path string, container []string, name string, value jso
 
 // PlanRetireServers plans the removal of MCP server entries that an earlier run
 // of GabitoTL created (the ownership state says so for this runtime, file and
-// exact key) and that are still present. keep is the entry that replaces them.
-// An entry the user created, or that GabitoTL merely adopted, is never planned.
-func PlanRetireServers(env rt.Env, runtime, path string, container []string, keep string, names []string) []rt.Action {
+// exact key) and that are still present. keep lists the entries that stay
+// configured: a name in keep is never retired. An entry the user created, or that
+// GabitoTL merely adopted, is never planned.
+func PlanRetireServers(env rt.Env, runtime, path string, container []string, keep []string, names []string) []rt.Action {
 	st, err := env.Store().Load()
 	if err != nil {
 		return nil
@@ -164,14 +165,14 @@ func PlanRetireServers(env rt.Env, runtime, path string, container []string, kee
 	var out []rt.Action
 	for _, name := range names {
 		key := append(append([]string(nil), container...), name)
-		if name == keep || !hasKey(st.Entries[i], key, "") {
+		if containsStr(keep, name) || !hasKey(st.Entries[i], key, "") {
 			continue
 		}
 		if _, present, err := ownership.Get(data, key); err != nil || !present {
 			continue
 		}
 		out = append(out, rt.Action{Kind: rt.RemoveAfterVerify, Runtime: runtime, Path: path, Target: "server " + name,
-			Detail: "replaced by the new memory entry; only the entry GabitoTL created is removed",
+			Detail: "obsolete memory entry; only the entry GabitoTL created is removed",
 			Edit:   rt.Edit{Op: rt.OpRemoveKey, Key: key}})
 	}
 	return out

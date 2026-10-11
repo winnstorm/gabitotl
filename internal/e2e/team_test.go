@@ -153,7 +153,7 @@ func TestTeamMemoryFlow(t *testing.T) {
 	}
 	claude := read(t, filepath.Join(m.home, ".claude.json"))
 	contains(t, ".claude.json", claude, "gabitotl-memory", `"memory"`, `"mcp"`)
-	absent(t, ".claude.json", claude, `"engram": {`, gabi)
+	absent(t, ".claude.json", claude, gabi)
 	// No secret anywhere a log, report or snapshot could carry it.
 	for _, dir := range []string{proj, filepath.Join(m.home, ".gabitotl", "migrations"), filepath.Join(m.home, ".gabitotl", "logs"), filepath.Join(m.home, ".gabitotl", "installations")} {
 		_ = filepath.WalkDir(dir, func(p string, e os.DirEntry, err error) error {
