@@ -56,7 +56,12 @@ func (c *ProjectConfig) Validate() error {
 	return oneOf("project_kind", c.ProjectKind, KindNew, KindExisting)
 }
 
-// MemoryConfig is the front matter of memory.md. Connection fields only hold
+// MemoryConfig is the MERGED view of the team-memory settings. They live in two
+// files (docs/DECISIONS.md D30): the shared, committed memory.md holds mode,
+// provider, backend, project_key and the team-reachable url; the per-person,
+// never committed local/users/<id>/memory.md holds role, instance, token,
+// postgres_connection and an optional local url override. LoadMemory merges them
+// (local wins) and SaveMemory splits them. Connection fields only hold
 // references (env:NAME, keychain:NAME, native), never secrets.
 type MemoryConfig struct {
 	Mode               string `yaml:"mode"`
@@ -281,11 +286,6 @@ func LoadProject(l Layout) (ProjectConfig, error) {
 	return c, readConfig(l.Project(), &c)
 }
 
-func LoadMemory(l Layout) (MemoryConfig, error) {
-	var c MemoryConfig
-	return c, readConfig(l.Memory(), &c)
-}
-
 func LoadRuntime(l Layout) (RuntimeConfig, error) {
 	c := RuntimeConfig{AllowModelSwitch: true}
 	return c, readConfig(l.Runtime(), &c)
@@ -306,7 +306,6 @@ func LoadWorkflow(l Layout) (WorkflowConfig, error) {
 func SaveProject(l Layout, c ProjectConfig) error {
 	return saveConfig(l.Project(), &c, bodyProject)
 }
-func SaveMemory(l Layout, c MemoryConfig) error { return saveConfig(l.Memory(), &c, bodyMemory) }
 func SaveRuntime(l Layout, c RuntimeConfig) error {
 	return saveConfig(l.Runtime(), &c, bodyRuntime)
 }

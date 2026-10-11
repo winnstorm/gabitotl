@@ -78,6 +78,10 @@ func (l Layout) LocalUserDir(user string) (string, error) {
 // LocalRuntime is the per-person runtime override.
 func (l Layout) LocalRuntime(user string) (string, error) { return l.localFile(user, "runtime.md") }
 
+// LocalMemory holds the per-person team-memory settings (role, instance, token
+// reference, database reference and an optional local server url override).
+func (l Layout) LocalMemory(user string) (string, error) { return l.localFile(user, "memory.md") }
+
 // LocalSession is the per-person session state.
 func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
 

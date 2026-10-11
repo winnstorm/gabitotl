@@ -279,7 +279,8 @@ Safety guarantees:
   project.md memory.md runtime.md vcs.md workflow.md imports.md
   users/<id>.md          shared developer profiles (never emails)
   work/<user>/<task>.md  active work, shared through Git
-  local/                 per-person runtime override and session (git-ignored)
+  local/                 per-person state (git-ignored): runtime override, session and
+                         users/<id>/memory.md (team-memory role, token variable, database ref)
   .bak/<user>/<ts>_<task>/  file snapshots with manifest.md (git-ignored)
 ```
 

@@ -26,8 +26,9 @@ func TestHostRecordsTheNamedInstanceInMemoryMD(t *testing.T) {
 	if err != nil || cfg.Instance != "trial" || cfg.Role != "host" {
 		t.Fatalf("%+v %v", cfg, err)
 	}
-	if !strings.Contains(slurp(t, l.Memory()), "instance: trial") {
-		t.Fatalf("memory.md:\n%s", slurp(t, l.Memory()))
+	lp, _ := l.LocalMemory(gabitotl.ActiveUserID())
+	if !strings.Contains(slurp(t, lp), "instance: trial") || strings.Contains(slurp(t, l.Memory()), "instance:") {
+		t.Fatalf("the instance belongs to this machine's file:\nlocal:\n%s\nshared:\n%s", slurp(t, lp), slurp(t, l.Memory()))
 	}
 	if res.Team.Instance != "trial" {
 		t.Fatalf("the result must carry the instance for the hints: %+v", res.Team)

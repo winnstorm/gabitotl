@@ -85,6 +85,9 @@ func projectPaths(env Env, pl Plan) []string {
 	if f, err := l.LocalRuntime(identity.OSUserID()); err == nil {
 		out = append(out, f)
 	}
+	if f, err := l.LocalMemory(identity.OSUserID()); err == nil {
+		out = append(out, f) // role, token reference and the like: a rollback restores them too
+	}
 	if pl.Options.UserName != "" {
 		if u, err := identity.New(pl.Options.User, pl.Options.UserName, ""); err == nil {
 			if f, err := l.UserFile(u.ID); err == nil {

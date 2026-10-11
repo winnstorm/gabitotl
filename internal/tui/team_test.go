@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/memory/migrate"
@@ -246,9 +247,19 @@ func TestClientFlowNeverShowsOrStoresTheTokenOutsideTheSecretsFile(t *testing.T)
 		})
 	}
 	mem := slurpFile(t, filepath.Join(mc.root, ".gabitotl", "memory.md"))
-	for _, want := range []string{"provider: memory-mcp", "mode: team", "role: client", "url: https://memoria.example.com/mcp", "token: env:GABITOTL_MEMORY_TOKEN"} {
+	for _, want := range []string{"provider: memory-mcp", "mode: team", "url: https://memoria.example.com/mcp"} {
 		if !strings.Contains(mem, want) {
 			t.Errorf("memory.md lacks %q:\n%s", want, mem)
+		}
+	}
+	if strings.Contains(mem, "role:") || strings.Contains(mem, "token:") {
+		t.Errorf("the committed memory.md must not carry per-machine settings:\n%s", mem)
+	}
+	localPath, _ := gabitotl.NewLayout(mc.root).LocalMemory(gabitotl.ActiveUserID())
+	local := slurpFile(t, localPath)
+	for _, want := range []string{"role: client", "token: env:GABITOTL_MEMORY_TOKEN"} {
+		if !strings.Contains(local, want) {
+			t.Errorf("the local memory.md lacks %q:\n%s", want, local)
 		}
 	}
 }
