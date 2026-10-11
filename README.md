@@ -38,7 +38,7 @@ On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
 1. what was detected (`✓` ready, `!` needs attention, `→` will be configured, `×` error);
 2. what to do (migrate Gentle-AI, install without touching it, review details, quit);
 3. "Tu memoria está segura" (reuse Engram, or go to shared team memory);
-4. only the questions that cannot be detected (name, solo or team, commits and PRs), one at a time;
+4. only the questions that cannot be detected (alone or with other people, commits and PRs), one at a time;
    for a team: "Memoria compartida (recomendado para equipos)" with two roles, host and client
    (see [Team memory](#team-memory)), and, if Engram has memory, import it, keep it as history
    or start empty;
@@ -99,13 +99,14 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `restore [id]` | List snapshots, or restore agent configs from one. |
 | `uninstall` | Remove only what GabitoTL installed, driven by its ownership state (including its Git guard hooks; a hook of yours that was chained is restored byte for byte). |
 | `cleanup` | Offer to delete expired snapshots and legacy copies (30 days). |
-| `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--vcs`. |
+| `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--provider engram\|memory-mcp`, `--vcs`. On a terminal it asks "work alone or with other people?" for a new project, and offers to change an Engram project to team memory when re-run. |
 | `scan [--json]` | Read-only project map (structure, stack, commands, recent history). |
 | `memory doctor \| search` | Memory provider health (team mode: server, token, schema, project, managed container) and relevance search. |
 | `memory server install \| start \| stop \| status \| logs \| backup \| remove` | The managed, isolated PostgreSQL of team memory. |
 | `memory serve --http ADDR \| --stdio` | Run the Memory MCP server. |
 | `memory token create \| list \| revoke` | Per-user, project-scoped bearer tokens. |
 | `memory mcp` | The stdio memory entry every runtime registers: it reads the `memory.md` of the project it runs in and forwards to the team server (`memory-mcp`) or serves Engram. |
+| `memory use <engram\|memory-mcp> [--migrate] [--yes] [--dry-run] [--role host\|client --url URL]` | Change the memory provider of this project (see [Changing the provider](#changing-the-provider)). |
 | `memory migrate engram` | Import an Engram export into the team memory (idempotent, verified, Engram untouched). |
 | `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
@@ -154,6 +155,36 @@ shared server. The installer registers the same bridge entry for everyone (plus 
 `engram mcp` entry when the binary is on `PATH`) and reports each provider separately; a missing
 Engram or an unreachable server never fails an install. GabitoTL never installs Engram: get it
 from https://github.com/Gentleman-Programming/engram.
+
+The provider is chosen by one question, never by a command: "Do you work on this project alone or
+with other people?" (`init` and the installer). Alone means Engram; with other people means the
+shared server, and the installer then asks only what the team setup needs (host or client, server
+URL, token variable, and whether to import the existing Engram memory). `--yes`, flags and a
+missing terminal never prompt: `--provider` (init) and `--memory` (install) answer it, and the
+default stays Engram.
+
+### Changing the provider
+
+A solo project that starts working with a team re-runs `gabitotl install` (or `gabitotl init`) and
+is asked once: "This project uses local memory (Engram). Do you now work with other people?". On
+yes it goes through the same team setup, including the Engram import. The non-interactive
+equivalent is the same flow with the provider fixed:
+
+```text
+gabitotl memory use memory-mcp --role host --migrate --dry-run   # plan with the entry count, changes nothing
+gabitotl memory use memory-mcp --role host --migrate --yes       # snapshot, server, import, verify
+gabitotl memory use memory-mcp --role client --url https://memoria.example.com/mcp --yes
+```
+
+The move is safe by construction: a snapshot keeps the previous `memory.md`; the import uses the
+tested Engram migrator (safety export first, no duplicates on re-runs, verified); Engram is never
+modified or deleted; and if anything fails the run rolls back and `memory.md` still points at the
+old provider (entries already imported stay in the team memory, and the report says how many).
+`--migrate` needs the host role because the import needs the database; a client imports by running
+`gabitotl memory migrate engram` on the host. Team to Engram is refused (there is no migrator in
+that direction) and leaves the project unchanged. The provider is committed in `memory.md`, so a
+change reaches teammates when they pull; `doctor` reports the chosen provider and flags a
+mismatch (for example team memory without a server).
 
 ```text
 gabitotl install --memory memory-mcp --memory-role host --user gabi        # montar el servidor

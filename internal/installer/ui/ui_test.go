@@ -145,3 +145,70 @@ func TestTeamHintsFollowTheNamedInstance(t *testing.T) {
 		t.Errorf("the default instance keeps the plain hints:\n%s", out)
 	}
 }
+
+func TestOnboardQuestionPicksTheProvider(t *testing.T) {
+	m := Default()
+	ask := func(in string, o installer.Options, n Need) (installer.Options, string) {
+		var out bytes.Buffer
+		NewPrompter(strings.NewReader(in), &out, m).Onboard(&o, n, "")
+		return o, out.String()
+	}
+	// Alone: nothing about the provider is set, the default (Engram) stays.
+	o, out := ask("1\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.Memory != "" || o.Mode != "" || !strings.Contains(out, "¿Trabajás solo o con otras personas en este proyecto?") {
+		t.Fatalf("alone: %+v\n%s", o, out)
+	}
+	// With other people: team memory, then only what the team setup needs.
+	o, out = ask("2\n1\nhttps://memoria.example.com/mcp\n\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.Memory != "memory-mcp" || o.Mode != "team" || o.MemoryRole != "client" || o.MemoryURL != "https://memoria.example.com/mcp" || o.MemoryTokenEnv != installer.DefaultTokenEnv {
+		t.Fatalf("with others (client): %+v\n%s", o, out)
+	}
+	// A bad URL is explained and asked again; it never ends the question.
+	o, out = ask("2\n1\nnot a url\nhttps://memoria.example.com/mcp\nMI_TOKEN\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.MemoryURL != "https://memoria.example.com/mcp" || o.MemoryTokenEnv != "MI_TOKEN" || !strings.Contains(out, "La URL no sirve") {
+		t.Fatalf("bad url: %+v\n%s", o, out)
+	}
+	// Host with Engram memory to import asks the import question.
+	o, _ = ask("2\n2\ns\n", installer.Options{}, Need{Mode: true, Team: true, CanImport: true})
+	if o.MemoryRole != "host" || !o.ImportEngram {
+		t.Fatalf("host: %+v", o)
+	}
+	// "Not yet" goes back to the local default.
+	o, _ = ask("2\n3\n", installer.Options{}, Need{Mode: true, Team: true})
+	if o.Memory != "" || o.Mode != "" || o.MemoryRole != "" {
+		t.Fatalf("stay: %+v", o)
+	}
+	// Flags answer the questions: a given role and URL are never asked again.
+	o, out = ask("2\n", installer.Options{MemoryRole: "client", MemoryURL: "https://memoria.example.com/mcp", MemoryTokenEnv: "X"}, Need{Mode: true, Team: true})
+	if strings.Contains(out, "¿Cómo te conectás") || o.MemoryURL != "https://memoria.example.com/mcp" {
+		t.Fatalf("flags: %+v\n%s", o, out)
+	}
+	// Ended input never answers for the user.
+	o, _ = ask("", installer.Options{}, Need{Mode: true, Team: true})
+	if o.Memory != "" || o.Mode != "" {
+		t.Fatalf("eof: %+v", o)
+	}
+}
+
+func TestOnboardOffersToChangeTheProviderOfAnExistingProject(t *testing.T) {
+	m := Default()
+	var out bytes.Buffer
+	o := installer.Options{}
+	NewPrompter(strings.NewReader("1\n"), &out, m).Onboard(&o, Need{Mode: true, Current: "engram", Team: true}, "")
+	if !strings.Contains(out.String(), "Este proyecto usa memoria local (Engram)") || o.Memory != "" {
+		t.Fatalf("declining keeps the provider: %+v\n%s", o, out.String())
+	}
+	out.Reset()
+	o = installer.Options{}
+	NewPrompter(strings.NewReader("2\n1\nhttps://memoria.example.com/mcp\n\n"), &out, m).Onboard(&o, Need{Mode: true, Current: "engram", Team: true}, "")
+	if o.Memory != "memory-mcp" || o.MemoryRole != "client" {
+		t.Fatalf("accepting moves to team memory: %+v", o)
+	}
+	// A team project whose server was never configured is asked how to connect.
+	out.Reset()
+	o = installer.Options{}
+	NewPrompter(strings.NewReader("1\nhttps://memoria.example.com/mcp\n\n"), &out, m).Onboard(&o, Need{Pending: true, Team: true}, "")
+	if o.Memory != "memory-mcp" || o.MemoryURL == "" {
+		t.Fatalf("pending: %+v", o)
+	}
+}

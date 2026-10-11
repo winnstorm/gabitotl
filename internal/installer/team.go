@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/memory/migrate"
@@ -208,6 +209,11 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 		}
 		if err := checkEndpoint(t.URL); err != nil {
 			return err
+		}
+		if opts.User == "" {
+			// The identity is the OS user: the host needs no extra question.
+			opts.User = identity.OSUserID()
+			pl.Options.User = opts.User
 		}
 		if opts.User == "" {
 			return fmt.Errorf("%w: the host creates its own token, so it needs --user", ErrTeamOptions)

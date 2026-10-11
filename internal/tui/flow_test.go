@@ -412,3 +412,27 @@ func TestContinuationLinesStayAlignedUnderTheText(t *testing.T) {
 		}
 	}
 }
+
+func TestExistingEngramProjectIsOfferedTheChangeToTeamMemory(t *testing.T) {
+	mc := newMachine(t)
+	mc.bins["gentle-ai"], mc.bins["engram"] = false, false
+	for _, d := range []string{".gentle-ai", ".engram"} {
+		if err := os.RemoveAll(filepath.Join(mc.home, d)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := mc.config(installer.Options{})
+	cfg.Need = func(installer.Inventory, installer.Options) ui.Need {
+		return ui.Need{Mode: true, Current: "engram"}
+	}
+	d := newDriver(t, cfg)
+	d.pick(lbl("tui.action.install"))
+	d.require("Este proyecto usa memoria local (Engram).") // the long title wraps
+	d.require(lbl("ask.change.no"))
+	if d.has(lbl("ask.mode")) {
+		t.Fatal("an existing project is asked about the change, not the first choice")
+	}
+	d.key("down", "enter") // yes: the second option
+	d.until("team screen", func() bool { return d.m.screen == scrTeam })
+	d.require(lbl("tui.team.title"))
+}

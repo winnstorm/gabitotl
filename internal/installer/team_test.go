@@ -451,7 +451,6 @@ func TestTeamOptionValidation(t *testing.T) {
 		"client invites":           func(o *Options) { o.MemoryRole = "client"; o.MemoryURL = "https://x/mcp"; o.Invites = []string{"a"} },
 		"client store without var": func(o *Options) { o.MemoryRole = "client"; o.MemoryURL = "https://x/mcp"; o.StoreToken = true },
 		"unknown role":             func(o *Options) { o.MemoryRole = "boss" },
-		"host without user":        func(o *Options) { o.MemoryRole = "host" },
 		"host bad invite":          func(o *Options) { o.MemoryRole = "host"; o.User = "gabi"; o.Invites = []string{"legacy"} },
 		"role without team memory": func(o *Options) { o.Memory = "engram"; o.MemoryRole = "host"; o.User = "gabi" },
 		"import without a role":    func(o *Options) { o.ImportEngram = true },
@@ -462,6 +461,13 @@ func TestTeamOptionValidation(t *testing.T) {
 		if _, _, err := r.plan(o); !errors.Is(err, ErrTeamOptions) {
 			t.Errorf("%s: want ErrTeamOptions, got %v", name, err)
 		}
+	}
+	// A host without --user takes the identity of the OS user.
+	t.Setenv("GABITOTL_USER", "ana")
+	h := base
+	h.MemoryRole = "host"
+	if _, pl, err := r.plan(h); err != nil || pl.Options.User != "ana" {
+		t.Fatalf("host without --user: %v %q", err, pl.Options.User)
 	}
 	// A URL alone implies the client role.
 	o := base

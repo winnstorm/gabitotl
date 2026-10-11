@@ -46,6 +46,8 @@ const (
 	DocMemTeamBad        = "doctor.memory.team-bad"
 	DocMemTeamContainer  = "doctor.memory.team-container"
 	DocMemTeamNone       = "doctor.memory.team-none"
+	DocMemChosen         = "doctor.memory.chosen"
+	DocMemMismatch       = "doctor.memory.mismatch"
 	DocRuntimeOK         = "doctor.runtime.ok"
 	DocRuntimeDrift      = "doctor.runtime.drift"
 	DocRuntimeTodo       = "doctor.runtime.todo"
@@ -69,7 +71,7 @@ var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "a
 var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
-	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocRuntimeOK, DocRuntimeDrift,
+	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocRuntimeOK, DocRuntimeDrift,
 	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
@@ -169,6 +171,9 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	// its own: Engram is an error only for a project that uses it and has data it
 	// cannot reach; the team server is checked below when the project uses it.
 	usesEngram := hasProject && provider == gabitotl.MemoryEngram
+	if hasProject {
+		mem = append(mem, providerLines(memCfg)...)
+	}
 	switch {
 	case m.HasBinary:
 		mem = append(mem, L(LineOK, DocMemEngram, m.Binary))
@@ -297,6 +302,21 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	}
 	add("legacy", leg...)
 	return d
+}
+
+// providerLines reports the memory provider the project chose in memory.md and
+// flags a mode that disagrees with the provider (team memory without a server or
+// token reference is reported by teamDoctor as a pending setup). Proportional on purpose: it reads the
+// file only (teamDoctor does the live checks).
+func providerLines(cfg gabitotl.MemoryConfig) []Line {
+	out := []Line{{LineOK, DocMemChosen, cfg.Provider + " (" + cfg.Mode + ")"}}
+	switch {
+	case cfg.Provider == gabitotl.MemoryMemoryMCP && cfg.Mode == gabitotl.ModeSolo:
+		out = append(out, Line{LineWarn, DocMemMismatch, "memory.md names memory-mcp but its mode is solo"})
+	case cfg.Provider == gabitotl.MemoryEngram && cfg.Mode == gabitotl.ModeTeam:
+		out = append(out, Line{LineWarn, DocMemMismatch, "memory.md has mode team but its provider is engram: run `gabitotl memory use memory-mcp`"})
+	}
+	return out
 }
 
 // teamDoctor is the read-only health check of team memory (provider

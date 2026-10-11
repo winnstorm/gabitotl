@@ -90,7 +90,20 @@ func (p *Prompter) Confirm(question string) bool {
 
 // Need says which onboarding questions are still open: only what cannot be
 // detected is ever asked (never runtime, Engram, Git or provider).
-type Need struct{ Name, Mode, Git bool }
+type Need struct {
+	Name, Mode, Git bool
+	// Current is the provider the project already uses when Mode is asked about a
+	// project that exists: the question then offers to change it (to team memory)
+	// instead of choosing one.
+	Current string
+	// Team means the team setup (role, server URL, token variable) is still open, so
+	// it is asked whenever the answers lead to team memory. CanImport adds the
+	// question about importing the existing Engram memory (host role only).
+	Team, CanImport bool
+	// Pending means the project already chose team memory but memory.md has no
+	// server yet, so the team setup is asked to finish it.
+	Pending bool
+}
 
 // Onboard asks the open questions, one at a time, and fills opts.
 func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string) {
@@ -101,14 +114,69 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 		}
 	}
 	if n.Mode {
-		if i, ok := p.Choose(p.m.Format("ask.mode"), []string{p.m.Format("ask.mode.solo"), p.m.Format("ask.mode.team")}, 0); ok && i == 1 {
-			opts.Mode = "team"
+		question, solo, team := "ask.mode", "ask.mode.solo", "ask.mode.team"
+		if n.Current != "" {
+			question, solo, team = "ask.change", "ask.change.no", "ask.change.yes"
 		}
+		if i, ok := p.Choose(p.m.Format(question), []string{p.m.Format(solo), p.m.Format(team)}, 0); ok && i == 1 {
+			opts.Mode, opts.Memory = "team", "memory-mcp"
+		}
+	}
+	if n.Pending && opts.Memory == "" {
+		opts.Mode, opts.Memory = "team", "memory-mcp"
+	}
+	if n.Team && opts.Memory == "memory-mcp" {
+		p.askTeam(opts, n)
 	}
 	if n.Git {
 		if i, ok := p.Choose(p.m.Format("ask.git"), []string{p.m.Format("ask.git.yes"), p.m.Format("ask.git.no")}, 1); ok && i == 0 {
 			opts.AutomateGit = true
 		}
+	}
+}
+
+// askTeam asks what the existing team setup needs and nothing more: the role of
+// this machine, then the server URL and token variable for a client, or whether
+// to import the Engram memory for a host. Answers given by flag are not asked
+// again, and ended input leaves the team setup undecided rather than guessing.
+func (p *Prompter) askTeam(opts *installer.Options, n Need) {
+	if opts.MemoryRole == "" && opts.MemoryURL == "" {
+		i, ok := p.Choose(p.m.Format("ask.team.role"), []string{p.m.Format("ask.team.client"), p.m.Format("ask.team.host"), p.m.Format("ask.team.stay")}, 0)
+		switch {
+		case !ok || i == 2:
+			opts.Mode, opts.Memory = "", ""
+			return
+		case i == 0:
+			opts.MemoryRole = "client"
+		default:
+			opts.MemoryRole = "host"
+		}
+	}
+	if opts.MemoryRole == "client" {
+		for opts.MemoryURL == "" {
+			url := p.Ask(p.m.Format("ask.team.url"), "")
+			if url == "" {
+				return // the plan reports the missing URL; nothing is guessed
+			}
+			if err := installer.ValidateTeamURL(url); err != nil {
+				fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.team.badurl", "detail", err.Error()))
+				continue
+			}
+			opts.MemoryURL = url
+		}
+		if opts.MemoryTokenEnv == "" {
+			for {
+				env := p.Ask(p.m.Format("ask.team.tokenenv"), installer.DefaultTokenEnv)
+				if installer.ValidTokenEnv(env) {
+					opts.MemoryTokenEnv = env
+					break
+				}
+				fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.team.badenv"))
+			}
+		}
+	}
+	if opts.MemoryRole == "host" && n.CanImport && !opts.ImportEngram {
+		opts.ImportEngram = p.Confirm(p.m.Format("ask.team.import"))
 	}
 }
 

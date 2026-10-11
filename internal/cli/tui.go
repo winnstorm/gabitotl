@@ -19,6 +19,7 @@ var tuiRunFn = tui.Run
 func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths ui.Paths) int {
 	m := ui.Default()
 	ctx := context.Background()
+	before := projectProvider(root)
 	opts := installer.Options{
 		Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
 		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, NoGuardHooks: f.noGuardHooks,
@@ -52,6 +53,9 @@ func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths 
 	ui.RenderOutcome(env.Stdout, env.Stderr, m, out.Result, out.Inv, paths, out.Err)
 	if out.Err != nil {
 		return ExitError
+	}
+	if after := projectProvider(root); before != "" && after != before {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymWarn, m.Format("memory.changed.advisory"))
 	}
 	return ExitOK
 }

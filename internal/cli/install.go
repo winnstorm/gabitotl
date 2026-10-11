@@ -176,14 +176,28 @@ func suggestName(ctx context.Context, ienv installer.Env, root string) string {
 	return ""
 }
 
-// openQuestions is what cannot be detected and so must still be asked: solo or
-// team and Git automation for a new project. The identity comes from the OS
-// user, so nobody is asked who they are.
-func openQuestions(_ string, inv installer.Inventory, opts installer.Options) ui.Need {
-	return ui.Need{
-		Mode: opts.Memory == "" && !inv.Project.Exists,
-		Git:  !inv.Project.Exists,
+// openQuestions is what cannot be detected and so must still be asked: alone or
+// with other people (which picks the memory provider) and Git automation for a
+// new project. A project that already uses Engram is asked once whether it now
+// works with other people, to move it to team memory. The identity comes from the
+// OS user, so nobody is asked who they are.
+func openQuestions(root string, inv installer.Inventory, opts installer.Options) ui.Need {
+	need := ui.Need{Git: !inv.Project.Exists}
+	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(root))
+	known := inv.Project.Exists && err == nil
+	switch {
+	case opts.Memory != "":
+	case !inv.Project.Exists:
+		need.Mode = true
+	case known && cfg.Provider == gabitotl.MemoryEngram:
+		need.Mode, need.Current = true, cfg.Provider
 	}
+	// The team setup is open until memory.md carries a server; flags answer it.
+	configured := known && cfg.Provider == gabitotl.MemoryMemoryMCP && cfg.URL != ""
+	need.Pending = known && cfg.Provider == gabitotl.MemoryMemoryMCP && !configured && opts.Memory == ""
+	need.Team = opts.MemoryRole == "" && opts.MemoryURL == "" && !configured
+	need.CanImport = inv.Memory.Present() && inv.Memory.ProjectMatch != "" && inv.Server.CanImport
+	return need
 }
 
 // execute is the shared install/migrate flow: detect, ask only what cannot be
@@ -207,6 +221,7 @@ func execute(env Env, f installFlags, source string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
 	paths := ui.Paths{Home: ienv.Home, Root: root}
+	before := projectProvider(root)
 	interactive := env.IsTTY && !f.yes && !f.dryRun
 	if interactive && f.tui && env.IsOutTTY && source == installer.SourceInstall {
 		return executeTUI(env, f, ienv, root, paths)
@@ -299,5 +314,18 @@ func execute(env Env, f installFlags, source string) int {
 	if err != nil {
 		return ExitError
 	}
+	if after := projectProvider(root); before != "" && after != before {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymWarn, m.Format("memory.changed.advisory"))
+	}
 	return ExitOK
+}
+
+// projectProvider is the memory provider memory.md names now ("" when the project
+// has none yet), read to tell whether a run changed it.
+func projectProvider(root string) string {
+	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(root))
+	if err != nil {
+		return ""
+	}
+	return cfg.Provider
 }
