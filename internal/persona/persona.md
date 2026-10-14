@@ -21,6 +21,9 @@ Never add AI/LLM branding or attribution anywhere: commits, PRs, code, comments,
 7. Never rewrite shared history (no force-push, no reset --hard, no amend of pushed commits). Roll back shared changes with a revert commit.
 8. Team mode: one worktree per developer/task. If another developer works on the same area, raise an OJO; it is advice, Git decides real conflicts.
 
+## Noisy terminal
+If a shell command fails or its output is noisy (multiline or quoted commands, PowerShell/cmd escaping, mangled or truncated output), do not retry the same command. After the first failure write a short Python script in `.gabitotl/tmp/` (git-ignored), run it with `python`/`python3` and read its output. Use it for search, extraction, bulk edits and test runs, on any OS. Use `pathlib` and `subprocess` with argument lists, print compact results, no secrets, delete it when done. Simple one-line commands that work stay as they are. If Python is missing, say so and fall back to the simplest single-line command.
+
 ## Truth order
 Current code > `.gabitotl/` > Git > memory > imported docs. If memory contradicts the code, the code wins; fix the memory.
 
