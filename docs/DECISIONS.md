@@ -345,3 +345,27 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   per-machine fields still in the shared file, with the exact fix.
 - **Warning fix:** the skipped-import message is a coded notice (`Result.Notices`, `note.import-skipped-*`) with advice by
   role: hosts are told to start the server, clients to ask the host for a token when their variable is unset.
+
+## D31. Gentle AI's Kiro assets are retired into a restorable backup
+- **Problem:** Gentle AI writes always-on assets into Kiro (`steering/gentle-ai.md` with `inclusion: always`, skills,
+  agents). Next to GabitoTL's steering file Kiro then runs two personas at once, and the existing persona detector only
+  matches blocks named "persona" and only runs for Claude Code.
+- **Decision:** with `Options.RetireGentleKiro` the installer moves those assets, and only those, into the snapshot of the
+  install and removes them after verification. It is not `gentle-ai uninstall` (D14 is unchanged): Gentle AI itself,
+  its state and its other agents are untouched.
+- **Ownership proof:** the steering file by name; a skill directory only when its `SKILL.md` front matter has
+  `metadata.author: gentleman-programming` (BOM, CRLF and quotes tolerated; unparsable means not Gentle's), and then
+  only its Markdown files (top level and `references/`); `skills/_shared` by its known file names; agents by Gentle's
+  names plus the plain file names in `agents/.gentle-ai-native-agent-ownership.json` and the manifest itself. Anything
+  else inside those directories (a user file in a Gentle skill, a user agent, `settings/`, MCP entries) is kept and
+  reported. Directories are removed only when the removal emptied them.
+- **Order:** the files are copied under `gentle-kiro/<base>/` in the snapshot, each copy verified by size and SHA-256,
+  before any mutation; a failed copy aborts the run with nothing removed. Removal runs in the retire phase, after the
+  critical checks, re-verifies every saved copy first, and skips (and reports) a file whose content changed since the
+  plan. A failed run rolls back as usual and removes nothing it had not already verified.
+- **Restore:** the copies are ordinary manifest files, so `gabitotl restore <id>` and the rollback reuse the existing
+  mechanism and older snapshots stay restorable. Restore now refuses to write a saved copy whose hash no longer matches
+  the manifest.
+- **Scope:** the global tree (`KIRO_HOME` or `~/.kiro`) and the workspace `.kiro`, found through the adapter
+  (`ForeignAssetRoots`), so the core never branches on runtime names (D3). The question, flag and doctor report belong to
+  the presenters.

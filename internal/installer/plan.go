@@ -37,9 +37,12 @@ type Options struct {
 	AutomateGit    bool     // let Gabito handle commits and PRs (vcs.md permissions)
 	MigratePersona bool     // retire the managed Gentleman/Gentle-AI persona block after verify
 	RemoveGentleAI bool     // run Gentle-AI's own uninstall after verify (destructive)
-	PreserveEngram bool     // informational: Engram is always adopted, never copied
-	NoGuardHooks   bool     // do not install the authorship guard Git hooks (remembered in workflow.md)
-	DryRun         bool
+	// RetireGentleKiro moves Gentle AI's files in Kiro (steering, skills, agents)
+	// into the snapshot and removes them after verify. Gentle AI itself is untouched.
+	RetireGentleKiro bool
+	PreserveEngram   bool // informational: Engram is always adopted, never copied
+	NoGuardHooks     bool // do not install the authorship guard Git hooks (remembered in workflow.md)
+	DryRun           bool
 
 	// Team memory (see team.go). Only meaningful with Memory memory-mcp.
 	MemoryRole     string   // host | client
@@ -72,6 +75,9 @@ const (
 	NoteGentleManual    = "gentle-ai-manual-uninstall"
 	NoteMemoryUnhealthy = "memory-unhealthy"
 	NoteEngramNoBackup  = "engram-not-exportable"
+	// Gentle AI's files in Kiro: present and kept, or asked for but not found.
+	NoteGentleKiroPresent = "gentle-kiro-present"
+	NoteGentleKiroNone    = "gentle-kiro-none"
 )
 
 // PlanItem is one line of the plan.
@@ -94,6 +100,11 @@ const (
 	WhyUserAssets    = "user-assets"
 	WhyUninstallAll  = "gentle-uninstall-all"
 	WhyImportDone    = "import-unchanged"
+	// Gentle AI's files in Kiro, retired into the snapshot after verify.
+	WhyGentleKiroSteering = "gentle-kiro-steering"
+	WhyGentleKiroSkills   = "gentle-kiro-skills"
+	WhyGentleKiroAgents   = "gentle-kiro-agents"
+	WhyGentleKiroShared   = "gentle-kiro-shared"
 )
 
 // Plan is the pure description of a run. Building it writes nothing.
@@ -114,7 +125,10 @@ type Plan struct {
 	Team         *TeamPlan
 	MemoryChoice string
 	GentleArgs   []string // gentle-ai uninstall arguments, nil when not retiring
-	Notes        []Note
+	// GentleKiro is Gentle AI's footprint in the Kiro trees of the selected
+	// runtimes; nil when there is none. Presenters ask about it and doctor reports it.
+	GentleKiro *GentleKiroInventory
+	Notes      []Note
 }
 
 // Sentinel errors of plan building.
@@ -308,6 +322,8 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		}
 	}
 
+	planGentleKiro(env, opts, &pl)
+
 	// Retirement of Gentle-AI: its own mechanism, after verify.
 	if opts.RemoveGentleAI && g.Found {
 		args, manual := GentleUninstallArgs(g, pl.RuntimeOrder)
@@ -366,8 +382,8 @@ func GentleUninstallArgs(g GentleAI, selected []string) (args []string, manual b
 // WhyCodes, NoteCodes and WarningCodes list every code presenters must have
 // wording for; a test in package ui keeps the messages file complete.
 var (
-	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone}
-	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteTeamNotReady, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup, NoteTeamURLMissing, NoteTeamTokenMissing, NoticeImportSkippedHost, NoticeImportSkippedClient, NoticeImportSkippedNoToken}
+	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone, WhyGentleKiroSteering, WhyGentleKiroSkills, WhyGentleKiroAgents, WhyGentleKiroShared}
+	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteTeamNotReady, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup, NoteGentleKiroPresent, NoteGentleKiroNone, NoteTeamURLMissing, NoteTeamTokenMissing, NoticeImportSkippedHost, NoticeImportSkippedClient, NoticeImportSkippedNoToken}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
 
@@ -375,7 +391,7 @@ var (
 // snapshot itself. A plan that does not mutate is an idempotent re-run: nothing
 // to apply, no new snapshot.
 func (p Plan) Mutates() bool {
-	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || (p.Team != nil && !p.Team.Unchanged) {
+	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || p.retireGentleKiro() || (p.Team != nil && !p.Team.Unchanged) {
 		return true
 	}
 	for _, it := range p.Items {

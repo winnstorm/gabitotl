@@ -17,6 +17,10 @@ why.gentle-backups = backups de Gentle-AI; los dejo para la limpieza diferida
 why.user-assets = skills y configuración propios; no los administra GabitoTL
 why.gentle-uninstall-all = mecanismo propio de Gentle-AI, recién después de verificar
 why.import-unchanged = ya importado y sin cambios
+why.gentle-kiro-steering = archivo de instrucciones de Gentle AI en Kiro; va al backup y se retira recién después de verificar
+why.gentle-kiro-skills = skills de Gentle AI en Kiro; van al backup y se retiran recién después de verificar (los tuyos no se tocan)
+why.gentle-kiro-agents = agentes de Gentle AI en Kiro; van al backup y se retiran recién después de verificar (los tuyos no se tocan)
+why.gentle-kiro-shared = referencias compartidas de Gentle AI en Kiro; van al backup y se retiran recién después de verificar
 
 # --- notes raised while planning -----------------------------------------
 note.no-runtimes = No encontré ningún coding agent para configurar. Dejo solo el proyecto armado.
@@ -39,6 +43,8 @@ note.persona-conflict = Ojo: {detail} tiene la persona de Gentleman y la de Gabi
 note.gentle-ai-manual-uninstall = Ojo: Gentle-AI también maneja agentes que GabitoTL no reemplaza, así que no ejecuto su desinstalación completa. Si querés retirarlo, corré vos el desinstalador propio de Gentle-AI.
 note.gentle-ai-agents-unmatched = Ninguno de los runtimes elegidos coincide con un agente de Gentle-AI: no hay nada que retirar con seguridad.
 note.memory-unhealthy = Engram reporta errores. No toco nada hasta que `engram doctor` quede limpio.
+note.gentle-kiro-present = Encontré {detail} archivo(s) de Gentle AI en Kiro. Si los dejás, Kiro va a tener dos personas activas a la vez. Puedo pasarlos a un backup: con `gabitotl restore` los recuperás tal cual, y Gentle AI en sí no se toca.
+note.gentle-kiro-none = No encontré archivos de Gentle AI en Kiro para retirar, así que no hay nada para mover.
 note.engram-not-exportable = Encontré datos de Engram pero no el binario: no puedo hacer el export de seguridad.
 
 # --- Engram topology warnings (spec 55) ------------------------------------
