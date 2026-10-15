@@ -361,6 +361,18 @@ permissions, so an agent can call them as they are.
 | `gabitotl vcs pr --title T [--body B] [--base X] [--draft]` | Opens the pull request of the current branch, or returns the open one. Base: `--base`, else `base_branch`, else the repository default. Draft: `--draft[=false]`, else `draft_prs`. Checks the login first and prints the exact fix instead of prompting. |
 | `gabitotl vcs merge [--pr URL\|ID] [--wait 20m]` | Waits for the checks and merges with `merge_method` and `delete_branch`. Passing checks (or none) merge; failing checks do not merge and exit non-zero naming the state; checks still running after the wait do not merge either. Afterwards it fetches, returns to the base branch and deletes the local branch when that is safe. |
 
+| `gabitotl vcs ship -m MSG --title T [--body B] [--dry-run] [--json]` | The whole flow: checks the login, commits if the tree is dirty, pushes, opens (or reuses) the PR and merges when `permissions.merge` is `allow` and the checks pass; then returns to an up-to-date base. If merge is not `allow` it stops after the PR and says who merges (`ask` on a terminal asks y/n about that one operation; without a terminal it names the setting and `gabitotl vcs setup`). It never pushes the base branch: from the base it creates a task branch at HEAD and leaves your local base as it was. One line per step; `--json` prints steps, branch, PR URLs, merged yes/no and the reason it stopped; `--dry-run` prints the plan and changes nothing. |
+
+**Big work is sliced by itself.** `ship` counts the lines you wrote (additions plus deletions of the commits ahead of
+the base; lock files, snapshots, minified, generated and vendored files do not count). If the total is above
+`pr_budget_lines` (default 400) and `chain` is `stacked`, it cuts the commits into slices at commit boundaries, each
+within the budget, publishes them as `<branch>-1 .. <branch>-N`, opens stacked PRs (the first targets the base, each
+next one targets the previous) and merges them in order. A single commit above the budget goes alone in its own
+slice and is reported, never split. Chains are merged with the plain `merge` method whatever `merge_method` says,
+because squashing a parent would break its children; each child is pointed back at the base before its parent is
+merged. Your original branch is not touched. With `chain: none` it opens one PR and only reports the size. Nothing
+here is ever a question.
+
 Without `--pr`, `merge` finds the open pull request of the current branch. The local branch is only
 deleted when it is exactly what `origin` has, so nothing unpublished is ever lost.
 

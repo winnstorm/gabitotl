@@ -494,11 +494,19 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   delete the local branch only when `delete_branch` is on and its tip equals `origin/<branch>` as it was before the
   merge (`-D` is needed because a squash leaves the branch looking unmerged). Anything unsafe is skipped with a note
   and never fails a merge that already happened.
-- **Decided for the next step (`vcs ship`):** chains of stacked PRs are merged with the plain `merge` method whatever
+- **`vcs ship` (implemented, `ship.go`):** chains of stacked PRs are merged with the plain `merge` method whatever
   `merge_method` says, because squashing a parent rewrites the commits its children are built on and force-pushing
   to repair them is forbidden; PR k+1 is retargeted to the base before PR k is merged. `ship` never pushes the base
   branch: from the base it first creates a task branch at HEAD and leaves the local base alone. Size is never a
   question: work above `pr_budget_lines` is sliced at commit boundaries according to `chain`.
+- **Slicing details:** authored lines are additions plus deletions from `git show --numstat` of each commit ahead of
+  `origin/<base>` (binary files and a small list of lock, snapshot, minified, generated and vendored paths are not
+  counted). The split is greedy at commit boundaries; a commit over the budget is its own slice, reported and never
+  split. Slice branches `<branch>-N` are created at each slice end and published; the original branch is left alone.
+  The merge question is asked once for the whole series. For each part the checks are awaited, the next part is
+  retargeted to the base, and only then the part is merged; a failure midway stops there and reports what merged.
+  A merge stopped by `deny`, by `ask` without a terminal or by a declined `ask` is a planned outcome and exits 0
+  with the reason in the result (`merge-denied`, `merge-ask`, `merge-declined`).
 - **Tests:** temp repositories with a bare repository on disk as `origin`, a fake `Host` and a fake clock; nothing
   touches a network, a real `gh`/`glab` or this repository. The authorship-guard hooks that `init` installs call the
   `gabitotl` binary, which under test is the test binary itself, so tests that commit after `init` point

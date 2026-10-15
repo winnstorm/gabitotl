@@ -22,6 +22,8 @@ type deliveryHost struct {
 	open       map[string]vcs.PR // head branch -> PR
 	created    []vcs.PRRequest
 	merged     []vcs.PR
+	methods    []string
+	events     []string     // "retarget:<url>:<base>" and "merge:<url>", in call order
 	checks     []vcs.Checks // the last one repeats
 	checkCalls int
 }
@@ -47,11 +49,16 @@ func (h *deliveryHost) FindPR(_ context.Context, _, head string) (vcs.PR, bool, 
 	pr, ok := h.open[head]
 	return pr, ok, nil
 }
-func (h *deliveryHost) MergePR(_ context.Context, _ string, pr vcs.PR, _ vcs.MergeOptions) error {
+func (h *deliveryHost) MergePR(_ context.Context, _ string, pr vcs.PR, o vcs.MergeOptions) error {
 	h.merged = append(h.merged, pr)
+	h.methods = append(h.methods, o.Method)
+	h.events = append(h.events, "merge:"+pr.URL)
 	return nil
 }
-func (h *deliveryHost) SetBase(context.Context, string, vcs.PR, string) error { return nil }
+func (h *deliveryHost) SetBase(_ context.Context, _ string, pr vcs.PR, base string) error {
+	h.events = append(h.events, "retarget:"+pr.URL+":"+base)
+	return nil
+}
 func (h *deliveryHost) ChecksState(context.Context, string, vcs.PR) (vcs.Checks, error) {
 	i := min(h.checkCalls, len(h.checks)-1)
 	h.checkCalls++
@@ -93,6 +100,10 @@ func deliveryProject(t *testing.T, change func(*gabitotl.VCSConfig)) (root strin
 	if err := gabitotl.SaveVCSFor(layout, "tester", cfg); err != nil {
 		t.Fatal(err)
 	}
+	// The project files init wrote are part of the base, so the base starts clean.
+	gitOut(t, root, "add", "-A")
+	gitOut(t, root, "commit", "-q", "-m", "chore: add the gabitotl project files")
+	gitOut(t, root, "push", "-q", "origin", "main")
 	h, clk = newDeliveryHost(), &fakeClock{now: time.Unix(0, 0)}
 	oldHost, oldWaiter := deliveryHostFn, deliveryWaiterFn
 	deliveryHostFn = func(string, string, gabitotl.VCSConfig) (vcs.Host, error) { return h, nil }
