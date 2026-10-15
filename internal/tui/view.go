@@ -181,6 +181,9 @@ func (m *Model) frame() frame {
 	case scrPersona:
 		fr.subtitle = f("tui.persona.title")
 		fr.body, fr.focus = m.personaBody()
+	case scrGentleKiro:
+		fr.subtitle = f("tui.gentle-kiro.title")
+		fr.body, fr.focus = m.gentleKiroBody()
 	case scrPlan:
 		fr.subtitle, fr.help = f("tui.plan.title"), f("tui.help.plan")
 		fr.body, fr.focus = m.planBody()
@@ -354,6 +357,22 @@ func (m *Model) personaBody() ([]string, int) {
 	return append(body, menu...), len(body) + focus
 }
 
+func (m *Model) gentleKiroBody() ([]string, int) {
+	f := m.msg.Format
+	body := []string{m.st.line(ui.SymWarn, f("ask.gentle-kiro.title")), ""}
+	if m.plan.GentleKiro != nil {
+		for _, l := range ui.GentleKiroFacts(m.msg, *m.plan.GentleKiro) {
+			body = append(body, l)
+			if !m.compact() {
+				body = append(body, "")
+			}
+		}
+	}
+	menu, focus := m.menu(m.items())
+	body = append(body, f("ask.gentle-kiro.confirm"), "")
+	return append(body, menu...), len(body) + focus
+}
+
 // planSymbols maps a plan verb to its state symbol (spec 50).
 func planSymbol(k rt.Kind) string {
 	switch k {
@@ -378,6 +397,9 @@ func (m *Model) planBody() ([]string, int) {
 	for _, n := range m.plan.Notes {
 		if n.Code == installer.NotePersonaConflict && m.personaAsked {
 			continue // already asked and answered; the note only points at a CLI flag
+		}
+		if n.Code == installer.NoteGentleKiroPresent && m.gentleKiroAsked {
+			continue // same for the Kiro question
 		}
 		body = append(body, m.st.line(ui.SymWarn, f("note."+n.Code, "detail", n.Detail)))
 	}

@@ -56,6 +56,7 @@ const (
 	DocRuntimeTodo       = "doctor.runtime.todo"
 	DocRuntimeHistory    = "doctor.runtime.history"
 	DocRuntimeConflict   = "doctor.runtime.persona-conflict"
+	DocRuntimeGentleKiro = "doctor.runtime.gentle-kiro"
 	DocGitRepo           = "doctor.git.repo"
 	DocGitNoRepo         = "doctor.git.no-repo"
 	DocGitProvider       = "doctor.git.provider"
@@ -75,7 +76,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -254,6 +255,9 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 			rts = append(rts, L(LineTodo, DocRuntimeTodo, r.Label))
 		default:
 			rts = append(rts, L(LineWarn, DocRuntimeHistory, r.Label))
+		}
+		if isManaged && gentleKiroCoexists(env, r.Name) {
+			rts = append(rts, L(LineWarn, DocRuntimeGentleKiro, r.Name)) // a warning, never a failure: the user may want both
 		}
 		for _, c := range r.Conflicts {
 			rts = append(rts, L(LineWarn, DocRuntimeConflict, r.Label+": "+c.Detail))

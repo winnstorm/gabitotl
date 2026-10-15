@@ -22,7 +22,7 @@ func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths 
 	before := projectProvider(root)
 	opts := installer.Options{
 		Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
-		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, NoGuardHooks: f.noGuardHooks,
+		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, NoGuardHooks: f.noGuardHooks,
 	}
 	if opts.UserName == "" {
 		opts.UserName = f.user

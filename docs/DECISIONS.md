@@ -369,3 +369,17 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Scope:** the global tree (`KIRO_HOME` or `~/.kiro`) and the workspace `.kiro`, found through the adapter
   (`ForeignAssetRoots`), so the core never branches on runtime names (D3). The question, flag and doctor report belong to
   the presenters.
+- **Interaction rules (ask, never assume):** the retirement happens only on an explicit yes. On a terminal the plain
+  installer and the full-screen one show what was found (steering yes/no, skills, agents, shared references), what stays
+  (the user's files inside those folders, MCP entries, Gentle AI itself) and ask; the default answer is no (Enter, an
+  unknown answer or closed input keep both) and the TUI cursor starts on "keep both". A yes replans, so the plan lists
+  exactly what moves before the final confirmation. Without a terminal, or with `--yes` alone, nothing is retired and
+  nothing is asked: `NoteGentleKiroPresent` names `--retire-gentle-kiro`, the only non-interactive way to say yes (also
+  accepted by `migrate gentle-ai`). `--dry-run` never asks and renders the plan as the flag would. Quitting before apply
+  changes nothing. After a retirement the inventory is empty, so a re-run asks nothing and creates no snapshot.
+- **Doctor:** when a Kiro runtime managed by GabitoTL has its own `steering/gabitotl.md` and Gentle AI's files are still in
+  the same tree, `doctor` adds a warning (never an error, so the exit code does not change) that two always-on instruction
+  sets apply, with `gabitotl install --runtime <kiro-cli|kiro-ide> --retire-gentle-kiro`. With nothing in common it says
+  nothing.
+- **Result:** the report prints the number of files moved, the snapshot id with `gabitotl restore <id>`, and briefly the
+  files skipped (changed since the plan) and the user's files kept.
