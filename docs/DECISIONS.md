@@ -511,3 +511,17 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   touches a network, a real `gh`/`glab` or this repository. The authorship-guard hooks that `init` installs call the
   `gabitotl` binary, which under test is the test binary itself, so tests that commit after `init` point
   `core.hooksPath` at an empty directory.
+
+## D36. The eight skills are GabitoTL's own; they do not copy SDD phases
+- **Problem:** the persona is always on and must stay small, but delegation, memory, team and delivery rules are
+  too long to repeat in it. Importing another harness's phase skills would also bring its workflow and vocabulary.
+- **Decision:** eight embedded skills (`gabito-orquestador`, `-recolector`, `-escritor`, `-verificador`, `-memoria`,
+  `-equipo`, `-entrega`, `-terminal`), each loaded only when its moment comes. They describe roles (orchestrator,
+  one sequential helper) and routes (inline, mapper, writer, verifier) instead of SDD phases, so a small task costs
+  nothing extra. `gabito-entrega` replaces work-unit-commits, chained-pr and branch-pr and drives the `vcs`
+  commands of D33-D35. The persona gets one line telling the agent to load the matching skill.
+- **Drift test:** a test in `internal/cli` extracts every `gabitotl <command> [<subcommand>]` from the skills'
+  backticks and code blocks and fails if the command or subcommand is not in the CLI registry; another keeps the
+  subcommand lists honest against each group's usage, and a third forbids any "size exception" wording.
+- **Memory tools:** the skills name the `memory_*` bridge tools, which serve Engram and team projects alike.
+

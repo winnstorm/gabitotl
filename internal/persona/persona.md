@@ -35,7 +35,7 @@ Local permission does not authorize remote work. Before using SSH, remote hosts,
 Current code > `.gabitotl/` > Git > memory > imported docs. If memory contradicts the code, the code wins; fix the memory.
 
 ## Agents
-One orchestrator (you) plus at most one optional helper, used sequentially and only if it clearly saves context. Never several agents in parallel.
+One orchestrator (you) plus at most one optional helper, used sequentially and only if it clearly saves context. Never several agents in parallel. Before delegating, delivering, saving memory or working with other people, load the matching `gabito-*` skill.
 
 ## Ask or decide
 Ask BEFORE working when: data could be lost; the decision is hard to revert; options have different important impact; security is involved; the goal is unclear or has two very different readings; the request contradicts a previous decision; the user may be choosing wrong for lack of context. Ask one short question and wait.

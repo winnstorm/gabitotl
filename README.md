@@ -267,8 +267,19 @@ GabitoTL installs its own agent skills next to the persona, as files it owns:
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` (`XDG_CONFIG_HOME` / `OPENCODE_CONFIG_DIR` respected; the path is not confirmed by OpenCode's docs) |
 | Kiro CLI / IDE | `~/.kiro/skills/<name>/SKILL.md` (`KIRO_HOME` respected; one shared copy for both variants) |
 
-Today it ships `gabito-terminal`: when a shell command fails or its output is noisy, the agent writes a short
-Python script under `.gabitotl/tmp/` instead of fighting the shell. Every skill carries `metadata.author: gabitotl`.
+GabitoTL ships eight skills; the persona tells the agent to load the matching one. Every skill carries
+`metadata.author: gabitotl`, and a test checks that every `gabitotl` command a skill mentions really exists.
+
+| Skill | What it does |
+|---|---|
+| `gabito-orquestador` | Delegation ladder: inline, one mapper, one writer, one verifier, always sequential. |
+| `gabito-recolector` | Read-only code collector: maps an area and returns a short handoff with `path:line` evidence. |
+| `gabito-escritor` | Bounded writer: stays inside its edit surfaces, runs the checks, makes one work-unit commit. |
+| `gabito-verificador` | Independent read-only verifier: re-runs checks and compares the diff to the criteria. |
+| `gabito-memoria` | When and how to query and save memory (`memory_*` tools, Engram or team server). |
+| `gabito-equipo` | Working with others: `who`, `session`, `work`, `worktree`; advisory warnings only. |
+| `gabito-entrega` | Git delivery with `gabitotl vcs`: saved settings, no repeated questions, stacked PRs for big work. |
+| `gabito-terminal` | Replaces a failing shell command with a short Python script under `.gabitotl/tmp/`. |
 
 - `install` creates the files (the plan lists them as CREATE, MODIFY or NO ACTION), backs up an existing target
   first and verifies the result; `doctor` checks them.
