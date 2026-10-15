@@ -19,7 +19,7 @@ import (
 
 func runVCS(env Env, args []string) int {
 	return subcommands(env, "vcs", args, map[string]func(Env, []string) int{
-		"status": runVCSStatus, "branch": runVCSBranch, "setup": runVCSSetup,
+		"status": runVCSStatus, "branch": runVCSBranch, "setup": runVCSSetup, "login": runVCSLogin,
 	})
 }
 
@@ -137,6 +137,7 @@ func runVCSSetup(env Env, args []string) int {
 		}
 		ui.NewPrompter(env.Stdin, env.Stdout, m).Delivery(&da, need)
 	}
+	adoptInferredProvider(dir, cfg, &da)
 	if da.Empty() {
 		printDeliverySummary(env.Stdout, m, cfg)
 		if !env.IsTTY && !*yes {
@@ -153,6 +154,24 @@ func runVCSSetup(env Env, args []string) int {
 	fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.setup.saved."+res.Target, "path", res.Path))
 	printDeliverySummary(env.Stdout, m, res.Config)
 	return ExitOK
+}
+
+// adoptInferredProvider fills in the platform when nobody chose one: if the
+// answers carry no provider and the configured one is the generic "git" (or none),
+// the platform origin points at is adopted, so a GitLab or Bitbucket remote is not
+// left as "git". An explicit choice is never touched. It only applies when
+// something else was answered, so a bare `--yes` still changes nothing.
+func adoptInferredProvider(dir string, cfg gabitotl.VCSConfig, da *gabitotl.DeliveryAnswers) {
+	if da.Provider != "" || da.Empty() || (cfg.Provider != "" && cfg.Provider != "git") {
+		return
+	}
+	st, err := vcs.New(dir, cfg).Status(context.Background())
+	if err != nil {
+		return
+	}
+	if _, ok := platformNames[st.Provider]; ok || st.Provider == "azure-devops" {
+		da.Provider = st.Provider
+	}
 }
 
 func runVCSStatus(env Env, args []string) int {
@@ -183,6 +202,7 @@ func runVCSStatus(env Env, args []string) int {
 	layout := gabitotl.NewLayout(dir)
 	origin := gabitotl.InspectVCS(layout, gabitotl.ActiveUserID())
 	c := repo.Config
+	authState, authKnown := authOf(ctx, dir, c)
 	if *asJSON {
 		enc := json.NewEncoder(env.Stdout)
 		enc.SetIndent("", "  ")
@@ -194,9 +214,10 @@ func runVCSStatus(env Env, args []string) int {
 			Files       any    `json:"files"`
 			Automation  string `json:"automation"`
 			IsSetUp     bool   `json:"delivery_configured"`
+			Auth        any    `json:"auth"`
 		}{st, c.Provider, c.Permissions, c, map[string]any{
 			"shared": origin.SharedPath, "yours": origin.LocalPath, "yours_exists": origin.HasLocal, "yours_overrides": origin.Overrides,
-		}, c.AutomationLevel(), c.IsConfigured()})
+		}, c.AutomationLevel(), c.IsConfigured(), authJSON(authState, authKnown)})
 		return ExitOK
 	}
 	if !st.IsRepo {
@@ -224,12 +245,13 @@ func runVCSStatus(env Env, args []string) int {
 		p.PullRequests, mine("pull_requests"), p.MergePermission(), mine("merge"))
 	fmt.Fprintf(env.Stdout, "merge_method: %s\ndelete_branch: %t\ndraft_prs: %t\nbase_branch: %s\npr_budget_lines: %d\nchain: %s\n",
 		c.EffectiveMergeMethod(), c.DeleteBranch, c.DraftPRs, defaultWord(c.BaseBranch), c.Budget(), c.ChainStrategy())
+	fmt.Fprintf(env.Stdout, "auth: %s\n", authLine(authState, authKnown))
 	if c.Auth != "" {
 		src := "shared"
 		if origin.AuthFromLocal {
 			src = "yours"
 		}
-		fmt.Fprintf(env.Stdout, "auth: %s (%s)\n", c.Auth, src)
+		fmt.Fprintf(env.Stdout, "auth_ref: %s (%s)\n", c.Auth, src)
 	}
 	yours := "-"
 	if origin.LocalPath != "" {
@@ -243,6 +265,25 @@ func runVCSStatus(env Env, args []string) int {
 		fmt.Fprintf(env.Stdout, "overridden by you: %s\n", strings.Join(origin.Overrides, ", "))
 	}
 	return ExitOK
+}
+
+// authLine is the `auth:` value of vcs status: ok, or what is missing with the
+// exact fix, or n/a for a platform GabitoTL does not drive.
+func authLine(st vcs.AuthState, known bool) string {
+	switch {
+	case !known:
+		return "n/a"
+	case st.OK():
+		return "ok (" + st.Provider + ")"
+	}
+	return strings.ReplaceAll(st.Status, "-", " ") + "; " + st.Fix
+}
+
+func authJSON(st vcs.AuthState, known bool) map[string]string {
+	if !known {
+		return map[string]string{"status": "n/a"}
+	}
+	return map[string]string{"provider": st.Provider, "status": st.Status, "fix": st.Fix}
 }
 
 func defaultWord(s string) string {

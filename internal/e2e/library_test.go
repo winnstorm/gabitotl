@@ -236,8 +236,8 @@ func TestVCSBranchCommitRevertAndNoHistoryRewrite(t *testing.T) {
 	if _, err := repo.OpenPR(ctx, vcs.GitHub{}, vcs.PRRequest{Title: "feat: x", Body: "Co-Authored-By: Claude <noreply@anthropic.com>"}); !errors.Is(err, vcs.ErrAttribution) {
 		t.Fatalf("a PR body with attribution must be rejected: %v", err)
 	}
-	if _, err := repo.OpenPR(ctx, vcs.Bitbucket{}, vcs.PRRequest{Title: "feat: x"}); !errors.Is(err, vcs.ErrNotImplemented) {
-		t.Fatalf("bitbucket is a documented stub: %v", err)
+	if _, err := repo.OpenPR(ctx, vcs.Bitbucket{}, vcs.PRRequest{Title: "feat: x"}); !errors.Is(err, vcs.ErrNotLoggedIn) {
+		t.Fatalf("bitbucket without a token must say it is not logged in: %v", err)
 	}
 }
 

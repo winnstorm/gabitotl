@@ -43,7 +43,6 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
   binary and run `gabitotl install`.
 - Installing missing runtimes or Engram on request (today a missing tool is
   reported, never installed behind the user's back).
-- GitHub/Bitbucket authentication helpers.
 - Per-agent Gentle-AI uninstall: no per-agent form is verified (`gentle-ai
   uninstall -h` documents only `--all`), so GabitoTL never runs one. When `--all`
   would remove an agent GabitoTL does not replace, the user is told to uninstall
@@ -51,10 +50,11 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 
 ## Product
 
-- GitLab and Azure DevOps complete (the PR provider interface exists; only GitHub
-  is implemented, Bitbucket is a documented stub). The delivery settings (D33) and the
-  `merge` permission exist; the `vcs commit|push|pr|merge|ship|login` commands that use them
-  are still to come, so nothing merges yet.
+- Delivery commands (S3b): `vcs commit|push|pr|merge|ship` driven by the saved settings (D33) and the
+  hosts of D34 (GitHub, GitLab, Bitbucket Cloud: create, merge, retarget, checks, login), with automatic
+  stacked-PR slicing and merge only when checks pass. The merge automation is not wired yet, so nothing
+  merges on its own today.
+- Azure DevOps and Bitbucket Server / Data Center pull requests (reported as unsupported today).
 - Dashboard for memory and progress.
 - Additional importers (other harnesses and tools beyond Kiro, Gentle-AI, Engram
   and instruction files).

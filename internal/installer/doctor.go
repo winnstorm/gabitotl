@@ -63,6 +63,9 @@ const (
 	DocGitDelivery       = "doctor.git.delivery"
 	DocGitDeliveryTodo   = "doctor.git.delivery-todo"
 	DocGitProviderDiffer = "doctor.git.provider-differs"
+	DocGitAuth           = "doctor.git.auth"
+	DocGitAuthTodo       = "doctor.git.auth-todo"
+	DocGitAuthTool       = "doctor.git.auth-tool"
 	DocGitIdentity       = "doctor.git.identity"
 	DocGitNoIdentity     = "doctor.git.no-identity"
 	DocLegacyGentle      = "doctor.legacy.gentle"
@@ -79,7 +82,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -299,6 +302,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		if inf := inv.Project.Provider; inf != "" && inf != vcsCfg.Provider {
 			git = append(git, L(LineWarn, DocGitProviderDiffer, "vcs.md: "+vcsCfg.Provider+", origin: "+inf))
 		}
+		git = append(git, gitAuthLines(ctx, env, vcsCfg, inv.Project.Provider)...)
 	}
 	if env.ProjectRoot != "" {
 		if u, err := identity.Active(env.ProjectRoot); err == nil {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
 // PRRequest describes a pull request to open.
@@ -16,9 +18,13 @@ type PRRequest struct {
 	Draft bool
 }
 
-// PR is a created pull request.
+// PR is a created (or already open) pull request or merge request.
 type PR struct {
 	URL string `json:"url"`
+	// ID is the platform's identifier: the number on GitHub, the iid on GitLab,
+	// the id on Bitbucket. Number is the same value as an integer when numeric.
+	ID     string `json:"id,omitempty"`
+	Number int    `json:"number,omitempty"`
 }
 
 // PRProvider opens pull requests (or merge requests) on a hosting provider.
@@ -27,69 +33,23 @@ type PRProvider interface {
 	CreatePR(ctx context.Context, dir string, req PRRequest) (PR, error)
 }
 
-// GitHub opens pull requests with the `gh` CLI, which owns authentication
-// ("native" auth: GabitoTL never sees a token).
-type GitHub struct {
-	Runner Runner
-}
-
-// Name implements PRProvider.
-func (GitHub) Name() string { return "github" }
-
-// CreatePR implements PRProvider.
-func (g GitHub) CreatePR(ctx context.Context, dir string, req PRRequest) (PR, error) {
-	if strings.TrimSpace(req.Title) == "" {
-		return PR{}, errors.New("vcs: pull request title is required")
-	}
-	if err := ValidateNoAttribution(req.Title + "\n" + req.Body); err != nil {
-		return PR{}, err
-	}
-	run := g.Runner
-	if run == nil {
-		run = ExecRunner{}
-	}
-	args := []string{"pr", "create", "--title", req.Title, "--body", req.Body}
-	if req.Base != "" {
-		args = append(args, "--base", req.Base)
-	}
-	if req.Head != "" {
-		args = append(args, "--head", req.Head)
-	}
-	if req.Draft {
-		args = append(args, "--draft")
-	}
-	out, err := run.Run(ctx, dir, "gh", args...)
-	if err != nil {
-		return PR{}, err
-	}
-	// gh prints the PR URL as its last line.
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	return PR{URL: strings.TrimSpace(lines[len(lines)-1])}, nil
-}
-
-// Bitbucket is a documented stub. The spec lists Bitbucket as a first-wave
-// provider; the REST/CLI wiring is deferred until the auth reference model for
-// it is decided. It always returns ErrNotImplemented.
-type Bitbucket struct{}
-
-// Name implements PRProvider.
-func (Bitbucket) Name() string { return "bitbucket" }
-
-// CreatePR implements PRProvider.
-func (Bitbucket) CreatePR(context.Context, string, PRRequest) (PR, error) {
-	return PR{}, fmt.Errorf("%w: bitbucket pull requests are not wired yet", ErrNotImplemented)
-}
-
-// ProviderFor returns the PR provider for a vcs.md provider value.
-// GitLab, Azure DevOps, generic git and local-only have no PR support in V1.
+// ProviderFor returns the PR provider for a vcs.md provider value. It builds the
+// same hosts as HostFor; Azure DevOps, generic git and local-only have no PR
+// support and fail with ErrUnsupported.
 func ProviderFor(name string, run Runner) (PRProvider, error) {
-	switch name {
-	case "github":
-		return GitHub{Runner: run}, nil
-	case "bitbucket":
-		return Bitbucket{}, nil
+	h, err := HostFor(name, HostOptions{Runner: run})
+	if err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("%w: no pull request support for provider %q", ErrNotImplemented, name)
+	return h, nil
+}
+
+// checkRequest is the guard every host applies before it talks to a platform.
+func checkRequest(req PRRequest) error {
+	if strings.TrimSpace(req.Title) == "" {
+		return errors.New("vcs: pull request title is required")
+	}
+	return ValidateNoAttribution(req.Title + "\n" + req.Body)
 }
 
 // OpenPR opens a pull request through prov after the authorship guard has
@@ -107,4 +67,45 @@ func (r *Repo) OpenPR(ctx context.Context, prov PRProvider, req PRRequest) (PR, 
 		return PR{}, err
 	}
 	return prov.CreatePR(ctx, r.Dir, req)
+}
+
+// MergeDefaults are the merge options vcs.md asks for.
+func (r *Repo) MergeDefaults() MergeOptions {
+	return MergeOptions{Method: r.Config.EffectiveMergeMethod(), DeleteBranch: r.Config.DeleteBranch}
+}
+
+// MergePR merges pr through h. It is the only way the Repo merges and it is
+// gated by permissions.merge; an unknown method is refused before any call.
+func (r *Repo) MergePR(ctx context.Context, h Host, pr PR, opts MergeOptions) error {
+	if opts.Method == "" {
+		opts.Method = r.MergeDefaults().Method
+	}
+	if err := checkMergeMethod(opts.Method); err != nil {
+		return err
+	}
+	if err := Gate(r.Config.Permissions, OpMerge, "merge pull request "+pr.URL, r.Confirm); err != nil {
+		return err
+	}
+	return h.MergePR(ctx, r.Dir, pr, opts)
+}
+
+// RetargetPR points a stacked pull request at a new base branch (for example
+// after its parent was merged). Gated by permissions.pull_requests.
+func (r *Repo) RetargetPR(ctx context.Context, h Host, pr PR, newBase string) error {
+	if strings.TrimSpace(newBase) == "" {
+		return errors.New("vcs: the new base branch is required")
+	}
+	if err := Gate(r.Config.Permissions, OpPullRequest, "retarget pull request "+pr.URL+" to "+newBase, r.Confirm); err != nil {
+		return err
+	}
+	return h.SetBase(ctx, r.Dir, pr, newBase)
+}
+
+func checkMergeMethod(m string) error {
+	for _, ok := range gabitotl.MergeMethods {
+		if m == ok {
+			return nil
+		}
+	}
+	return fmt.Errorf("vcs: unknown merge method %q (use squash, merge or rebase)", m)
 }

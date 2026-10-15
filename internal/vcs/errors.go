@@ -26,6 +26,10 @@ var (
 	ErrBranchExists = errors.New("vcs: branch already exists")
 	// ErrNotImplemented marks provider operations that are documented stubs.
 	ErrNotImplemented = errors.New("vcs: not implemented")
+	// ErrUnsupported means the provider, host or operation is not supported.
+	ErrUnsupported = errors.New("vcs: unsupported")
+	// ErrNotLoggedIn means no usable credential exists for the platform.
+	ErrNotLoggedIn = errors.New("vcs: not logged in to the platform")
 	// ErrNoRemote means the operation needs an origin remote.
 	ErrNoRemote = errors.New("vcs: no origin remote configured")
 )

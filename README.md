@@ -111,7 +111,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
 | `guard install-hooks \| uninstall-hooks \| status` | `commit-msg` and `pre-commit` Git hooks (chained after any hook you already have). Installed by `init`/`install` unless you decline. |
-| `vcs status \| branch --task ID \| setup` | Git state, provider, delivery settings and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#delivery-settings)). |
+| `vcs status \| branch --task ID \| setup \| login` | Git state, provider, delivery settings, login state (`auth:`) and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#delivery-settings)); `login` checks and helps with the login to your Git platform (see [Platforms and login](#platforms-and-login)). |
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
 | `work start \| update \| status \| overlap` | Active-work files and the soft-lock OJO. |
@@ -344,8 +344,42 @@ there; the team file is untouched. `vcs setup --shared` (or any team-wide flag s
 `--vcs-merge-method`) writes the team file instead. `vcs status` marks the values you override with
 `(yours)`. A teammate who pulls a configured project is asked nothing. Files written before this
 existed keep working: one counts as configured when a permission is not `ask` or `remote_actions` is
-`automatic`, and a shared `auth` moves to your file on the next write. Merging itself arrives with the
-platform commands; today only the `merge` permission is enforced by the guard.
+`automatic`, and a shared `auth` moves to your file on the next write. A non-interactive
+`vcs setup --vcs-automation=...` with no `--vcs-provider` adopts the platform `origin` points at when
+`vcs.md` still says the generic `git`; a platform you chose is never overwritten. Merging itself arrives
+with the delivery commands (`vcs commit|push|pr|merge|ship`, still to come); today the platform layer can
+open, merge and retarget pull requests and read their checks, and the `merge` permission is enforced by the guard.
+
+### Platforms and login
+
+| Platform | How GabitoTL talks to it | How you log in |
+|---|---|---|
+| GitHub | the `gh` CLI (`pr create`, `pr merge`, `pr edit --base`, `pr checks`) | `gh auth login` |
+| GitLab (gitlab.com and self-managed) | the `glab` CLI (`mr create`, `mr merge`, `mr update`, `mr view`) | `glab auth login` |
+| Bitbucket **Cloud** | the REST API 2.0 over HTTPS | a token in an environment variable |
+
+Bitbucket Server and Data Center are **not supported**; `vcs login` and `vcs status` say so. Azure DevOps and
+a generic Git host have no pull request support yet.
+
+`gabitotl vcs login` detects the platform (the one in `vcs.md`, else the one `origin` points at):
+
+- GitHub and GitLab: it runs `gh auth status` / `glab auth status`. If you are logged in it says so and
+  exits 0. If not and you are on a terminal, it runs `gh auth login` / `glab auth login` attached to your
+  terminal and checks again. Without a terminal it never prompts: it prints the exact command and exits
+  non-zero. If the tool is not installed it tells you where to get it.
+- Bitbucket Cloud: it asks only for the **name** of the environment variable that holds your token
+  (default `BITBUCKET_TOKEN`; a plain token is sent as a Bearer token, `user:app-password` as Basic),
+  verifies it with `GET /2.0/user`, and saves the reference `auth: env:NAME` in your own
+  git-ignored `.gabitotl/local/users/<id>/vcs.md`. With `--store-token` (or by answering yes on a
+  terminal) it also copies the token into the same 0600 secrets file the team-memory token uses
+  (`~/.gabitotl/secrets/memory-client.env`), so runtimes that start without your shell can use it.
+  The token is never written under `.gabitotl/`, never printed and never part of an error message.
+
+Flags for scripts: `--token-env NAME`, `--store-token`, `--check` (only verify; never log in or change
+anything). `vcs status` shows an `auth:` line (`ok`, what is missing with the exact fix, or `n/a`) and
+`gabitotl doctor` reports the login as a warning with the fix, never as a failure. Pull request titles
+and bodies are checked for AI attribution before any request, merges obey `permissions.merge`, and
+nothing ever force-pushes.
 
 ## Project layout
 

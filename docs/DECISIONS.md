@@ -436,3 +436,38 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Doctor:** reports whether delivery is configured (pointing at `gabitotl vcs setup`) and warns, never fails, when the
   platform of `origin` differs from `vcs.md`.
 
+## D34. Hosts: GitHub and GitLab through their CLI, Bitbucket Cloud through REST, and a login helper
+- **Problem:** only GitHub could open a PR, nothing could merge, retarget or read checks, GitLab was missing,
+  Bitbucket was a stub, and nothing told a person that they were not logged in until a command failed.
+- **Decision:** `vcs.Host` extends `PRProvider` with `MergePR`, `SetBase`, `ChecksState` and `AuthStatus`.
+  `GitHub` drives `gh`, `GitLab` drives `glab` (both through the injectable `Runner`; the CLI owns the
+  credentials) and `Bitbucket` calls the Bitbucket Cloud REST API 2.0 with an injectable `http.Client` and base
+  URL. `HostFor` builds the host of a `vcs.md` provider and fails with `ErrUnsupported` for anything else.
+  `CreatePR` is idempotent: an open PR of the head branch is returned instead of opening a second one.
+- **Merge:** methods are `squash`, `merge` and `rebase` and an unknown one is refused before any call. GitLab has
+  no flag for a plain merge, so `merge` passes none; Bitbucket maps them to `squash`, `merge_commit` and
+  `fast_forward`. Merging only runs through `Repo.MergePR`, which applies `Gate(OpMerge)`; retargeting a stacked
+  PR (`Repo.RetargetPR`) is gated by `pull_requests`. Nothing force-pushes and titles and bodies go through the
+  attribution guard before any request.
+- **Auth:** `AuthStatus` returns logged-in, not-logged-in, tool-missing or unsupported, always with a `Fix` that
+  holds the exact command. Bitbucket has no official CLI, so the per-person `auth` reference (`env:NAME`) names
+  an environment variable; the value is looked up in the process environment and then in the 0600 secrets file
+  that team memory already uses (`mcp.Resolver`, `mcp.WriteClientSecret`, unchanged). A plain token is a Bearer
+  token and `user:app-password` is Basic. A `keychain:` reference is refused for Bitbucket. The token is never
+  logged, printed or echoed in an error (errors carry the method, path, status and Bitbucket's own message).
+- **Not supported:** Bitbucket Server and Data Center (any host other than `bitbucket.org`) report `unsupported`.
+- **Commands:** `gabitotl vcs login [--token-env NAME] [--store-token] [--check]`. GitHub and GitLab run the
+  tool's own `auth login` attached to the terminal, only when there is one; without a terminal the command
+  prints the fix and exits non-zero, so an agent never hangs on a prompt. `vcs status` has an `auth:` line (the
+  reference moved to `auth_ref:`), and `doctor` reports the login as a warning with the fix; for Bitbucket it
+  only looks for the token offline.
+- **Setup:** with no provider given and the configured one empty or the generic `git`, `vcs setup` adopts the
+  platform `origin` points at (a real run left a GitLab project as `git`). An explicit choice is never touched,
+  and a bare `--yes` still writes nothing.
+- **Tests:** every host runs against a fake `Runner` or an `httptest` server; the CLI tests replace `gh`, `glab`,
+  the terminal and the Bitbucket API through hooks (`vcsRunnerFn`, `vcsTTYFn`, `vcsAPIFn`) and the test binary
+  defaults to a machine without any of them.
+- **Open points:** the exact JSON of `gh pr checks --json` and `glab mr view --output json`, and Bitbucket's
+  `fast_forward` strategy for "rebase", were written from the tools' documentation and not exercised against a
+  real account. The delivery commands (`commit|push|pr|merge|ship`) that use all this are the next step (S3b).
+
