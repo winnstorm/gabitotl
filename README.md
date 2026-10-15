@@ -93,7 +93,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | Command | What it does |
 |---------|--------------|
 | `gabitotl` | On a terminal in a project: the installer screen. Piped: onboard a project without `.gabitotl/`, otherwise a short status. Never starts an agent. |
-| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`, `--retire-gentle-kiro` (move Gentle AI's files in Kiro to a backup, see below); team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below). |
+| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`, `--retire-gentle-kiro` (move Gentle AI's files in Kiro to a backup, see below); team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below); delivery: `--vcs-provider`, `--vcs-automation`, `--vcs-merge-method`, `--vcs-delete-branch`, `--vcs-draft` (see [Delivery settings](#delivery-settings)). |
 | `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`, `--retire-gentle-kiro`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
@@ -111,7 +111,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
 | `guard install-hooks \| uninstall-hooks \| status` | `commit-msg` and `pre-commit` Git hooks (chained after any hook you already have). Installed by `init`/`install` unless you decline. |
-| `vcs status \| branch --task ID` | Git state, provider, permissions; task branch `feature/<id>`. |
+| `vcs status \| branch --task ID \| setup` | Git state, provider, delivery settings and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#delivery-settings)). |
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
 | `work start \| update \| status \| overlap` | Active-work files and the soft-lock OJO. |
@@ -314,6 +314,39 @@ because it changed after the plan. Running it again finds nothing and asks nothi
 sets coexist, `gabitotl doctor` warns (never fails) that two always-on instruction sets apply
 and prints the exact fix, for example `gabitotl install --runtime kiro-cli --retire-gentle-kiro`.
 
+## Delivery settings
+
+Commit, push, PR and merge follow settings you answer **once**; they are saved and never asked again.
+The questions appear while `vcs.md` is not configured (a new project, or an existing one without the
+`configured` marker), in the installer (plain and full screen) and in `gabitotl vcs setup`:
+
+1. **Platform**: the one found in `origin` is the default (GitHub, GitLab, Bitbucket, or "not yet").
+2. **Automation**: everything automatic (commit, push, PR and merge), automatic up to the PR so you
+   merge (the default), or ask each time.
+3. Only if merge is automatic: **merge method** (squash by default, merge, rebase) and whether to
+   delete the branch afterwards (yes by default).
+4. **Draft PRs** (no by default), unless everything asks.
+
+There is no question about PR size or exceptions. Work over `pr_budget_lines` (400) is sliced into
+stacked PRs (`chain: stacked`); change those keys in `vcs.md` if you need to.
+
+Flags answer the same questions without a terminal: `--vcs-provider`, `--vcs-automation=all|until-pr|ask`
+(this one marks the project configured), `--vcs-merge-method`, `--vcs-delete-branch[=false]`,
+`--vcs-draft[=false]`, on `install`, `migrate` and `vcs setup`. `--yes` and a missing terminal ask nothing
+and mark nothing as configured.
+
+**Shared vs yours.** The team's choices live in the committed `.gabitotl/vcs.md`
+(`provider`, `permissions`, `merge_method`, `delete_branch`, `draft_prs`, `base_branch`,
+`pr_budget_lines`, `chain`, `configured`). Your `auth` reference and any permission you want to
+keep stricter than the team live in `.gabitotl/local/users/<id>/vcs.md`, which Git ignores; yours wins.
+When the team already answered, `gabitotl vcs setup` only asks how much to automate for **you** and saves it
+there; the team file is untouched. `vcs setup --shared` (or any team-wide flag such as
+`--vcs-merge-method`) writes the team file instead. `vcs status` marks the values you override with
+`(yours)`. A teammate who pulls a configured project is asked nothing. Files written before this
+existed keep working: one counts as configured when a permission is not `ask` or `remote_actions` is
+`automatic`, and a shared `auth` moves to your file on the next write. Merging itself arrives with the
+platform commands; today only the `merge` permission is enforced by the guard.
+
 ## Project layout
 
 ```text
@@ -323,6 +356,7 @@ and prints the exact fix, for example `gabitotl install --runtime kiro-cli --ret
   work/<user>/<task>.md  active work, shared through Git
   local/                 per-person state (git-ignored): runtime override, session and
                          users/<id>/memory.md (team-memory role, token variable, database ref)
+                         and users/<id>/vcs.md (auth reference, delivery overrides)
   .bak/<user>/<ts>_<task>/  file snapshots with manifest.md (git-ignored)
 ```
 
@@ -336,7 +370,7 @@ Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
 - Backups skip `.env*` and key files; commands refuse paths outside the project root.
 - No LLM branding anywhere: the authorship guard (hooks, scan, fix, persona rule) keeps tool attribution out of commits, PRs, code and memory.
 - History is never rewritten: no force-push, `reset --hard`, amend or rebase. Roll back with a revert commit.
-- Remote and PR actions follow `vcs.md` permissions (`allow` / `ask` / `deny`).
+- Remote, PR and merge actions follow `vcs.md` permissions (`allow` / `ask` / `deny`); your own overrides live in the git-ignored `local/users/<id>/vcs.md`.
 
 ## Status and limitations
 

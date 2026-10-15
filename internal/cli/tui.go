@@ -27,6 +27,7 @@ func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths 
 	if opts.UserName == "" {
 		opts.UserName = f.user
 	}
+	opts.Delivery, _ = f.delivery.answers() // already validated by execute
 	cfg := tui.Config{
 		Backend: tui.NewBackend(ienv), Messages: m, Paths: paths, Options: opts,
 		Need: func(inv installer.Inventory, o installer.Options) ui.Need {

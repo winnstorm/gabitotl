@@ -82,6 +82,10 @@ func (l Layout) LocalRuntime(user string) (string, error) { return l.localFile(u
 // reference, database reference and an optional local server url override).
 func (l Layout) LocalMemory(user string) (string, error) { return l.localFile(user, "memory.md") }
 
+// LocalVCS holds the per-person delivery settings: the auth reference and
+// optional permission overrides. It lives under the git-ignored local/.
+func (l Layout) LocalVCS(user string) (string, error) { return l.localFile(user, "vcs.md") }
+
 // LocalSession is the per-person session state.
 func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
 

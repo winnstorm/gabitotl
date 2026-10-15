@@ -13,6 +13,7 @@ const (
 	OpCommit      = "commits"
 	OpPush        = "push"
 	OpPullRequest = "pull_requests"
+	OpMerge       = "merge"
 )
 
 // Confirm is asked when a permission is "ask". It returns true to proceed.
@@ -30,6 +31,8 @@ func permission(p gabitotl.VCSPermissions, op string) string {
 		return p.Push
 	case OpPullRequest:
 		return p.PullRequests
+	case OpMerge:
+		return p.MergePermission()
 	}
 	return gabitotl.PermDeny
 }

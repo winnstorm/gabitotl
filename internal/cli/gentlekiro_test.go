@@ -72,7 +72,11 @@ func (f *cfix) gentleGone(t *testing.T) {
 
 // The fake machine also has Gentle-AI itself, which opens the "what do you want
 // to do" menu first: option 2 installs without touching it.
-const keepGentleAI = "2\n"
+// acceptDelivery takes the default of the three delivery questions that an
+// unconfigured project is asked once: platform, automation (up to the PR) and draft PRs.
+const acceptDelivery = "\n\n\n"
+
+const keepGentleAI = "2\n" + acceptDelivery
 
 const kiroQuestion = "las dos están siempre activas"
 

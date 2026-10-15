@@ -138,15 +138,41 @@ func (c *RuntimeConfig) Validate() error {
 	return nil
 }
 
-// VCSPermissions are per-operation permissions: ask, allow or deny.
+// VCSPermissions are per-operation permissions: ask, allow or deny. Merge is
+// optional in the file: an empty value reads as ask.
 type VCSPermissions struct {
 	Branches     string `yaml:"branches"`
 	Commits      string `yaml:"commits"`
 	Push         string `yaml:"push"`
 	PullRequests string `yaml:"pull_requests"`
+	Merge        string `yaml:"merge,omitempty"`
 }
 
-// VCSConfig is the front matter of vcs.md.
+// Merge methods (merge_method) and chain strategies (chain).
+const (
+	MergeSquash = "squash"
+	MergeMerge  = "merge"
+	MergeRebase = "rebase"
+
+	// ChainStacked slices work that exceeds pr_budget_lines into stacked PRs on its
+	// own; ChainNone keeps one PR. Neither is ever a question.
+	ChainStacked = "stacked"
+	ChainNone    = "none"
+
+	// DefaultPRBudgetLines is the size above which work is sliced into stacked PRs.
+	DefaultPRBudgetLines = 400
+)
+
+// MergeMethods and ChainStrategies list the valid values.
+var (
+	MergeMethods    = []string{MergeSquash, MergeMerge, MergeRebase}
+	ChainStrategies = []string{ChainStacked, ChainNone}
+)
+
+// VCSConfig is the MERGED view of the delivery settings (docs/DECISIONS.md D33).
+// The team settings live in the committed vcs.md; auth and optional permission
+// overrides live in the per-person, git-ignored local/users/<id>/vcs.md. Every
+// field added after the first release is optional, so older files keep working.
 type VCSConfig struct {
 	Provider      string         `yaml:"provider"`
 	BranchPolicy  string         `yaml:"branch_policy"`
@@ -155,6 +181,20 @@ type VCSConfig struct {
 	RemoteActions string         `yaml:"remote_actions"`
 	Auth          string         `yaml:"auth,omitempty"`
 	Permissions   VCSPermissions `yaml:"permissions"`
+	// MergeMethod is how a PR is merged (default squash); DeleteBranch removes the
+	// branch after the merge (default true); DraftPRs opens PRs as drafts.
+	MergeMethod  string `yaml:"merge_method,omitempty"`
+	DeleteBranch bool   `yaml:"delete_branch"`
+	DraftPRs     bool   `yaml:"draft_prs"`
+	// BaseBranch is the branch PRs target; empty means the repository default.
+	BaseBranch string `yaml:"base_branch,omitempty"`
+	// PRBudgetLines and Chain define the slicing of large work. They are settings,
+	// never questions: nothing asks about size or exceptions.
+	PRBudgetLines int    `yaml:"pr_budget_lines,omitempty"`
+	Chain         string `yaml:"chain,omitempty"`
+	// Configured is set when the delivery questions were answered, so they are not
+	// asked again.
+	Configured bool `yaml:"configured,omitempty"`
 }
 
 // DefaultVCS returns conservative defaults: remote actions and every
@@ -166,8 +206,60 @@ func DefaultVCS(provider string) VCSConfig {
 		CommitPolicy:  "milestone",
 		PRPolicy:      "task-complete",
 		RemoteActions: "ask",
-		Permissions:   VCSPermissions{PermAsk, PermAsk, PermAsk, PermAsk},
+		Permissions:   VCSPermissions{PermAsk, PermAsk, PermAsk, PermAsk, PermAsk},
+		MergeMethod:   MergeSquash,
+		DeleteBranch:  true,
+		PRBudgetLines: DefaultPRBudgetLines,
+		Chain:         ChainStacked,
 	}
+}
+
+// IsConfigured reports whether the delivery questions are settled: the marker is
+// set, or (a file from before the marker) any permission is not ask or remote
+// actions are automatic. A file that is still the plain defaults is not.
+func (c VCSConfig) IsConfigured() bool {
+	if c.Configured || c.RemoteActions == "automatic" {
+		return true
+	}
+	p := c.Permissions
+	for _, v := range []string{p.Branches, p.Commits, p.Push, p.PullRequests, p.Merge} {
+		if v != "" && v != PermAsk {
+			return true
+		}
+	}
+	return false
+}
+
+// EffectiveMergeMethod is merge_method with its default.
+func (c VCSConfig) EffectiveMergeMethod() string {
+	if c.MergeMethod == "" {
+		return MergeSquash
+	}
+	return c.MergeMethod
+}
+
+// Budget is pr_budget_lines with its default.
+func (c VCSConfig) Budget() int {
+	if c.PRBudgetLines <= 0 {
+		return DefaultPRBudgetLines
+	}
+	return c.PRBudgetLines
+}
+
+// ChainStrategy is chain with its default.
+func (c VCSConfig) ChainStrategy() string {
+	if c.Chain == "" {
+		return ChainStacked
+	}
+	return c.Chain
+}
+
+// MergePermission is permissions.merge with its default (ask).
+func (p VCSPermissions) MergePermission() string {
+	if p.Merge == "" {
+		return PermAsk
+	}
+	return p.Merge
 }
 
 func (c *VCSConfig) Validate() error {
@@ -186,6 +278,24 @@ func (c *VCSConfig) Validate() error {
 		if err := oneOf(name, v, PermAsk, PermAllow, PermDeny); err != nil {
 			return err
 		}
+	}
+	if c.Permissions.Merge != "" {
+		if err := oneOf("permissions.merge", c.Permissions.Merge, PermAsk, PermAllow, PermDeny); err != nil {
+			return err
+		}
+	}
+	if c.MergeMethod != "" {
+		if err := oneOf("merge_method", c.MergeMethod, MergeMethods...); err != nil {
+			return err
+		}
+	}
+	if c.Chain != "" {
+		if err := oneOf("chain", c.Chain, ChainStrategies...); err != nil {
+			return err
+		}
+	}
+	if c.PRBudgetLines < 0 {
+		return fmt.Errorf("pr_budget_lines: must not be negative")
 	}
 	return nil
 }
@@ -291,11 +401,6 @@ func LoadRuntime(l Layout) (RuntimeConfig, error) {
 	return c, readConfig(l.Runtime(), &c)
 }
 
-func LoadVCS(l Layout) (VCSConfig, error) {
-	c := DefaultVCS("git")
-	return c, readConfig(l.VCS(), &c)
-}
-
 func LoadWorkflow(l Layout) (WorkflowConfig, error) {
 	c := DefaultWorkflow()
 	return c, readConfig(l.Workflow(), &c)
@@ -309,7 +414,6 @@ func SaveProject(l Layout, c ProjectConfig) error {
 func SaveRuntime(l Layout, c RuntimeConfig) error {
 	return saveConfig(l.Runtime(), &c, bodyRuntime)
 }
-func SaveVCS(l Layout, c VCSConfig) error { return saveConfig(l.VCS(), &c, bodyVCS) }
 func SaveWorkflow(l Layout, c WorkflowConfig) error {
 	return saveConfig(l.Workflow(), &c, bodyWorkflow)
 }

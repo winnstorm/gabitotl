@@ -41,6 +41,13 @@ Default runtime and model for this project.
 Validated changes are committed per logical unit. Remote actions follow the
 permissions above.
 `
+	bodyLocalVCS = `
+# Version control (this machine)
+
+Your own delivery settings: the auth reference and, if you want to be more
+careful than the team, permission overrides. This file is never committed. Only
+references live here (` + "`env:NAME`" + `, ` + "`native`" + `), never a token or a password.
+`
 	bodyWorkflow = `
 # Workflow
 

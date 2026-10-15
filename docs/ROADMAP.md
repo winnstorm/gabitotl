@@ -52,7 +52,9 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 ## Product
 
 - GitLab and Azure DevOps complete (the PR provider interface exists; only GitHub
-  is implemented, Bitbucket is a documented stub).
+  is implemented, Bitbucket is a documented stub). The delivery settings (D33) and the
+  `merge` permission exist; the `vcs commit|push|pr|merge|ship|login` commands that use them
+  are still to come, so nothing merges yet.
 - Dashboard for memory and progress.
 - Additional importers (other harnesses and tools beyond Kiro, Gentle-AI, Engram
   and instruction files).

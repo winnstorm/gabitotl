@@ -10,7 +10,11 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/installer/ui"
 )
+
+// deliveryPrefix marks the form kinds of the delivery questions ("vcs:<step>").
+const deliveryPrefix = "vcs:"
 
 // startForm opens one huh form with a single question: onboarding asks one
 // thing at a time and only what cannot be detected.
@@ -84,11 +88,6 @@ func (m *Model) startForm(kind string) tea.Cmd {
 				}
 				return nil
 			})
-	case "git":
-		m.gitVal = false
-		field = huh.NewSelect[bool]().Title(f("ask.git")).
-			Options(huh.NewOption(f("ask.git.yes"), true), huh.NewOption(f("ask.git.no"), false)).
-			Value(&m.gitVal)
 	case "runtimes":
 		m.rtVal = nil
 		var opts []huh.Option[string]
@@ -107,6 +106,16 @@ func (m *Model) startForm(kind string) tea.Cmd {
 				}
 				return nil
 			})
+	default:
+		if step, ok := strings.CutPrefix(kind, deliveryPrefix); ok {
+			title, opts, def := m.msg.DeliveryQuestion(ui.DeliveryStep(step), m.need)
+			options := make([]huh.Option[string], len(opts))
+			for i, o := range opts {
+				options[i] = huh.NewOption(o.Label, o.Value)
+			}
+			m.vcsVal = opts[def].Value
+			field = huh.NewSelect[string]().Title(title).Options(options...).Value(&m.vcsVal)
+		}
 	}
 	theme := huh.ThemeFunc(huh.ThemeCharm)
 	if m.cfg.NoColor {
@@ -144,8 +153,6 @@ func (m *Model) formDone() tea.Cmd {
 	case "mode":
 		m.opts.Mode = m.modeVal
 		m.modeDecided = true
-	case "git":
-		m.opts.AutomateGit = m.gitVal
 	case "runtimes":
 		m.opts.Runtimes = slices.Clone(m.rtVal)
 	case "invites":
@@ -167,6 +174,11 @@ func (m *Model) formDone() tea.Cmd {
 		m.opts.TokenSecret = m.secretVal // held in memory for the apply only
 		m.secretVal = ""
 		m.teamAsked2 = append(m.teamAsked2, "secret")
+	default:
+		if step, ok := strings.CutPrefix(m.formKind, deliveryPrefix); ok {
+			ui.ApplyDeliveryAnswer(&m.opts.Delivery, ui.DeliveryStep(step), m.vcsVal)
+			m.deliveryDone = append(m.deliveryDone, ui.DeliveryStep(step))
+		}
 	}
 	m.form = nil
 	return m.advance()
