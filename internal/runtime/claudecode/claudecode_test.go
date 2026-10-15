@@ -212,3 +212,70 @@ func TestProjectScopeUsesProjectFiles(t *testing.T) {
 		}
 	}
 }
+
+var skillOpts = func() rt.Options {
+	o := opts
+	o.Skills = []rt.Asset{{Name: "gabito-terminal", Content: "---\nname: gabito-terminal\n---\nbody\n"}}
+	return o
+}()
+
+func TestSkillsRoundTrip(t *testing.T) {
+	env, home := fixture(t, true)
+	a := New()
+	want := filepath.Join(home, ".claude", "skills", "gabito-terminal", "SKILL.md")
+	plan, _ := a.Plan(env, skillOpts)
+	var found bool
+	for _, act := range plan {
+		if act.Path == want {
+			found = true
+			if act.Kind != rt.Create || act.Edit.Op != rt.OpWriteFile {
+				t.Fatalf("skill action: %s", act)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no skill action for %s in %v", want, plan)
+	}
+	if _, err := a.Apply(env, plan); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, want) != skillOpts.Skills[0].Content {
+		t.Fatal("skill not written")
+	}
+	for _, c := range a.Verify(env, skillOpts) {
+		if !c.OK {
+			t.Fatalf("verify: %+v", c)
+		}
+	}
+	if _, err := a.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "skills")); err == nil {
+		t.Fatal("skills directory created by GabitoTL should be gone")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude")); err != nil {
+		t.Fatal("the user's .claude directory must stay")
+	}
+}
+
+func TestSkillsProjectScopeAndEditedFile(t *testing.T) {
+	env, _ := fixture(t, true)
+	env.ProjectRoot = t.TempDir()
+	o := skillOpts
+	o.Scope = rt.ScopeProject
+	a := New()
+	plan, _ := a.Plan(env, o)
+	want := filepath.Join(env.ProjectRoot, ".claude", "skills", "gabito-terminal", "SKILL.md")
+	if _, err := a.Apply(env, plan); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, want) != o.Skills[0].Content {
+		t.Fatal("project skill not written")
+	}
+	must(t, os.WriteFile(want, []byte("edited\n"), 0o644))
+	res, err := a.RemoveGabitoConfig(env)
+	must(t, err)
+	if read(t, want) != "edited\n" || len(res.Manual) == 0 {
+		t.Fatalf("an edited skill must be kept and reported: %+v", res)
+	}
+}

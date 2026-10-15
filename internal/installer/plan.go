@@ -280,7 +280,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)

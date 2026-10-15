@@ -172,3 +172,107 @@ func TestDetect(t *testing.T) {
 		t.Fatalf("%+v", d)
 	}
 }
+
+var skillOpts = func() rt.Options {
+	o := opts
+	o.Skills = []rt.Asset{{Name: "gabito-terminal", Content: "---\nname: gabito-terminal\n---\nbody\n"}}
+	return o
+}()
+
+func skillAction(t *testing.T, plan []rt.Action) rt.Action {
+	t.Helper()
+	for _, a := range plan {
+		if a.Edit.Op == rt.OpWriteFile {
+			return a
+		}
+	}
+	t.Fatalf("no skill action in plan: %v", plan)
+	return rt.Action{}
+}
+
+func TestSkillsRoundTrip(t *testing.T) {
+	env, cfg := setup(t, nil)
+	a := New()
+	plan, _ := a.Plan(env, skillOpts)
+	sa := skillAction(t, plan)
+	want := filepath.Join(filepath.Dir(cfg), "skills", "gabito-terminal", "SKILL.md")
+	if sa.Path != want || sa.Kind != rt.Create {
+		t.Fatalf("skill action %s, want path %s", sa, want)
+	}
+	if _, err := a.Apply(env, plan); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, want) != skillOpts.Skills[0].Content {
+		t.Fatal("skill not written")
+	}
+	for _, c := range a.Verify(env, skillOpts) {
+		if !c.OK {
+			t.Fatalf("verify: %+v", c)
+		}
+	}
+	if _, err := a.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(cfg), "skills")); err == nil {
+		t.Fatal("skills directory created by GabitoTL should be gone")
+	}
+	if read(t, cfg) != userCfg {
+		t.Fatalf("user config not restored:\n%s", read(t, cfg))
+	}
+}
+
+func TestSkillsDirFollowsEnvironmentAndScope(t *testing.T) {
+	xdg := t.TempDir()
+	env, _ := setup(t, map[string]string{"XDG_CONFIG_HOME": xdg})
+	plan, _ := New().Plan(env, skillOpts)
+	if got := skillAction(t, plan).Path; got != filepath.Join(xdg, "opencode", "skills", "gabito-terminal", "SKILL.md") {
+		t.Fatalf("XDG_CONFIG_HOME ignored: %s", got)
+	}
+	cfgDir := t.TempDir()
+	env, _ = setup(t, map[string]string{"OPENCODE_CONFIG_DIR": cfgDir})
+	plan, _ = New().Plan(env, skillOpts)
+	if got := skillAction(t, plan).Path; got != filepath.Join(cfgDir, "skills", "gabito-terminal", "SKILL.md") {
+		t.Fatalf("OPENCODE_CONFIG_DIR ignored: %s", got)
+	}
+	env.ProjectRoot = t.TempDir()
+	o := skillOpts
+	o.Scope = rt.ScopeProject
+	plan, _ = New().Plan(env, o)
+	if got := skillAction(t, plan).Path; got != filepath.Join(env.ProjectRoot, ".opencode", "skills", "gabito-terminal", "SKILL.md") {
+		t.Fatalf("project scope: %s", got)
+	}
+}
+
+func TestSkillUserFileIsKept(t *testing.T) {
+	env, cfg := setup(t, nil)
+	p := filepath.Join(filepath.Dir(cfg), "skills", "gabito-terminal", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("my own skill\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New()
+	plan, _ := a.Plan(env, skillOpts)
+	var found bool
+	for _, act := range plan {
+		if act.Path == p {
+			found = true
+			if act.Kind != rt.Preserve || act.Edit.Op != rt.OpManual {
+				t.Fatalf("a user file must be preserved: %s", act)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("skill path missing from the plan: %v", plan)
+	}
+	if _, err := a.Apply(env, plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, p) != "my own skill\n" {
+		t.Fatal("the user's skill file was changed")
+	}
+}

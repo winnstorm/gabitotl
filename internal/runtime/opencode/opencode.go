@@ -14,6 +14,13 @@
 // "instructions" in a project opencode.json resolve against the project root;
 // the global config is searched as opencode.jsonc as well as opencode.json.
 //
+// ASSUMPTION (not confirmed by official docs): skills are read from
+// <config dir>/skills/<name>/SKILL.md, where the config dir is OPENCODE_CONFIG_DIR,
+// else XDG_CONFIG_HOME/opencode, else ~/.config/opencode, and from
+// <project>/.opencode/skills for project scope. The only source for this path is
+// Gentle AI's steering text, which names ~/.config/opencode/skills; the page
+// https://opencode.ai/docs/config/ does not list a skills directory.
+//
 // Only managed keys are spliced into the file: the persona lives in its own
 // file (gabitotl-persona.md) referenced from "instructions", the memory server
 // is one "mcp" entry, and "model" is written only when the user chose it in
@@ -89,6 +96,18 @@ func personaPath(env rt.Env, s rt.Scope) (path, ref string) {
 	}
 	p := filepath.Join(base, personaFile)
 	return p, filepath.ToSlash(p)
+}
+
+// skillsDir is where OpenCode skills live (see the ASSUMPTION in the package doc).
+func skillsDir(env rt.Env, s rt.Scope) string {
+	if s == rt.ScopeProject && env.ProjectRoot != "" {
+		return filepath.Join(env.ProjectRoot, ".opencode", "skills")
+	}
+	base := globalDir(env)
+	if d := env.Var("OPENCODE_CONFIG_DIR"); d != "" {
+		base = d
+	}
+	return filepath.Join(base, "skills")
 }
 
 func (a *Adapter) Detect(env rt.Env) rt.Detection {
@@ -179,6 +198,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		plan = append(plan, engine.PlanServer(Name, cfg, []string{"mcp"}, name, val, sameServer(m)))
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, cfg, []string{"mcp"}, kept, opts.RetireMemory)...)
+	plan = append(plan, engine.PlanSkills(env, Name, skillsDir(env, opts.Scope), opts.Skills)...)
 	if opts.Model != "" { // the user chose it in runtime.md: replace the existing selection
 		val, _ := json.Marshal(opts.Model)
 		plan = append(plan, engine.PlanKey(Name, cfg, []string{"model"}, val, true))

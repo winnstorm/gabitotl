@@ -18,6 +18,9 @@
 //     highest-priority scope. https://kiro.dev/docs/configuration/
 //   - CLI settings live at ~/.kiro/settings/cli.json and the binary is kiro-cli
 //     (redirect stub of https://kiro.dev/docs/cli/chat/configuration/).
+//   - Skills: <base>/skills/<name>/SKILL.md under the same base as steering (global
+//     KIRO_HOME or ~/.kiro, workspace .kiro). The file is keyed by path, so the CLI
+//     and the IDE share one copy and the first variant removed leaves it for the other.
 //
 // ASSUMPTIONS: the "inclusion: always" front matter key spelling; the Kiro IDE
 // install locations per platform (macOS /Applications/Kiro.app, Windows
@@ -83,6 +86,9 @@ func (Core) ForeignAssetRoots(env rt.Env) []string {
 
 func (c Core) steeringPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "steering", "gabitotl.md")
+}
+func (c Core) skillsDir(env rt.Env, s rt.Scope) string {
+	return filepath.Join(c.base(env, s), "skills")
 }
 func (c Core) mcpPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "settings", "mcp.json")
@@ -165,6 +171,7 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		plan = append(plan, engine.PlanServer(c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
 	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
+	plan = append(plan, engine.PlanSkills(env, c.name, c.skillsDir(env, opts.Scope), opts.Skills)...)
 	return plan, nil
 }
 

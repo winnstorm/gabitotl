@@ -201,6 +201,9 @@ func TestInstallDryRunIdempotenceAndUninstall(t *testing.T) {
 	if !exists(filepath.Join(proj, ".gabitotl/users/gabi.md")) {
 		t.Error("profile not saved")
 	}
+	for _, f := range []string{".claude/skills/gabito-terminal/SKILL.md", ".config/opencode/skills/gabito-terminal/SKILL.md", ".kiro/skills/gabito-terminal/SKILL.md"} {
+		contains(t, f, read(t, filepath.Join(m.home, f)), "name: gabito-terminal", "author: gabitotl")
+	}
 
 	// Idempotent: second run changes nothing.
 	after := hash(t, skipLog, m.home, proj)
@@ -237,11 +240,32 @@ func TestInstallDryRunIdempotenceAndUninstall(t *testing.T) {
 			t.Errorf("%s created by GabitoTL must be removed", f)
 		}
 	}
+	for _, d := range []string{".claude/skills", ".config/opencode/skills", ".kiro/skills"} {
+		if exists(filepath.Join(m.home, d)) {
+			t.Errorf("%s created by GabitoTL must be removed with its skills", d)
+		}
+	}
 	if !exists(filepath.Join(m.home, ".kiro/steering/product.md")) || read(t, filepath.Join(m.home, ".engram/engram.db")) != "DB" {
 		t.Fatal("user files and Engram data must be kept")
 	}
 	if !exists(filepath.Join(proj, ".gabitotl/project.md")) {
 		t.Fatal("uninstall must keep the project's .gabitotl")
+	}
+}
+
+func TestUninstallKeepsAnEditedSkill(t *testing.T) {
+	m := newMachine(t)
+	proj := m.repo("shop", map[string]string{"go.mod": "module shop\n"})
+	m.write(filepath.Join(m.home, ".claude/CLAUDE.md"), "# Mine\n")
+	m.ok(proj, "install", "--yes", "--user", "gabi", "--runtime", "claude-code")
+	skill := filepath.Join(m.home, ".claude/skills/gabito-terminal/SKILL.md")
+	if !exists(skill) {
+		t.Fatal("skill not installed")
+	}
+	m.write(skill, "my edited skill\n")
+	m.ok(proj, "uninstall", "--yes")
+	if read(t, skill) != "my edited skill\n" {
+		t.Fatal("uninstall must keep a skill the user edited")
 	}
 }
 
