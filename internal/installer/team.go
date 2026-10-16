@@ -61,6 +61,15 @@ const (
 	NoteImportUnavailable = "import-unavailable"
 	NoteImportNeedsHost   = "import-needs-host"
 	NoteTeamNotReady      = "team-not-ready"
+	NoteTeamURLMissing    = "team-url-missing"
+	NoteTeamTokenMissing  = "team-token-missing"
+)
+
+// Notices of a run (Result.Notices); presenters have a note.<code> message for each.
+const (
+	NoticeImportSkippedHost    = "import-skipped-host"
+	NoticeImportSkippedClient  = "import-skipped-client"
+	NoticeImportSkippedNoToken = "import-skipped-no-token"
 )
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -94,8 +103,13 @@ type ImportPlan struct {
 
 // TeamPlan is the team part of a Plan; nil unless a role was chosen.
 type TeamPlan struct {
-	Role       string
-	URL        string
+	Role string
+	// URL is the address teammates use: the shared memory.md url. A client connects
+	// to it; a host may not know it yet (""), and then nothing is shared.
+	URL string
+	// LocalURL is what this machine's own process uses when it differs (host role:
+	// the loopback address of the server it runs). It never reaches the shared file.
+	LocalURL   string
 	TokenEnv   string
 	StoreToken bool
 	Server     *ServerPlan
@@ -160,8 +174,20 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 		return nil
 	}
 	role := opts.MemoryRole
+	var current gabitotl.MemoryConfig
+	if inv.Project.Exists {
+		current, _ = gabitotl.LoadMemory(gabitotl.NewLayout(env.ProjectRoot))
+	}
 	if role == "" && opts.MemoryURL != "" {
 		role = gabitotl.RoleClient
+		if current.Role == gabitotl.RoleHost { // `--url` on a host sets the address teammates use
+			role = gabitotl.RoleHost
+		}
+	}
+	if role == "" && opts.MemoryURL == "" && current.AwaitsClientSetup() {
+		// A teammate after `git pull`: the shared file names the server, nothing is
+		// configured for this person. The role is client and the url is the shared one.
+		role, opts.MemoryURL = gabitotl.RoleClient, current.URL
 	}
 	switch role {
 	case "":
@@ -203,12 +229,28 @@ func planTeam(ctx context.Context, env Env, inv Inventory, opts Options, pl *Pla
 		if t.StoreToken && opts.TokenSecret == "" && env.Var(t.TokenEnv) == "" {
 			return fmt.Errorf("%w: --memory-store-token copies the token from the environment variable %s, which is not set", ErrTeamOptions, t.TokenEnv)
 		}
-	case gabitotl.RoleHost:
-		if t.URL == "" {
-			t.URL = DefaultServerURL
+		if !t.StoreToken && env.Var(t.TokenEnv) == "" {
+			pl.note(NoteTeamTokenMissing, t.TokenEnv)
 		}
-		if err := checkEndpoint(t.URL); err != nil {
-			return err
+	case gabitotl.RoleHost:
+		// opts.MemoryURL is the address teammates use. It is what the shared file
+		// gets, so a loopback address is refused: nobody else could reach it. Without
+		// one, the host is set up locally and nothing is shared (see the note).
+		t.LocalURL = DefaultServerURL
+		if t.URL == "" && inv.Project.Exists {
+			if o := gabitotl.InspectMemory(gabitotl.NewLayout(env.ProjectRoot), identity.OSUserID()); o.SharedURL != "" && !gabitotl.IsLoopbackURL(o.SharedURL) {
+				t.URL = o.SharedURL // an earlier run already shared it
+			}
+		}
+		if t.URL != "" {
+			if err := ValidateTeamHostURL(t.URL); err != nil {
+				if errors.Is(err, ErrTeamOptions) {
+					return err
+				}
+				return fmt.Errorf("%w: %v", ErrTeamOptions, err)
+			}
+		} else {
+			pl.note(NoteTeamURLMissing, "")
 		}
 		if opts.User == "" {
 			// The identity is the OS user: the host needs no extra question.
@@ -272,10 +314,18 @@ func teamUnchanged(ctx context.Context, env Env, inv Inventory, opts Options, t 
 	if opts.ImportEngram || t.Import != nil || len(t.Invites) > 0 || t.StoreToken || !inv.Project.Exists {
 		return false
 	}
-	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(env.ProjectRoot))
+	l := gabitotl.NewLayout(env.ProjectRoot)
+	cfg, err := gabitotl.LoadMemory(l)
+	want := t.URL
+	if t.Role == gabitotl.RoleHost {
+		want = t.LocalURL
+	}
 	if err != nil || cfg.Mode != gabitotl.ModeTeam || cfg.Provider != gabitotl.MemoryMemoryMCP ||
-		cfg.URL != t.URL || cfg.Token != "env:"+t.TokenEnv || cfg.Role != t.Role || cfg.Instance != t.instance() {
+		cfg.URL != want || cfg.Token != "env:"+t.TokenEnv || cfg.Role != t.Role || cfg.Instance != t.instance() {
 		return false
+	}
+	if o := gabitotl.InspectMemory(l, identity.OSUserID()); len(o.LegacyFields) > 0 || !o.HasLocal || (t.Role == gabitotl.RoleHost && t.URL != "" && o.SharedURL != t.URL) {
+		return false // per-machine fields still in the shared file, or a team url to share
 	}
 	if t.Role == gabitotl.RoleClient {
 		return cfg.PostgresConnection == "" // an older client file still names a database: tidy it
@@ -337,14 +387,21 @@ func (r *run) teamConfig(l gabitotl.Layout) error {
 		return err
 	}
 	cfg.Mode, cfg.Provider = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP
-	cfg.URL, cfg.Token, cfg.Role = t.URL, "env:"+t.TokenEnv, t.Role
+	cfg.Token, cfg.Role = "env:"+t.TokenEnv, t.Role
 	cfg.Instance = t.instance()
+	teamURL := "" // what the shared file gets besides what SaveMemory infers
 	if t.Role == gabitotl.RoleClient {
+		cfg.URL = t.URL
 		cfg.PostgresConnection = "" // a client has no database: it only holds a url and a token reference
-	} else if cfg.PostgresConnection == "" {
-		cfg.PostgresConnection = DefaultDatabaseRef
+	} else {
+		cfg.URL, teamURL = t.LocalURL, t.URL // the host runs against its own address; teammates get the team one
+		if cfg.PostgresConnection == "" {
+			cfg.PostgresConnection = DefaultDatabaseRef
+		}
 	}
-	return gabitotl.SaveMemory(l, cfg)
+	// Role, token, database and a loopback url go to this person's local file; the
+	// committed memory.md only gets the team-reachable url.
+	return gabitotl.SaveMemoryTeamURL(l, identity.OSUserID(), cfg, teamURL)
 }
 
 // secretBackup remembers the client secrets file so a rollback restores it.
@@ -557,6 +614,18 @@ func ValidateTeamURL(raw string) error {
 		return err
 	}
 	return nil
+}
+
+// ValidateTeamHostURL checks the address a host announces to its teammates: a
+// valid server endpoint that is not loopback, since only the host could use it.
+func ValidateTeamHostURL(raw string) error {
+	if err := checkEndpoint(raw); err != nil {
+		return err
+	}
+	if gabitotl.IsLoopbackURL(raw) {
+		return fmt.Errorf("%q points at this machine, so teammates cannot use it: give the address they reach the server at, or leave it out to set up locally and share it later", raw)
+	}
+	return mcp.CheckURL(raw, false)
 }
 
 // ValidTokenEnv reports whether n is a variable NAME (never a token).

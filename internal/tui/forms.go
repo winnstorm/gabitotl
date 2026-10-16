@@ -50,6 +50,18 @@ func (m *Model) startForm(kind string) tea.Cmd {
 				}
 				return nil
 			})
+	case "hosturl":
+		m.urlVal = ""
+		field = huh.NewInput().Title(f("tui.team.hosturl")).Description(f("tui.team.hosturl.desc")).Value(&m.urlVal).
+			Validate(func(v string) error {
+				if v = strings.TrimSpace(v); v == "" {
+					return nil // optional: nothing is shared until the host has an address
+				}
+				if err := installer.ValidateTeamHostURL(v); err != nil {
+					return errors.New(f("tui.team.badurl", "detail", err.Error()))
+				}
+				return nil
+			})
 	case "tokenenv":
 		m.tokenEnvVal = installer.DefaultTokenEnv
 		field = huh.NewInput().Title(f("tui.team.tokenenv")).Description(f("tui.team.tokenenv.desc")).Value(&m.tokenEnvVal).
@@ -142,6 +154,9 @@ func (m *Model) formDone() tea.Cmd {
 	case "url":
 		m.opts.MemoryURL = strings.TrimSpace(m.urlVal)
 		m.teamAsked2 = append(m.teamAsked2, "url")
+	case "hosturl":
+		m.opts.MemoryURL = strings.TrimSpace(m.urlVal)
+		m.teamAsked2 = append(m.teamAsked2, "hosturl")
 	case "tokenenv":
 		m.opts.MemoryTokenEnv = strings.TrimSpace(m.tokenEnvVal)
 		m.teamAsked2 = append(m.teamAsked2, "tokenenv")

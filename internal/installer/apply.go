@@ -86,7 +86,10 @@ type Result struct {
 	RolledBack     bool
 	RolledBackWith []string // files restored by the rollback
 	Warnings       []string
-	ReportPath     string
+	// Notices are coded messages the presenters localize (note.<code>); unlike
+	// Warnings they carry no prose of their own.
+	Notices    []Note
+	ReportPath string
 }
 
 type run struct {
@@ -318,7 +321,7 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 			r.warn("memory unavailable (%v): imports recorded in imports.md only", err)
 		} else if why := teamNotReady(ctx, p); cfg.Provider == gabitotl.MemoryMemoryMCP && why != "" {
 			// Nothing is recorded as imported, so the next run retries once the server is up.
-			r.warn("team memory is %s: the knowledge import was skipped; start the server and run `gabitotl import run`", why)
+			r.importSkipped(cfg, why)
 			return nil
 		} else {
 			opts.Sink = KnowledgeSink(p, cfg)
@@ -332,6 +335,18 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 		}
 	}
 	return err
+}
+
+// importSkipped explains why the knowledge import waits. The advice depends on the
+// role: a host starts its server, a client needs a token from the host.
+func (r *run) importSkipped(cfg gabitotl.MemoryConfig, why string) {
+	code, detail := NoticeImportSkippedClient, why
+	if name, ok := strings.CutPrefix(cfg.Token, "env:"); cfg.Role == gabitotl.RoleHost {
+		code = NoticeImportSkippedHost
+	} else if ok && r.env.Var(name) == "" {
+		code, detail = NoticeImportSkippedNoToken, name
+	}
+	r.res.Notices = append(r.res.Notices, Note{Code: code, Detail: detail})
 }
 
 func relTo(root, p string) string {

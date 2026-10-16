@@ -367,7 +367,7 @@ func GentleUninstallArgs(g GentleAI, selected []string) (args []string, manual b
 // wording for; a test in package ui keeps the messages file complete.
 var (
 	WhyCodes     = []string{WhyExists, WhySnapshot, WhyEngramAdopted, WhyEngramProject, WhyGentleBackups, WhyUserAssets, WhyUninstallAll, WhyImportDone}
-	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteTeamNotReady, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup}
+	NoteCodes    = []string{NoteNoContainerEngine, NoteServerConflict, NoteTeamUnconfigured, NoteImportUnavailable, NoteImportNeedsHost, NoteTeamNotReady, NoteNoRuntimes, NoteRuntimeMissing, NoteEngramMissing, NoteNoMigrator, NoteGentleNotFound, NotePersonaConflict, NoteGentleUnmatched, NoteGentleManual, NoteMemoryUnhealthy, NoteEngramNoBackup, NoteTeamURLMissing, NoteTeamTokenMissing, NoticeImportSkippedHost, NoticeImportSkippedClient, NoticeImportSkippedNoToken}
 	WarningCodes = []string{WarnDataDirOverride, WarnCloudSync, WarnProjectConfig, WarnProjectIdentity}
 )
 

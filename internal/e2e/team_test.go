@@ -145,8 +145,12 @@ func TestTeamMemoryFlow(t *testing.T) {
 		t.Fatalf("install exited %d\n%s\n%s", r.code, r.out, r.err)
 	}
 	mem := read(t, filepath.Join(proj, ".gabitotl", "memory.md"))
-	contains(t, "memory.md", mem, "mode: team", "provider: memory-mcp", "role: client", "url: "+srv.url, "token: env:GBT_E2E_TOKEN")
-	absent(t, "memory.md", mem, gabi, strings.SplitN(gabi, ".", 2)[1])
+	// Per-machine settings live in the person's local file, never in the committed one.
+	contains(t, "memory.md", mem, "mode: team", "provider: memory-mcp")
+	absent(t, "memory.md", mem, "role:", "token:", "url: "+srv.url)
+	local := read(t, filepath.Join(proj, ".gabitotl", "local", "users", m.user, "memory.md"))
+	contains(t, "local memory.md", local, "role: client", "url: "+srv.url, "token: env:GBT_E2E_TOKEN")
+	absent(t, "memory.md", mem+local, gabi, strings.SplitN(gabi, ".", 2)[1])
 	secrets := mcp.ClientSecretsPath(m.home)
 	if st, err := os.Stat(secrets); err != nil || st.Mode().Perm() != 0o600 {
 		t.Fatalf("secrets file: %v %v", st, err)

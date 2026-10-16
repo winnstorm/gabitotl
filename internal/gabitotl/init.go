@@ -66,6 +66,9 @@ func Init(root string, opts InitOptions) (InitResult, error) {
 	} else {
 		mem.Backend = "local"
 	}
+	// The database reference is per machine: it goes to the per-person file below.
+	shared := mem
+	shared.PostgresConnection = ""
 	proj := DefaultProject(name, kind)
 	rt := RuntimeConfig{Runtime: orDefault(opts.Runtime, "unset"), AllowModelSwitch: true}
 	vcs := DefaultVCS(orDefault(opts.VCSProvider, "git"))
@@ -82,7 +85,7 @@ func Init(root string, opts InitOptions) (InitResult, error) {
 		body  string
 	}{
 		{l.Project(), proj, bodyProject},
-		{l.Memory(), mem, bodyMemory},
+		{l.Memory(), shared, bodyMemory},
 		{l.Runtime(), rt, bodyRuntime},
 		{l.VCS(), vcs, bodyVCS},
 		{l.Workflow(), wf, bodyWorkflow},
@@ -93,6 +96,11 @@ func Init(root string, opts InitOptions) (InitResult, error) {
 			return res, err
 		}
 		if err := res.write(root, f.path, data); err != nil {
+			return res, err
+		}
+	}
+	if mem.PostgresConnection != "" {
+		if err := SaveMemory(l, mem); err != nil {
 			return res, err
 		}
 	}

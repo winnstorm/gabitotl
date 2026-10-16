@@ -129,7 +129,7 @@ func TestHostDryRunDescribesEverythingAndChangesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pl.Team == nil || pl.Team.Role != "host" || pl.Team.Server == nil || pl.Team.URL != DefaultServerURL || pl.Team.TokenEnv != DefaultTokenEnv {
+	if pl.Team == nil || pl.Team.Role != "host" || pl.Team.Server == nil || pl.Team.URL != "" || pl.Team.LocalURL != DefaultServerURL || !pl.HasNote(NoteTeamURLMissing) || pl.Team.TokenEnv != DefaultTokenEnv {
 		t.Fatalf("%+v", pl.Team)
 	}
 	var creates []string

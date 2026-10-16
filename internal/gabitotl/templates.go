@@ -23,6 +23,13 @@ Project memory lives in the configured provider. This file only holds
 references: never put passwords, tokens or connection strings here. Use
 ` + "`env:NAME`" + `, ` + "`keychain:NAME`" + ` or ` + "`native`" + `.
 `
+	bodyLocalMemory = `
+# Memory (this machine)
+
+Your own team-memory settings: role, token variable, database reference and an
+optional local server url. This file is never committed. Only references live
+here (` + "`env:NAME`" + `), never a token or a password.
+`
 	bodyRuntime = `
 # Runtime
 

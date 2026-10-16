@@ -8,16 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"os/exec"
-	"os/user"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
 // EnvUser overrides the identity derived from the OS user.
-const EnvUser = "GABITOTL_USER"
+const EnvUser = gabitotl.EnvUser
 
 // ErrNoActive is returned by Active when no id can be derived from the
 // environment.
@@ -105,37 +103,13 @@ func read(path string) (User, error) {
 }
 
 // OSUserID derives the active id: GABITOTL_USER when set, else the OS user
-// name. The result is a slug; it is empty when nothing usable is available.
-func OSUserID() string {
-	if v := strings.TrimSpace(os.Getenv(EnvUser)); v != "" {
-		return Slug(v)
-	}
-	raw := ""
-	if u, err := user.Current(); err == nil {
-		raw = u.Username
-	}
-	if raw == "" {
-		for _, k := range []string{"USER", "USERNAME", "LOGNAME"} {
-			if raw = os.Getenv(k); raw != "" {
-				break
-			}
-		}
-	}
-	return slugOSName(raw)
-}
+// name (see gabitotl.ActiveUserID). The result is a slug; it is empty when
+// nothing usable is available.
+func OSUserID() string { return gabitotl.ActiveUserID() }
 
 // slugOSName strips a Windows DOMAIN\ prefix and a user@domain suffix, then
 // slugs what is left.
-func slugOSName(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if i := strings.LastIndexByte(raw, '\\'); i >= 0 {
-		raw = raw[i+1:]
-	}
-	if i := strings.IndexByte(raw, '@'); i >= 0 {
-		raw = raw[:i]
-	}
-	return Slug(raw)
-}
+func slugOSName(raw string) string { return gabitotl.SlugOSName(raw) }
 
 // Active returns the identity of the OS user (see OSUserID) and silently
 // creates its shared profile when the project has none. An existing profile is

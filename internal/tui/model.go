@@ -409,6 +409,11 @@ func (m *Model) choose(id string) tea.Cmd {
 		if m.cfg.Need != nil {
 			m.need = m.cfg.Need(m.inv, m.opts)
 		}
+		if m.need.Teammate && m.opts.MemoryRole == "" {
+			// The committed memory.md already names the server: no role or url question.
+			m.opts.Mode, m.opts.Memory, m.opts.MemoryRole, m.opts.MemoryURL = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP, gabitotl.RoleClient, m.need.SharedURL
+			m.teamAsked = true
+		}
 		return m.advance()
 	case "use", "team":
 		m.memoryAsked, m.modeDecided = true, true
@@ -554,6 +559,9 @@ func (m *Model) nextTeamForm() string {
 	}
 	switch m.opts.MemoryRole {
 	case gabitotl.RoleHost:
+		if !asked("hosturl") && m.opts.MemoryURL == "" {
+			return "hosturl" // the address teammates use; may stay empty
+		}
 		if !asked("invites") && len(m.cfg.Options.Invites) == 0 {
 			return "invites"
 		}

@@ -210,6 +210,9 @@ func RenderResult(w io.Writer, m Messages, res installer.Result, inv installer.I
 	for _, wn := range res.Warnings {
 		fmt.Fprintf(w, "%s %s\n", SymWarn, m.Format("result.warning", "detail", wn))
 	}
+	for _, n := range res.Notices {
+		fmt.Fprintf(w, "%s %s\n", SymWarn, m.Format("note."+n.Code, "detail", n.Detail))
+	}
 }
 
 // RenderOutcome prints the closing report of a run and, when it failed, the
@@ -399,7 +402,11 @@ func renderTeam(w io.Writer, m Messages, res installer.Result, paths Paths) {
 		}
 		fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.team.token_stored"))
 		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.serve", "instance", instanceFlag(t.Instance)))
-		fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.connect", "url", t.URL, "env", t.TokenEnv, "project", t.Project, "instance", instanceFlag(t.Instance)))
+		if t.URL != "" {
+			fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.connect", "url", t.URL, "project", t.Project, "instance", instanceFlag(t.Instance)))
+		} else { // the plan note already said that nobody can connect yet
+			fmt.Fprintf(w, "%s %s\n", SymTodo, m.Format("result.team.tokens", "project", t.Project, "instance", instanceFlag(t.Instance)))
+		}
 		if len(res.Tokens) > 0 {
 			fmt.Fprintf(w, "\n%s %s\n", SymWarn, m.Format("result.team.invites"))
 			for _, tk := range res.Tokens {

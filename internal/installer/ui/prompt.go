@@ -103,6 +103,11 @@ type Need struct {
 	// Pending means the project already chose team memory but memory.md has no
 	// server yet, so the team setup is asked to finish it.
 	Pending bool
+	// Teammate means the committed memory.md already names the team server and
+	// nothing is configured for this person yet (right after `git pull`): the role is
+	// client, the url is SharedURL and only the token variable is asked.
+	Teammate  bool
+	SharedURL string
 }
 
 // Onboard asks the open questions, one at a time, and fills opts.
@@ -125,7 +130,9 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 	if n.Pending && opts.Memory == "" {
 		opts.Mode, opts.Memory = "team", "memory-mcp"
 	}
-	if n.Team && opts.Memory == "memory-mcp" {
+	if n.Teammate {
+		p.askTeammate(opts, n)
+	} else if n.Team && opts.Memory == "memory-mcp" {
 		p.askTeam(opts, n)
 	}
 	if n.Git {
@@ -135,9 +142,33 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 	}
 }
 
+// askTeammate finishes the setup of a teammate: the server is already in the
+// committed memory.md, so neither the role nor the url is asked, only the name of
+// the variable that will hold this person's token.
+func (p *Prompter) askTeammate(opts *installer.Options, n Need) {
+	if opts.MemoryRole != "" || opts.MemoryURL != "" {
+		return // flags answer it
+	}
+	opts.MemoryRole, opts.MemoryURL = "client", n.SharedURL
+	fmt.Fprintf(p.w, "%s %s\n", SymOK, p.m.Format("ask.team.known", "url", n.SharedURL))
+	p.askTokenEnv(opts)
+}
+
+// askTokenEnv asks for the NAME of the token variable unless a flag gave it.
+func (p *Prompter) askTokenEnv(opts *installer.Options) {
+	for opts.MemoryTokenEnv == "" {
+		env := p.Ask(p.m.Format("ask.team.tokenenv"), installer.DefaultTokenEnv)
+		if installer.ValidTokenEnv(env) {
+			opts.MemoryTokenEnv = env
+			return
+		}
+		fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.team.badenv"))
+	}
+}
+
 // askTeam asks what the existing team setup needs and nothing more: the role of
-// this machine, then the server URL and token variable for a client, or whether
-// to import the Engram memory for a host. Answers given by flag are not asked
+// this machine, then the server URL and token variable for a client, or the URL
+// teammates use and whether to import the Engram memory for a host. Answers given by flag are not asked
 // again, and ended input leaves the team setup undecided rather than guessing.
 func (p *Prompter) askTeam(opts *installer.Options, n Need) {
 	if opts.MemoryRole == "" && opts.MemoryURL == "" {
@@ -164,15 +195,21 @@ func (p *Prompter) askTeam(opts *installer.Options, n Need) {
 			}
 			opts.MemoryURL = url
 		}
-		if opts.MemoryTokenEnv == "" {
-			for {
-				env := p.Ask(p.m.Format("ask.team.tokenenv"), installer.DefaultTokenEnv)
-				if installer.ValidTokenEnv(env) {
-					opts.MemoryTokenEnv = env
-					break
-				}
-				fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.team.badenv"))
+		p.askTokenEnv(opts)
+	}
+	if opts.MemoryRole == "host" && opts.MemoryURL == "" {
+		// The address teammates use goes into the committed file; it may stay empty.
+		for {
+			url := p.Ask(p.m.Format("ask.team.hosturl"), "")
+			if url == "" {
+				break
 			}
+			if err := installer.ValidateTeamHostURL(url); err != nil {
+				fmt.Fprintf(p.w, "%s %s\n", SymWarn, p.m.Format("ask.team.hostbadurl", "detail", err.Error()))
+				continue
+			}
+			opts.MemoryURL = url
+			break
 		}
 	}
 	if opts.MemoryRole == "host" && n.CanImport && !opts.ImportEngram {

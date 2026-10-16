@@ -311,3 +311,37 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   change; it never blocks. `doctor` reports the chosen provider and warns when the mode and provider disagree or team memory
   has no server or token reference.
 - **Also:** a host without `--user` now uses the OS-user identity (D25) instead of failing.
+
+## D30. Team memory settings split: shared vs per machine
+- **Problem:** the team setup wrote facts of one machine into the committed `memory.md` (`role`, `instance`, `token`,
+  `postgres_connection` and, for a host, `http://127.0.0.1:8765/mcp`). The first person to configure a project therefore
+  committed a loopback address and `role: host` that every teammate inherited, although a client needs only the server URL
+  and its own token.
+- **Decision:** two files. The committed `.gabitotl/memory.md` keeps what every teammate needs: `mode`, `provider`,
+  `backend`, `project_key` and `url`, the TEAM-REACHABLE server address, never a loopback or unspecified host. The
+  per-person `.gabitotl/local/users/<id>/memory.md` (git-ignored, next to the runtime override and session) keeps `role`,
+  `instance`, `token` (an env reference), `postgres_connection` and an optional `url` override: a host reaches its own
+  server on 127.0.0.1 while the shared file holds the public address. Only references are stored, as before.
+- **Merged view:** `gabitotl.MemoryConfig` stays the one struct the callers read. `LoadMemory` merges shared and local (local
+  wins per field); `SaveMemory` splits: a loopback `url` goes to the local file only, a reachable `url` to the shared one,
+  and `SaveMemoryTeamURL` lets a host write the team address and its local address in one call (a loopback team address is
+  refused with `ErrLoopbackTeamURL`). The person id is `gabitotl.ActiveUserID` (OS user, `GABITOTL_USER` overrides); it
+  lives in package `gabitotl` and `identity` delegates to it, because `identity` imports `gabitotl`. With no usable id the
+  settings stay in the shared file, as before.
+- **Legacy files:** a `memory.md` that still carries per-machine fields keeps working: they are the fallback for what the
+  local file lacks. The next write of memory settings moves them to the local file and removes them from the shared one
+  (a legacy loopback `url` becomes the local override), preserving the Markdown body and unknown front matter keys. The file
+  is never deleted. The local file is part of the install snapshot, so a rollback restores it too.
+- **Init:** `init` no longer writes `postgres_connection` into the committed file for memory-mcp; it goes to the local one.
+- **Host flow:** the installer asks a host (interactive questions and TUI form, optional) for the address teammates use and
+  validates that it is not loopback; `--memory-url` is the same answer for non-interactive runs. It is written to the shared
+  file while the host's own process keeps `http://127.0.0.1:8765/mcp` as its local override. Without an address the host
+  is set up locally, nothing is shared, and one line says teammates cannot connect until `gabitotl memory use memory-mcp
+  --role host --url URL` publishes one (`memory use` with team flags on a team project re-runs the idempotent setup). A
+  loopback `--memory-url` is an error; omitting it is the local-only mode (no extra flag).
+- **Teammate flow:** a project whose committed `memory.md` says memory-mcp with a reachable `url` and whose local file is
+  missing is recognized by `install` and `doctor`: role client, no role or url question, only the token variable name; an
+  unset variable prints how to get a token from the host. `doctor` also warns about a committed loopback `url` and about
+  per-machine fields still in the shared file, with the exact fix.
+- **Warning fix:** the skipped-import message is a coded notice (`Result.Notices`, `note.import-skipped-*`) with advice by
+  role: hosts are told to start the server, clients to ask the host for a token when their variable is unset.

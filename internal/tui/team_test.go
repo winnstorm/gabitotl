@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/memory/migrate"
@@ -96,6 +97,8 @@ func TestHostFlowShowsThePromiseAndInstallsTheServer(t *testing.T) {
 	d.require("no toco ningún PostgreSQL que ya tengas")
 	d.require("docker")
 	d.pick(lbl("tui.team.host"))
+	d.until("host url form", func() bool { return d.m.screen == scrForm && d.m.formKind == "hosturl" })
+	d.key("enter") // optional: nothing is shared yet
 	d.until("invites form", func() bool { return d.m.screen == scrForm && d.m.formKind == "invites" })
 	d.typeText("gonza")
 	d.key("enter")
@@ -144,6 +147,27 @@ func TestHostFlowShowsThePromiseAndInstallsTheServer(t *testing.T) {
 	}
 }
 
+func TestHostIsAskedForTheTeamURLAndNeverSharesALoopbackOne(t *testing.T) {
+	mc := newMachine(t)
+	withTeam(mc, true)
+	d := newDriver(t, mc.config(opts()))
+	toTeamScreen(t, d)
+	d.pick(lbl("tui.team.host"))
+	d.until("host url form", func() bool { return d.m.screen == scrForm && d.m.formKind == "hosturl" })
+	d.typeText("http://127.0.0.1:8765/mcp")
+	d.key("enter")
+	d.require("teammates cannot use it") // loopback: refused, asked again
+	for range len("http://127.0.0.1:8765/mcp") {
+		d.key("backspace")
+	}
+	d.typeText("https://memoria.example.com/mcp")
+	d.key("enter")
+	d.until("invites form", func() bool { return d.m.screen == scrForm && d.m.formKind == "invites" })
+	if d.m.opts.MemoryURL != "https://memoria.example.com/mcp" {
+		t.Fatalf("%+v", d.m.opts)
+	}
+}
+
 func TestHostFlowImportsWhenAsked(t *testing.T) {
 	mc := newMachine(t)
 	_, st := withTeam(mc, true)
@@ -154,6 +178,8 @@ func TestHostFlowImportsWhenAsked(t *testing.T) {
 	d := newDriver(t, mc.config(opts()))
 	toTeamScreen(t, d)
 	d.pick(lbl("tui.team.host"))
+	d.until("host url form", func() bool { return d.m.screen == scrForm && d.m.formKind == "hosturl" })
+	d.key("enter") // optional: nothing is shared yet
 	d.until("invites form", func() bool { return d.m.screen == scrForm && d.m.formKind == "invites" })
 	d.key("enter") // nobody to invite
 	d.until("engram question", func() bool { return d.m.screen == scrEngram })
@@ -246,9 +272,19 @@ func TestClientFlowNeverShowsOrStoresTheTokenOutsideTheSecretsFile(t *testing.T)
 		})
 	}
 	mem := slurpFile(t, filepath.Join(mc.root, ".gabitotl", "memory.md"))
-	for _, want := range []string{"provider: memory-mcp", "mode: team", "role: client", "url: https://memoria.example.com/mcp", "token: env:GABITOTL_MEMORY_TOKEN"} {
+	for _, want := range []string{"provider: memory-mcp", "mode: team", "url: https://memoria.example.com/mcp"} {
 		if !strings.Contains(mem, want) {
 			t.Errorf("memory.md lacks %q:\n%s", want, mem)
+		}
+	}
+	if strings.Contains(mem, "role:") || strings.Contains(mem, "token:") {
+		t.Errorf("the committed memory.md must not carry per-machine settings:\n%s", mem)
+	}
+	localPath, _ := gabitotl.NewLayout(mc.root).LocalMemory(gabitotl.ActiveUserID())
+	local := slurpFile(t, localPath)
+	for _, want := range []string{"role: client", "token: env:GABITOTL_MEMORY_TOKEN"} {
+		if !strings.Contains(local, want) {
+			t.Errorf("the local memory.md lacks %q:\n%s", want, local)
 		}
 	}
 }
