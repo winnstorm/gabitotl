@@ -383,3 +383,25 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   nothing.
 - **Result:** the report prints the number of files moved, the snapshot id with `gabitotl restore <id>`, and briefly the
   files skipped (changed since the plan) and the user's files kept.
+
+## D32. GabitoTL's skills are whole files it owns, installed per runtime
+- **Problem:** GabitoTL could only edit sections, JSON keys and array items inside files. Agent skills
+  (`<skills dir>/<name>/SKILL.md`) are whole files, and there was no way to create one, update it safely or remove it
+  without risking a file the user wrote or edited.
+- **Decision:** a new engine action, `OpWriteFile` (`PlanFile`, `PlanSkills`), owns a file entirely. The text lives in
+  `internal/skills` (embedded `files/<name>/SKILL.md`, English, `metadata.author: gabitotl`); the installer turns it
+  into `runtime.Asset` values in `Options.Skills` and every adapter plans one file per skill under its own skills
+  directory, so the core never branches on runtime names (D3).
+- **Planning rules:** absent is CREATE; identical is NO-ACTION; different is MODIFY only when the ownership state says
+  GabitoTL wrote the file and its hash still equals the recorded one; any other different file is PRESERVE with a
+  manual action. A user's file is never overwritten, and an identical file nobody recorded is never claimed.
+- **Ownership:** `ownership.Entry` gains `whole_file` and `created_dirs` (both optional, so old `state.json` files
+  load unchanged). Uninstall deletes the file only if its hash still equals `hash_after`; otherwise it reports the
+  file as a manual action and keeps the entry. The directories GabitoTL created are removed afterwards, innermost
+  first, and only if empty. Shared files (Kiro CLI and IDE) wait for the last owner.
+- **Backup and verify:** the existing global backup copies the target before a MODIFY; `Apply` writes atomically
+  (temp file and rename, directories 0755, file 0644) and verifies the content hash.
+- **Not Gentle's:** the Gentle AI retirement (D31) matches `metadata.author: gentleman-programming`; GabitoTL skills use
+  `gabitotl`, and a test proves they are never selected.
+- **Open point:** the OpenCode skills directory is derived from Gentle AI's steering text and is not confirmed by
+  OpenCode's documentation (ASSUMPTION in the adapter's package doc).

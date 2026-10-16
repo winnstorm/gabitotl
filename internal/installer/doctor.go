@@ -240,7 +240,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		case isManaged:
 			managed++
 			bad := ""
-			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
+			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
 				if !c.OK {
 					bad = c.Name + ": " + c.Detail
 					break

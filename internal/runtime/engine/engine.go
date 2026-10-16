@@ -251,6 +251,76 @@ func PlanForeignPersona(runtime, path, family string, migrate bool) []rt.Action 
 	return out
 }
 
+// PlanFile plans a whole file GabitoTL owns (a skill). An absent file is
+// created and an identical one needs nothing. A different one is rewritten only
+// when the ownership state says GabitoTL wrote it and nobody edited it since (its
+// hash still equals what we recorded); any other different file belongs to the
+// user and is kept, so a user file is never overwritten.
+func PlanFile(env rt.Env, runtime, path, content string) rt.Action {
+	a := rt.Action{Runtime: runtime, Path: path, Target: "file " + filepath.Base(filepath.Dir(path)) + "/" + filepath.Base(path),
+		Edit: rt.Edit{Op: rt.OpWriteFile, Body: content}}
+	data, exists, err := readFile(path)
+	switch {
+	case err != nil:
+		return manual(runtime, path, a.Target, err, "create this file with the skill text")
+	case !exists:
+		a.Kind = rt.Create
+	case string(data) == content:
+		a.Kind = rt.NoAction
+	default:
+		st, _ := env.Store().Load()
+		if ownsWhole(st, path, data) {
+			a.Kind, a.Detail = rt.Modify, "update the file GabitoTL wrote earlier"
+		} else {
+			a.Kind, a.Detail, a.Edit = rt.Preserve, "a different file already exists and is kept", rt.Edit{Op: rt.OpManual}
+		}
+	}
+	return a
+}
+
+// SkillFile is the name of the file inside every skill directory.
+const SkillFile = "SKILL.md"
+
+// PlanSkills plans one whole-file asset per skill under dir:
+// <dir>/<name>/SKILL.md.
+func PlanSkills(env rt.Env, runtime, dir string, skills []rt.Asset) []rt.Action {
+	var out []rt.Action
+	for _, sk := range skills {
+		out = append(out, PlanFile(env, runtime, filepath.Join(dir, sk.Name, SkillFile), sk.Content))
+	}
+	return out
+}
+
+// ownsWhole reports whether the state records path as a whole file written by
+// GabitoTL whose content is still exactly what we wrote.
+func ownsWhole(st ownership.State, path string, data []byte) bool {
+	i, ok := st.Find(path)
+	return ok && st.Entries[i].Whole && ownership.Hash(data) == st.Entries[i].HashAfter
+}
+
+// missingDirs lists the directories above path that do not exist yet, outermost first.
+func missingDirs(path string) []string {
+	var out []string
+	for d := filepath.Dir(path); ; d = filepath.Dir(d) {
+		if _, err := os.Stat(d); err == nil || filepath.Dir(d) == d {
+			break
+		}
+		out = append([]string{d}, out...)
+	}
+	return out
+}
+
+// pruneDirs removes the directories we created, innermost first, and only while
+// they are empty (os.Remove refuses a directory that holds anything). It runs
+// once after every entry of a runtime is gone, because the first skill created
+// the shared skills directory that the last one empties.
+func pruneDirs(dirs []string) {
+	slices.SortFunc(dirs, func(a, b string) int { return len(b) - len(a) })
+	for _, d := range slices.Compact(dirs) {
+		_ = os.Remove(d)
+	}
+}
+
 // Inspect builds the read-only view of paths.
 func Inspect(env rt.Env, runtime string, paths ...string) rt.Inspection {
 	in := rt.Inspection{Runtime: runtime}
@@ -323,6 +393,8 @@ func check(a rt.Action) rt.Check {
 		c.OK = ok && sameJSON(cur, a.Edit.Value)
 	case rt.OpAddItem:
 		c.OK, _ = ownership.ArrayHas(data, a.Edit.Key, a.Edit.Item)
+	case rt.OpWriteFile:
+		c.OK = ownership.Hash(data) != "" && ownership.Hash(data) == ownership.Hash([]byte(a.Edit.Body))
 	default:
 		c.OK = true
 	}
@@ -486,6 +558,10 @@ func adopt(st *ownership.State, runtime, version string, a rt.Action) {
 		if !containsStr(e.Sections, a.Edit.Name) {
 			return
 		}
+	case rt.OpWriteFile:
+		if !e.Whole {
+			return
+		}
 	case rt.OpSetKey, rt.OpAddItem:
 		found := false
 		for _, k := range e.Keys {
@@ -510,6 +586,21 @@ func applyOne(st *ownership.State, runtime, version string, a rt.Action) error {
 	entry := ownership.Entry{Runtimes: []string{runtime}, Path: a.Path, CreatedFile: !exists, HashBefore: ownership.Hash(data), Version: version}
 	var out []byte
 	switch a.Edit.Op {
+	case rt.OpWriteFile:
+		out = []byte(a.Edit.Body)
+		owned := ownsWhole(*st, a.Path, data)
+		switch {
+		case exists && bytes.Equal(data, out):
+			if !owned {
+				return nil // an identical file nobody recorded is the user's: do not claim it
+			}
+		case exists && !owned:
+			return &ownership.UnsafeError{Reason: "the file exists with other content and GabitoTL did not write it"}
+		}
+		entry.Whole = true
+		if !exists {
+			entry.Dirs = missingDirs(a.Path)
+		}
 	case rt.OpUpsertSection:
 		content := string(data)
 		if !exists {
@@ -578,6 +669,8 @@ func Remove(env rt.Env, runtime string) (rt.Result, error) {
 		return res, err
 	}
 	var keep []ownership.Entry
+	var dirs []string
+	defer func() { pruneDirs(dirs) }()
 	for _, e := range st.Entries {
 		if !containsStr(e.Runtimes, runtime) {
 			keep = append(keep, e)
@@ -597,6 +690,7 @@ func Remove(env rt.Env, runtime string) (rt.Result, error) {
 			}
 			return res, fmt.Errorf("%s: %w", e.Path, err)
 		}
+		dirs = append(dirs, e.Dirs...)
 		res.Removed = append(res.Removed, rt.Action{Kind: rt.RemoveAfterVerify, Runtime: runtime, Path: e.Path, Target: "managed assets"})
 	}
 	st.Entries = keep
@@ -615,8 +709,14 @@ func without(l []string, s string) []string {
 
 func removeEntry(e ownership.Entry) error {
 	data, exists, err := readFile(e.Path)
-	if err != nil || !exists {
+	if err != nil {
 		return err
+	}
+	if e.Whole {
+		return removeWhole(e, data, exists)
+	}
+	if !exists {
+		return nil
 	}
 	out := data
 	for _, name := range e.Sections {
@@ -646,6 +746,21 @@ func removeEntry(e ownership.Entry) error {
 		return nil
 	}
 	return writeAtomic(e.Path, out, false)
+}
+
+// removeWhole deletes a file GabitoTL wrote in full, but only while its content
+// still equals what we recorded; an edited file is reported and kept. Then the
+// callers prune the directories we created for it.
+func removeWhole(e ownership.Entry, data []byte, exists bool) error {
+	if exists {
+		if ownership.Hash(data) != e.HashAfter {
+			return &ownership.UnsafeError{Reason: "the file changed after GabitoTL wrote it"}
+		}
+		if err := os.Remove(e.Path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // isEmpty reports whether nothing but whitespace, an empty JSON object or bare

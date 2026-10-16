@@ -134,7 +134,7 @@ func (r *run) warn(format string, a ...any) {
 }
 
 func (r *run) ropts() rt.Options {
-	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
+	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
 }
 
 // Run executes the plan. Order is fixed and enforced here:

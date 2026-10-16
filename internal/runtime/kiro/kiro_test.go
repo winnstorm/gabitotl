@@ -152,3 +152,80 @@ func TestDetectDistinguishesCLIIDEAndWorkspace(t *testing.T) {
 		t.Fatalf("ide app present: %+v", d)
 	}
 }
+
+var skillOpts = func() rt.Options {
+	o := opts
+	o.Skills = []rt.Asset{{Name: "gabito-terminal", Content: "---\nname: gabito-terminal\n---\nbody\n"}}
+	return o
+}()
+
+func TestSkillsAreSharedByBothVariants(t *testing.T) {
+	env, kh := setup(t)
+	skill := filepath.Join(kh, "skills", "gabito-terminal", "SKILL.md")
+	cli, ide := NewCLI(), NewIDE()
+	planC, _ := cli.Plan(env, skillOpts)
+	planI, _ := ide.Plan(env, skillOpts) // both computed before anything is applied
+	if _, err := cli.Apply(env, planC); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ide.Apply(env, planI); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, skill) != skillOpts.Skills[0].Content {
+		t.Fatal("skill not written")
+	}
+	if p, _ := ide.Plan(env, skillOpts); len(p) == 0 {
+		t.Fatal("empty plan")
+	} else {
+		for _, a := range p {
+			if a.Kind != rt.NoAction {
+				t.Fatalf("a second variant must not rewrite anything: %s", a)
+			}
+		}
+	}
+	if _, err := cli.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(skill); err != nil {
+		t.Fatal("the skill is shared: removing the CLI must keep it for the IDE")
+	}
+	if _, err := ide.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(kh, "skills")); err == nil {
+		t.Fatal("the skills directory GabitoTL created must be gone")
+	}
+	if read(t, filepath.Join(kh, "steering", "product.md")) != "# Product\n" {
+		t.Fatal("user files touched")
+	}
+}
+
+func TestSkillsFollowKiroHomeAndProjectScope(t *testing.T) {
+	env, _ := setup(t)
+	custom := t.TempDir()
+	env.Getenv = func(k string) string {
+		if k == "KIRO_HOME" {
+			return custom
+		}
+		return ""
+	}
+	has := func(plan []rt.Action, want string) bool {
+		for _, a := range plan {
+			if a.Path == want {
+				return true
+			}
+		}
+		return false
+	}
+	p, _ := NewCLI().Plan(env, skillOpts)
+	if !has(p, filepath.Join(custom, "skills", "gabito-terminal", "SKILL.md")) {
+		t.Fatalf("KIRO_HOME ignored: %v", p)
+	}
+	env.ProjectRoot = t.TempDir()
+	o := skillOpts
+	o.Scope = rt.ScopeProject
+	p, _ = NewIDE().Plan(env, o)
+	if !has(p, filepath.Join(env.ProjectRoot, ".kiro", "skills", "gabito-terminal", "SKILL.md")) {
+		t.Fatalf("workspace skills dir: %v", p)
+	}
+}

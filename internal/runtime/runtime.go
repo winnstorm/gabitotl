@@ -159,6 +159,15 @@ func MemoryFor(provider string, engramPresent bool) (main MemoryMCP, extra []Mem
 	return main, extra, retire
 }
 
+// Asset is one whole file GabitoTL owns inside a runtime, for example a skill:
+// Name is its directory under the runtime's skills directory and Content the
+// SKILL.md text. The installer fills it from package skills (runtime must not
+// import it), so adapters only decide WHERE each asset goes.
+type Asset struct {
+	Name    string
+	Content string
+}
+
 // Options drive Plan.
 type Options struct {
 	Scope       Scope
@@ -175,6 +184,9 @@ type Options struct {
 	Model            string // model chosen in runtime.md; adapters apply it only when set
 	MigrateGentleman bool   // allow removing the managed Gentleman/Gentle-AI persona block
 	Version          string // GabitoTL version recorded in state
+
+	// Skills are the skill files to install under the runtime's skills directory.
+	Skills []Asset
 }
 
 // MemoryServers lists every memory MCP entry to configure: Memory, then MemoryExtra.
@@ -209,6 +221,7 @@ const (
 	OpSetKey        = "set-key"
 	OpAddItem       = "add-item"
 	OpRemoveKey     = "remove-key" // remove a managed JSON key (REMOVE-AFTER-VERIFY)
+	OpWriteFile     = "write-file" // write a whole file GabitoTL owns (Edit.Body is the content)
 	OpManual        = "manual"     // nothing is written; the user must act
 )
 

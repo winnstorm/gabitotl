@@ -30,6 +30,8 @@ type Entry struct {
 	Sections    []string `json:"sections,omitempty"`     // Markdown sections
 	Keys        []Key    `json:"managed_keys,omitempty"` // JSON/JSONC keys
 	CreatedFile bool     `json:"created_file,omitempty"` // we created the file; delete it when it ends up empty
+	Whole       bool     `json:"whole_file,omitempty"`   // we wrote the entire file (a skill); delete it only while its hash equals HashAfter
+	Dirs        []string `json:"created_dirs,omitempty"` // directories we created for the file, outermost first; removed when empty
 	HashBefore  string   `json:"hash_before"`
 	HashAfter   string   `json:"hash_after"`
 	Version     string   `json:"version"`
@@ -149,6 +151,12 @@ func (st *State) Upsert(e Entry) {
 			cur.Keys = append(cur.Keys, k)
 		}
 	}
+	for _, d := range e.Dirs {
+		if !slices.Contains(cur.Dirs, d) {
+			cur.Dirs = append(cur.Dirs, d)
+		}
+	}
+	cur.Whole = cur.Whole || e.Whole
 	cur.HashAfter, cur.Version = e.HashAfter, e.Version
 }
 

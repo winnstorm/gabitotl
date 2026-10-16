@@ -257,6 +257,25 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 
+## Skills
+
+GabitoTL installs its own agent skills next to the persona, as files it owns:
+
+| Runtime | Where |
+|---|---|
+| Claude Code | `~/.claude/skills/<name>/SKILL.md` (project scope: `.claude/skills`) |
+| OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` (`XDG_CONFIG_HOME` / `OPENCODE_CONFIG_DIR` respected; the path is not confirmed by OpenCode's docs) |
+| Kiro CLI / IDE | `~/.kiro/skills/<name>/SKILL.md` (`KIRO_HOME` respected; one shared copy for both variants) |
+
+Today it ships `gabito-terminal`: when a shell command fails or its output is noisy, the agent writes a short
+Python script under `.gabitotl/tmp/` instead of fighting the shell. Every skill carries `metadata.author: gabitotl`.
+
+- `install` creates the files (the plan lists them as CREATE, MODIFY or NO ACTION), backs up an existing target
+  first and verifies the result; `doctor` checks them.
+- A skill file that already exists with other content and that GabitoTL did not write is kept: it is never overwritten.
+- `uninstall` removes a skill only while it is byte-for-byte what GabitoTL wrote. If you edited it, it stays and
+  is reported; directories GabitoTL created are removed only when they end up empty.
+
 ## Migrating from Gentle-AI
 
 `gabitotl migrate gentle-ai` is a soft landing, not a replacement-by-force.

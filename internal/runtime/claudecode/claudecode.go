@@ -29,7 +29,12 @@
 //     the same purpose and another could not confirm the exact value), and
 //     sessionUrl=false omits the claude.ai session link, as in the docs example.
 //
-// The adapter never rewrites a whole file: persona text is a marked section,
+//   - Skills: <claude dir>/skills/<name>/SKILL.md, user scope ~/.claude/skills and
+//     project scope ./.claude/skills (the same directory the settings use; the
+//     adapter does not read CLAUDE_CONFIG_DIR, like the rest of this package).
+//     Each is a whole file GabitoTL owns (engine.PlanFile).
+//
+// The adapter never rewrites a user's file: persona text is a marked section,
 // and the memory MCP entry is a managed key spliced into the JSON.
 package claudecode
 
@@ -75,6 +80,13 @@ func (*Adapter) mcpPath(env rt.Env, s rt.Scope) string {
 		return filepath.Join(env.ProjectRoot, ".mcp.json")
 	}
 	return filepath.Join(env.Home, ".claude.json")
+}
+
+func (a *Adapter) skillsDir(env rt.Env, s rt.Scope) string {
+	if s == rt.ScopeProject && env.ProjectRoot != "" {
+		return filepath.Join(env.ProjectRoot, ".claude", "skills")
+	}
+	return filepath.Join(a.dir(env), "skills")
 }
 
 func (a *Adapter) settingsPath(env rt.Env, s rt.Scope) string {
@@ -196,6 +208,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
+	plan = append(plan, engine.PlanSkills(env, Name, a.skillsDir(env, opts.Scope), opts.Skills)...)
 	return plan, nil
 }
 
