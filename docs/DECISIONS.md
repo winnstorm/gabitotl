@@ -86,7 +86,7 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 
 ## D16. User-facing language is data
 - **Decision:** all Spanish wording lives in embedded, replaceable message files; code, docs, comments and tests are English.
-  The persona prompt is about 1200 estimated tokens, tested against a 1500 budget. It includes a "Noisy terminal" rule: after a shell command fails or returns noisy output (multiline or quoted commands, PowerShell/cmd escaping), the agent writes a short Python script in the git-ignored `.gabitotl/tmp/` instead of retrying, on any OS.
+  The persona prompt is about 1400 estimated tokens, tested against a 1500 budget. It includes a "Noisy terminal" rule: after a shell command fails or returns noisy output (multiline or quoted commands, PowerShell/cmd escaping), the agent writes a short Python script in the git-ignored `.gabitotl/tmp/` instead of retrying, on any OS.
 
 ## D17. End-to-end tests drive the real binary against a fake machine
 - **Decision:** `internal/e2e` builds the binary once, then runs it with a fixture `$HOME`, a PATH containing only fake
