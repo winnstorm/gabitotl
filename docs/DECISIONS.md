@@ -525,3 +525,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   subcommand lists honest against each group's usage, and a third forbids any "size exception" wording.
 - **Memory tools:** the skills name the `memory_*` bridge tools, which serve Engram and team projects alike.
 
+## D37. The delivery setup can run as a conversation with the agent
+
+- **Decision:** `gabitotl vcs setup` stays the one writer of the delivery settings, but the questions no longer
+  need a terminal. `vcs setup --questions` prints, as JSON and read-only, the questions that apply to this project
+  and person (`scope` team or personal), each with its title, options, default, answer flag and the automation
+  answers it depends on. The `gabito-entrega` skill makes the agent ask them in chat, one at a time, and save the
+  answers with a single `vcs setup --yes --vcs-...` call.
+- **Why:** the user wants the orchestrator to hold the dialogue (inside Claude Code, Kiro or OpenCode) instead of
+  sending them to a fixed command; an agent's shell has no terminal, so a prompt there never works.
+- **Single source:** the JSON is built from the same `NextDeliveryStep`/`DeliveryQuestion` data as the plain
+  prompt and the TUI, so the three never diverge. Nothing about PR size, budgets or exceptions is ever listed.

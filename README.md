@@ -346,6 +346,12 @@ Flags answer the same questions without a terminal: `--vcs-provider`, `--vcs-aut
 `--vcs-draft[=false]`, on `install`, `migrate` and `vcs setup`. `--yes` and a missing terminal ask nothing
 and mark nothing as configured.
 
+**By dialogue, with the agent.** The agent can run the same setup as a chat: `gabitotl vcs setup --questions`
+prints, as JSON and without changing anything, the questions that apply now (title, options, default, the
+flag that carries each answer, and which automation answers make a question relevant). The `gabito-entrega`
+skill has the agent ask them one at a time and save every answer in a single
+`gabitotl vcs setup --yes --vcs-...` call. Same questions, same defaults, same files as the terminal flow.
+
 **Shared vs yours.** The team's choices live in the committed `.gabitotl/vcs.md`
 (`provider`, `permissions`, `merge_method`, `delete_branch`, `draft_prs`, `base_branch`,
 `pr_budget_lines`, `chain`, `configured`). Your `auth` reference and any permission you want to
