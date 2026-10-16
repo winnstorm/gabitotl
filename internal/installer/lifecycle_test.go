@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/guard"
 )
 
@@ -54,6 +55,79 @@ func TestDoctorIsReadOnlyAndFollowsSpec41Sections(t *testing.T) {
 		if !codes[want] {
 			t.Errorf("missing %s in %v", want, codes)
 		}
+	}
+}
+
+func lineCodes(d DoctorReport, section string) map[string]string {
+	out := map[string]string{}
+	for _, s := range d.Sections {
+		if s.Name == section {
+			for _, l := range s.Lines {
+				out[l.Code] = l.Status
+			}
+		}
+	}
+	return out
+}
+
+func teamProjectOf(t *testing.T, root string) {
+	t.Helper()
+	l := gabitotl.NewLayout(root)
+	cfg, err := gabitotl.LoadMemory(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Mode, cfg.Provider = gabitotl.ModeTeam, gabitotl.MemoryMemoryMCP
+	if err := gabitotl.SaveMemory(l, cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Engram and the team server are separate checks: one missing or unhealthy
+// never turns the other into an error.
+func TestDoctorReportsBothProvidersIndependently(t *testing.T) {
+	// An Engram project without a team server: the team line is informational.
+	f := newFixture(t)
+	installed(t, f, Options{User: "gabi", UserName: "Gabi"})
+	d := Doctor(context.Background(), f.env)
+	codes := lineCodes(d, "memory")
+	if codes[DocMemEngram] != LineOK || codes[DocMemTeamNone] != LineOK || d.Errors() != 0 {
+		t.Fatalf("engram project: %v errors=%d", codes, d.Errors())
+	}
+
+	// A team project on a machine without Engram: a hint, never an error.
+	g := newFixture(t)
+	installed(t, g, Options{User: "gabi", UserName: "Gabi"})
+	teamProjectOf(t, g.root)
+	g.bins["engram"] = false
+	if err := os.RemoveAll(g.home + "/.engram"); err != nil {
+		t.Fatal(err)
+	}
+	d = Doctor(context.Background(), g.env)
+	codes = lineCodes(d, "memory")
+	if codes[DocMemEngramOptional] != LineOK || codes[DocMemMCPPending] != LineWarn || codes[DocMemEngramMissing] != "" {
+		t.Fatalf("team project without engram: %v", codes)
+	}
+	for _, s := range d.Sections {
+		if s.Name != "memory" {
+			continue
+		}
+		for _, ln := range s.Lines {
+			if ln.Status == LineError {
+				t.Fatalf("a missing Engram must not fail a team project: %+v", ln)
+			}
+		}
+	}
+
+	// Engram unhealthy in a team project: a warning.
+	h := newFixture(t)
+	installed(t, h, Options{User: "gabi", UserName: "Gabi"})
+	teamProjectOf(t, h.root)
+	h.runner.Handlers["engram doctor"] = func([]string) (string, error) {
+		return `{"status":"error","checks":[{"check_id":"db","result":"error","message":"corrupt"}]}`, nil
+	}
+	if got := lineCodes(Doctor(context.Background(), h.env), "memory")[DocMemDoctorBad]; got != LineWarn {
+		t.Fatalf("engram doctor errors in a team project are warnings, got %q", got)
 	}
 }
 
@@ -223,5 +297,28 @@ func TestUninstallRemovesGuardHooksAndKeepsUserHooksByteForByte(t *testing.T) {
 	}
 	if left, _ := PlanUninstall(f.env, nil); len(left.GuardHooks) != 0 || !left.Empty() {
 		t.Fatalf("%+v", left)
+	}
+}
+
+// A machine without Engram installs fine: the missing binary is a note and an
+// informational check, never a failure, and the bridge is still registered.
+func TestInstallWithoutEngramDoesNotFail(t *testing.T) {
+	f := newFixture(t)
+	f.bins["engram"] = false
+	if err := os.RemoveAll(f.home + "/.engram"); err != nil {
+		t.Fatal(err)
+	}
+	res := installed(t, f, Options{User: "gabi", UserName: "Gabi", Memory: gabitotl.MemoryMemoryMCP})
+	var engramCheck bool
+	for _, c := range res.Checks {
+		if c.Name == "engram" {
+			engramCheck = c.OK
+		}
+	}
+	if !engramCheck {
+		t.Fatalf("an informational engram check was expected: %+v", res.Checks)
+	}
+	if cj := slurp(t, f.home+"/.claude.json"); !strings.Contains(cj, "gabitotl-memory") || strings.Contains(cj, `"engram": {`) {
+		t.Fatalf(".claude.json:\n%s", cj)
 	}
 }

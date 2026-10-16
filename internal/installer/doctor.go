@@ -33,6 +33,7 @@ const (
 	DocMemEngram         = "doctor.memory.engram"
 	DocMemEngramMissing  = "doctor.memory.engram-missing"
 	DocMemEngramNoBin    = "doctor.memory.engram-binary-missing"
+	DocMemEngramOptional = "doctor.memory.engram-optional"
 	DocMemDoctorOK       = "doctor.memory.doctor-ok"
 	DocMemDoctorBad      = "doctor.memory.doctor-bad"
 	DocMemProject        = "doctor.memory.project"
@@ -44,6 +45,7 @@ const (
 	DocMemTeamWarn       = "doctor.memory.team-warn"
 	DocMemTeamBad        = "doctor.memory.team-bad"
 	DocMemTeamContainer  = "doctor.memory.team-container"
+	DocMemTeamNone       = "doctor.memory.team-none"
 	DocRuntimeOK         = "doctor.runtime.ok"
 	DocRuntimeDrift      = "doctor.runtime.drift"
 	DocRuntimeTodo       = "doctor.runtime.todo"
@@ -66,8 +68,8 @@ var DoctorSections = []string{"core", "project", "memory", "runtimes", "git", "a
 // DoctorCodes lists every line code, for the messages completeness test.
 var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
-	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
-	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocRuntimeOK, DocRuntimeDrift,
+	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
+	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocRuntimeOK, DocRuntimeDrift,
 	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
@@ -163,13 +165,21 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	// Memory
 	var mem []Line
 	m := inv.Memory
+	// Both providers are reported on their own and a missing one is never fatal on
+	// its own: Engram is an error only for a project that uses it and has data it
+	// cannot reach; the team server is checked below when the project uses it.
+	usesEngram := hasProject && provider == gabitotl.MemoryEngram
 	switch {
 	case m.HasBinary:
 		mem = append(mem, L(LineOK, DocMemEngram, m.Binary))
-	case m.Present():
+	case m.Present() && usesEngram:
 		mem = append(mem, L(LineError, DocMemEngramNoBin, m.DataDir))
-	case provider == gabitotl.MemoryEngram:
+	case m.Present():
+		mem = append(mem, L(LineWarn, DocMemEngramNoBin, m.DataDir))
+	case usesEngram:
 		mem = append(mem, L(LineWarn, DocMemEngramMissing, ""))
+	default:
+		mem = append(mem, L(LineOK, DocMemEngramOptional, ""))
 	}
 	if m.DoctorRan {
 		if m.DoctorOK {
@@ -181,7 +191,11 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 					bad = append(bad, c.Name+": "+c.Message)
 				}
 			}
-			mem = append(mem, L(LineError, DocMemDoctorBad, strings.Join(bad, "; ")))
+			st := LineError
+			if hasProject && provider != gabitotl.MemoryEngram {
+				st = LineWarn // Engram is not what this project uses: reported, not fatal
+			}
+			mem = append(mem, L(st, DocMemDoctorBad, strings.Join(bad, "; ")))
 		}
 		if m.ProjectMatch != "" {
 			mem = append(mem, L(LineOK, DocMemProject, m.ProjectMatch+" ("+strconv.Itoa(m.Observations)+")"))
@@ -192,8 +206,10 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	for _, w := range m.Warnings {
 		mem = append(mem, L(LineWarn, "warn."+w.Code, w.Detail))
 	}
-	if provider == gabitotl.MemoryMemoryMCP {
+	if hasProject && provider == gabitotl.MemoryMemoryMCP {
 		mem = append(mem, teamDoctor(ctx, env, memCfg)...)
+	} else {
+		mem = append(mem, L(LineOK, DocMemTeamNone, ""))
 	}
 
 	// Runtimes (also tells how many have the memory MCP connected)
@@ -201,7 +217,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	renv := env.RT()
 	st, _ := renv.Store().Load()
 	managed := 0
-	mcp, retire := rt.MemoryFor(provider, m.Present())
+	mcp, extra, retire := rt.MemoryFor(provider, m.HasBinary)
 	for _, r := range inv.Runtimes {
 		if r.State == rt.StateNone {
 			continue
@@ -212,7 +228,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		case isManaged:
 			managed++
 			bad := ""
-			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: mcp, RetireMemory: retire, Version: env.Version}) {
+			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
 				if !c.OK {
 					bad = c.Name + ": " + c.Detail
 					break
@@ -232,7 +248,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 			rts = append(rts, L(LineWarn, DocRuntimeConflict, r.Label+": "+c.Detail))
 		}
 	}
-	if provider == gabitotl.MemoryEngram && m.Present() {
+	if m.Present() || hasProject {
 		if managed > 0 {
 			mem = append(mem, L(LineOK, DocMemMCP, strconv.Itoa(managed)))
 		} else {

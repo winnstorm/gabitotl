@@ -215,9 +215,9 @@ func TestHostInstallEndToEnd(t *testing.T) {
 			t.Fatalf("a secret leaked into the repo, snapshot, logs or configs: %q", needle[:6])
 		}
 	}
-	// The runtime got ONE bridge entry; engram is not wired.
+	// The runtime got the bridge entry (and Engram's own, which is present on this machine).
 	cj := slurp(t, filepath.Join(r.home, ".claude.json"))
-	if !strings.Contains(cj, "gabitotl-memory") || strings.Contains(cj, `"engram": {`) {
+	if !strings.Contains(cj, "gabitotl-memory") || strings.Count(cj, "gabitotl-memory") != 1 {
 		t.Fatalf(".claude.json:\n%s", cj)
 	}
 	// Idempotent: running again changes nothing and never reinstalls.

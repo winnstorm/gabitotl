@@ -105,7 +105,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `memory server install \| start \| stop \| status \| logs \| backup \| remove` | The managed, isolated PostgreSQL of team memory. |
 | `memory serve --http ADDR \| --stdio` | Run the Memory MCP server. |
 | `memory token create \| list \| revoke` | Per-user, project-scoped bearer tokens. |
-| `memory mcp` | The stdio bridge runtimes use in team mode (forwards to the server over HTTP). |
+| `memory mcp` | The stdio memory entry every runtime registers: it reads the `memory.md` of the project it runs in and forwards to the team server (`memory-mcp`) or serves Engram. |
 | `memory migrate engram` | Import an Engram export into the team memory (idempotent, verified, Engram untouched). |
 | `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
@@ -145,7 +145,15 @@ Engram is the simple choice for one person. For a team, GabitoTL ships its own M
 server (Go, official MCP SDK) over a PostgreSQL that **it creates and labels itself**: a
 dedicated container, volume and network on `127.0.0.1`, never your PostgreSQL, never removed
 along with your data. Runtimes only ever need a stdio command: `gabitotl memory mcp`, which
-forwards every call to the server with your token.
+reads the `.gabitotl/memory.md` of the project it runs in and forwards every call to the server
+with your token (or serves Engram, see below).
+
+Both providers are available on every machine and the choice is **per project**, in the
+`provider` field of `.gabitotl/memory.md`: a solo project uses Engram, a team project uses the
+shared server. The installer registers the same bridge entry for everyone (plus Engram's own
+`engram mcp` entry when the binary is on `PATH`) and reports each provider separately; a missing
+Engram or an unreachable server never fails an install. GabitoTL never installs Engram: get it
+from https://github.com/Gentleman-Programming/engram.
 
 ```text
 gabitotl install --memory memory-mcp --memory-role host --user gabi        # montar el servidor

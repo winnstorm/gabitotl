@@ -130,7 +130,7 @@ func (r *run) warn(format string, a ...any) {
 }
 
 func (r *run) ropts() rt.Options {
-	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: r.pl.Memory, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
+	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
 }
 
 // Run executes the plan. Order is fixed and enforced here:
@@ -361,16 +361,21 @@ func (r *run) configure(ctx context.Context) error {
 }
 
 // verifyMemory runs engram doctor again (the "after" of before/after) and
-// checks that memory.md names the provider the plan chose.
+// checks that memory.md names the provider the plan chose. Engram is reported
+// on its own: it only fails the run when this project uses it, and a missing
+// binary is never a failure (GabitoTL does not install it).
 func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 	var out []Check
-	if p, _, ok := r.env.Engram(r.inv.Project.Key); ok && r.pl.MemoryChoice == gabitotl.MemoryEngram {
+	needed := r.pl.MemoryChoice == gabitotl.MemoryEngram
+	if p, _, ok := r.env.Engram(r.inv.Project.Key); ok {
 		rep := p.Doctor(ctx)
-		out = append(out, Check{Group: group, Name: "engram doctor", OK: rep.OK(), Detail: failedMemory(rep.Checks)})
-		_, err := os.Stat(r.inv.Memory.DataDir)
-		out = append(out, Check{Group: group, Name: "engram data dir", OK: err == nil || !r.inv.Memory.HasDir, Detail: orStr(errText(err), "present")})
-	} else if r.pl.MemoryChoice == gabitotl.MemoryEngram {
-		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; memory left unconnected"})
+		out = append(out, Check{Group: group, Name: "engram doctor", OK: rep.OK() || !needed, Detail: failedMemory(rep.Checks)})
+		if needed {
+			_, err := os.Stat(r.inv.Memory.DataDir)
+			out = append(out, Check{Group: group, Name: "engram data dir", OK: err == nil || !r.inv.Memory.HasDir, Detail: orStr(errText(err), "present")})
+		}
+	} else {
+		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; projects that use Engram stay unconnected until you install it (GabitoTL never installs it)"})
 	}
 	if r.env.ProjectRoot != "" {
 		m, err := gabitotl.LoadMemory(gabitotl.NewLayout(r.env.ProjectRoot))

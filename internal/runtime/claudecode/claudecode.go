@@ -182,18 +182,20 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	pp := a.personaPath(env, opts.Scope)
 	plan := []rt.Action{engine.PlanSection(Name, pp, SectionPersona, opts.PersonaText, "")}
 	plan = append(plan, engine.PlanForeignPersona(Name, pp, "gentle-ai", opts.MigrateGentleman)...)
-	if m := opts.Memory; m.Command != "" {
+	var kept []string
+	for _, m := range opts.MemoryServers() {
 		name := m.Name
 		if name == "" {
 			name = "engram"
 		}
+		kept = append(kept, name)
 		val, _ := json.Marshal(map[string]any{"type": "stdio", "command": m.Command, "args": m.Args})
 		plan = append(plan, engine.PlanServer(Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
 	for _, k := range AttributionKeys() {
 		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
 	}
-	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, opts.Memory.Name, opts.RetireMemory)...)
+	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	return plan, nil
 }
 

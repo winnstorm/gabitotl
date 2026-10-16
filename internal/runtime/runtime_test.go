@@ -175,3 +175,19 @@ func (stub) Apply(Env, []Action) (Result, error)      { return Result{}, nil }
 func (stub) Verify(Env, Options) []Check              { return nil }
 func (stub) RemoveGabitoConfig(Env) (Result, error)   { return Result{}, nil }
 func (stub) ListModels(Env) ([]string, error)         { return nil, ErrUnsupported }
+
+func TestMemoryForIsTheSameForBothProviders(t *testing.T) {
+	for _, p := range []string{gabitotl.MemoryEngram, gabitotl.MemoryMemoryMCP} {
+		main, extra, retire := MemoryFor(p, true)
+		if main.Name != EntryBridge || len(extra) != 1 || extra[0].Name != EntryEngram || len(retire) != 0 {
+			t.Fatalf("%s with engram: %+v %+v %v", p, main, extra, retire)
+		}
+		main, extra, retire = MemoryFor(p, false)
+		if main.Name != EntryBridge || len(extra) != 0 || len(retire) != 1 || retire[0] != EntryEngram {
+			t.Fatalf("%s without engram: %+v %+v %v", p, main, extra, retire)
+		}
+	}
+	if main, extra, retire := MemoryFor("none", true); main.Command != "" || extra != nil || retire != nil {
+		t.Fatalf("none configures nothing: %+v %+v %v", main, extra, retire)
+	}
+}

@@ -132,24 +132,31 @@ const (
 	EntryBridge = "gabitotl-memory"
 )
 
-// MemoryFor returns the memory MCP entry to configure for a provider, and the
-// entries of the other provider that a switch must retire. engramPresent says
-// whether Engram is installed (a missing Engram is never wired).
+// MemoryFor returns the memory MCP entries to configure and the entries that
+// are obsolete. The choice of provider lives in each project's .gabitotl/memory.md,
+// never in the machine configuration, so a known provider (engram or memory-mcp)
+// always yields the same setup:
 //
-//   - engram: `engram mcp`; retires the team bridge entry.
-//   - memory-mcp: `gabitotl memory mcp`, which forwards to the team server over
-//     HTTP; retires the engram entry. Runtimes only ever need this stdio command.
-func MemoryFor(provider string, engramPresent bool) (MemoryMCP, []string) {
+//   - main: `gabitotl memory mcp`, the bridge that reads the memory.md of the
+//     project it runs in and talks to the team server or to Engram accordingly.
+//   - extra: Engram's own `engram mcp` entry (its full native toolset) when the
+//     engram binary is present, so Engram-backed projects keep it.
+//   - retire: the `engram` entry, only when the binary is gone (the entry points
+//     at nothing). An adapter removes it only if GabitoTL created it; an entry of
+//     the user is never touched. A provider that is still wanted is never retired.
+//
+// An empty or unknown provider ("none") configures nothing and retires nothing.
+func MemoryFor(provider string, engramPresent bool) (main MemoryMCP, extra []MemoryMCP, retire []string) {
 	switch provider {
-	case gabitotl.MemoryMemoryMCP:
-		return MemoryMCP{Name: EntryBridge, Command: "gabitotl", Args: []string{"memory", "mcp"}}, []string{EntryEngram}
-	case gabitotl.MemoryEngram:
+	case gabitotl.MemoryMemoryMCP, gabitotl.MemoryEngram:
+		main = MemoryMCP{Name: EntryBridge, Command: "gabitotl", Args: []string{"memory", "mcp"}}
 		if engramPresent {
-			return MemoryMCP{Name: EntryEngram, Command: "engram", Args: []string{"mcp"}}, []string{EntryBridge}
+			extra = []MemoryMCP{{Name: EntryEngram, Command: "engram", Args: []string{"mcp"}}}
+		} else {
+			retire = []string{EntryEngram}
 		}
-		return MemoryMCP{}, []string{EntryBridge}
 	}
-	return MemoryMCP{}, nil
+	return main, extra, retire
 }
 
 // Options drive Plan.
@@ -157,15 +164,31 @@ type Options struct {
 	Scope       Scope
 	PersonaText string
 	Memory      MemoryMCP
+	// MemoryExtra are further memory MCP entries to configure next to Memory
+	// (Engram's own server, see MemoryFor).
+	MemoryExtra []MemoryMCP
 	// RetireMemory lists memory MCP entry names GabitoTL may have created earlier
-	// and that the requested Memory replaces (switching between Engram and the team
-	// bridge). An adapter plans their removal (REMOVE-AFTER-VERIFY) only when the
-	// ownership state says GabitoTL created that exact entry: an entry of the user
-	// is never touched.
+	// and that are now obsolete. An adapter plans their removal (REMOVE-AFTER-VERIFY)
+	// only when the ownership state says GabitoTL created that exact entry: an entry
+	// of the user is never touched. A configured entry is never retired.
 	RetireMemory     []string
 	Model            string // model chosen in runtime.md; adapters apply it only when set
 	MigrateGentleman bool   // allow removing the managed Gentleman/Gentle-AI persona block
 	Version          string // GabitoTL version recorded in state
+}
+
+// MemoryServers lists every memory MCP entry to configure: Memory, then MemoryExtra.
+func (o Options) MemoryServers() []MemoryMCP {
+	var out []MemoryMCP
+	if o.Memory.Command != "" {
+		out = append(out, o.Memory)
+	}
+	for _, m := range o.MemoryExtra {
+		if m.Command != "" {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // Kind is the verb of a planned Action (spec sections 32 and 42).

@@ -65,9 +65,9 @@ gabitotl install --memory memory-mcp --memory-role client --memory-url https://m
 
 A developer needs two things: the server URL (`https://host:port/mcp`; plain `http://` is accepted
 only for `127.0.0.1`/`localhost`) and a token. The runtime config gets ONE managed entry that
-runs `gabitotl memory mcp`; switching a project between Engram and team memory retires the old
-managed entry (only an entry GabitoTL created, recorded in `~/.gabitotl/state.json`) and never
-touches entries you wrote yourself.
+runs `gabitotl memory mcp`, the same entry whichever provider a project uses (see below), so
+switching a project between Engram and team memory is a change of its `memory.md` and touches no
+runtime config. Entries you wrote yourself are never touched.
 
 The token is read **at call time** from the variable named in `memory.md` (`token: env:NAME`), then,
 for runtimes launched without your shell environment, from `~/.gabitotl/secrets/memory-client.env`.
