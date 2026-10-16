@@ -471,3 +471,35 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   `fast_forward` strategy for "rebase", were written from the tools' documentation and not exercised against a
   real account. The delivery commands (`commit|push|pr|merge|ship`) that use all this are the next step (S3b).
 
+
+## D35. Delivery commands: commit, push, PR and merge follow the saved settings
+- **Problem:** the settings (D33) and the hosts (D34) existed, but nothing ran commit, push, PR and merge from them,
+  so every agent had to improvise the sequence and could stop to ask questions the person had already answered.
+- **Decision:** `gabitotl vcs commit|push|pr|merge` are the agent-facing entry points. They never prompt once
+  the project is configured. The only question that exists is the `ask` permission of the operation being run,
+  and only on a terminal (a single y/n, in Spanish); without a terminal the command stops and names the setting
+  and `gabitotl vcs setup`. A missing login is never a prompt: the exact fix is printed and the exit is non-zero.
+- **Commit:** `-m` is required and must be a Conventional Commit without attribution (the authorship guard still
+  strips or refuses first). With no `--paths` everything is staged with `git add -A`, then `.gabitotl/local/` is
+  unstaged (naming an ignored directory in an exclude pathspec makes git fail, so the exclusion is applied
+  afterwards); explicit paths inside it are refused. Nothing is committed on the base branch.
+- **Base branch:** `base_branch` from `vcs.md`, else what `origin/HEAD` points at, else `main` or `master` when one
+  exists, else an explicit error asking for the setting. Push refuses it by name; a PR cannot start from it.
+- **Merge:** waits for the checks (default 20 minutes, polled every 15 seconds through an injectable clock). `passing`
+  and `none` merge with `merge_method` and `delete_branch`; `failing` never merges and `pending` after the wait never
+  merges, both exit non-zero. The permission is consulted before the wait (a `deny` costs nothing, an `ask` is
+  answered once), and a PR with no checks merges at once, so a repository whose CI starts late can merge before
+  its checks register. Without `--pr` the PR is looked up with the optional `PRFinder` of the host.
+- **After a merge:** fetch with prune; when HEAD is on the merged branch, switch to the base and `pull --ff-only`;
+  delete the local branch only when `delete_branch` is on and its tip equals `origin/<branch>` as it was before the
+  merge (`-D` is needed because a squash leaves the branch looking unmerged). Anything unsafe is skipped with a note
+  and never fails a merge that already happened.
+- **Decided for the next step (`vcs ship`):** chains of stacked PRs are merged with the plain `merge` method whatever
+  `merge_method` says, because squashing a parent rewrites the commits its children are built on and force-pushing
+  to repair them is forbidden; PR k+1 is retargeted to the base before PR k is merged. `ship` never pushes the base
+  branch: from the base it first creates a task branch at HEAD and leaves the local base alone. Size is never a
+  question: work above `pr_budget_lines` is sliced at commit boundaries according to `chain`.
+- **Tests:** temp repositories with a bare repository on disk as `origin`, a fake `Host` and a fake clock; nothing
+  touches a network, a real `gh`/`glab` or this repository. The authorship-guard hooks that `init` installs call the
+  `gabitotl` binary, which under test is the test binary itself, so tests that commit after `init` point
+  `core.hooksPath` at an empty directory.

@@ -237,21 +237,12 @@ func (b Bitbucket) CreatePR(ctx context.Context, dir string, req PRRequest) (PR,
 	if err != nil {
 		return PR{}, err
 	}
-	head := req.Head
-	if head == "" {
-		if head, err = runnerOr(b.Runner).Run(ctx, dir, "git", "symbolic-ref", "--short", "-q", "HEAD"); err != nil || head == "" {
-			return PR{}, errors.New("vcs: cannot tell the current branch; pass the head branch")
-		}
-	}
-	var found struct {
-		Values []bbPR `json:"values"`
-	}
-	q := url.Values{"q": {fmt.Sprintf(`source.branch.name = %q AND state = "OPEN"`, head)}, "pagelen": {"1"}}
-	if err := b.do(ctx, cred, http.MethodGet, repo.prs(), q, nil, &found); err != nil {
+	head, err := b.headBranch(ctx, dir, req.Head)
+	if err != nil {
 		return PR{}, err
 	}
-	if len(found.Values) > 0 {
-		return found.Values[0].pr(), nil
+	if pr, ok, err := b.findOpen(ctx, cred, repo, head); err != nil || ok {
+		return pr, err
 	}
 	body := map[string]any{
 		"title":       req.Title,
@@ -389,4 +380,47 @@ func (b Bitbucket) AuthStatus(ctx context.Context, dir string) (AuthState, error
 	}
 	st.Status, st.Command = AuthLoggedIn, ""
 	return st, nil
+}
+
+// headBranch is head, or the current branch when head is empty.
+func (b Bitbucket) headBranch(ctx context.Context, dir, head string) (string, error) {
+	if head != "" {
+		return head, nil
+	}
+	cur, err := runnerOr(b.Runner).Run(ctx, dir, "git", "symbolic-ref", "--short", "-q", "HEAD")
+	if err != nil || cur == "" {
+		return "", errors.New("vcs: cannot tell the current branch; pass the head branch")
+	}
+	return cur, nil
+}
+
+// findOpen returns the open pull request whose source branch is head.
+func (b Bitbucket) findOpen(ctx context.Context, cred Credential, repo BitbucketRepo, head string) (PR, bool, error) {
+	var found struct {
+		Values []bbPR `json:"values"`
+	}
+	q := url.Values{"q": {fmt.Sprintf(`source.branch.name = %q AND state = "OPEN"`, head)}, "pagelen": {"1"}}
+	if err := b.do(ctx, cred, http.MethodGet, repo.prs(), q, nil, &found); err != nil {
+		return PR{}, false, err
+	}
+	if len(found.Values) == 0 {
+		return PR{}, false, nil
+	}
+	return found.Values[0].pr(), true, nil
+}
+
+// FindPR implements PRFinder.
+func (b Bitbucket) FindPR(ctx context.Context, dir, head string) (PR, bool, error) {
+	cred, err := b.credential()
+	if err != nil {
+		return PR{}, false, err
+	}
+	repo, err := b.repo(ctx, dir)
+	if err != nil {
+		return PR{}, false, err
+	}
+	if head, err = b.headBranch(ctx, dir, head); err != nil {
+		return PR{}, false, err
+	}
+	return b.findOpen(ctx, cred, repo, head)
 }

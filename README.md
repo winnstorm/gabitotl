@@ -346,9 +346,23 @@ there; the team file is untouched. `vcs setup --shared` (or any team-wide flag s
 existed keep working: one counts as configured when a permission is not `ask` or `remote_actions` is
 `automatic`, and a shared `auth` moves to your file on the next write. A non-interactive
 `vcs setup --vcs-automation=...` with no `--vcs-provider` adopts the platform `origin` points at when
-`vcs.md` still says the generic `git`; a platform you chose is never overwritten. Merging itself arrives
-with the delivery commands (`vcs commit|push|pr|merge|ship`, still to come); today the platform layer can
-open, merge and retarget pull requests and read their checks, and the `merge` permission is enforced by the guard.
+`vcs.md` still says the generic `git`; a platform you chose is never overwritten.
+
+### Delivery commands
+
+Once `vcs setup` is answered, these run with no prompt (an `ask` permission asks, on a terminal, about
+that operation only; without a terminal it stops and names the setting). Each one obeys the saved
+permissions, so an agent can call them as they are.
+
+| Command | What it does |
+|---|---|
+| `gabitotl vcs commit -m MSG [--paths a,b]` | Commits the given paths, or every change. It never stages `.gabitotl/local/` or files Git ignores, refuses a message that is not a Conventional Commit or that credits an AI, and refuses to commit on the base branch. Prints the short hash. |
+| `gabitotl vcs push [--branch B]` | Pushes the current (or named) branch to `origin`. Never forced, never the base branch. |
+| `gabitotl vcs pr --title T [--body B] [--base X] [--draft]` | Opens the pull request of the current branch, or returns the open one. Base: `--base`, else `base_branch`, else the repository default. Draft: `--draft[=false]`, else `draft_prs`. Checks the login first and prints the exact fix instead of prompting. |
+| `gabitotl vcs merge [--pr URL\|ID] [--wait 20m]` | Waits for the checks and merges with `merge_method` and `delete_branch`. Passing checks (or none) merge; failing checks do not merge and exit non-zero naming the state; checks still running after the wait do not merge either. Afterwards it fetches, returns to the base branch and deletes the local branch when that is safe. |
+
+Without `--pr`, `merge` finds the open pull request of the current branch. The local branch is only
+deleted when it is exactly what `origin` has, so nothing unpublished is ever lost.
 
 ### Platforms and login
 

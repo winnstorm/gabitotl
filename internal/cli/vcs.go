@@ -20,6 +20,7 @@ import (
 func runVCS(env Env, args []string) int {
 	return subcommands(env, "vcs", args, map[string]func(Env, []string) int{
 		"status": runVCSStatus, "branch": runVCSBranch, "setup": runVCSSetup, "login": runVCSLogin,
+		"commit": runVCSCommit, "push": runVCSPush, "pr": runVCSPR, "merge": runVCSMerge,
 	})
 }
 
