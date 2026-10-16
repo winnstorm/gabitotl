@@ -79,11 +79,25 @@ never are.
 ## The stdio bridge (`gabitotl memory mcp`)
 
 A stdio MCP server that exposes exactly the server's tools (same names, descriptions and input
-schemas, taken from the same definitions) and forwards each call over HTTP. Flags:
-`--url`, `--token-env NAME`, `--project`, `--root`, `--allow-insecure`; all default to the
-`.gabitotl/memory.md` of the project it is started in. It fills a missing `project` from
-`project_key`. It has no store and no identity of its own: the server authenticates the token, so
-scope and actor rules apply unchanged. Logs go to stderr and never contain tokens or entry content.
+schemas, taken from the same definitions). It is the ONE memory entry runtimes register, and it
+routes **per project**: on every call it reads the `.gabitotl/memory.md` of the project it runs in
+(the Git top-level of its working directory, or `--root`).
+
+- `provider: memory-mcp`: the call is forwarded over HTTP with the project's `url`, `token` and
+  `project_key` (a missing `project` is filled from the key). It has no store and no identity of
+  its own: the server authenticates the token, so scope and actor rules apply unchanged.
+- `provider: engram`: the call is served through the `engram` CLI (search, save, current project,
+  doctor). The CLI has no update and no session summary: `memory_update` answers that it is
+  unsupported (save again with the same `topic_key`), a session summary is stored as a progress
+  entry and `memory_active_work` is team-only.
+- No `memory.md`, or a directory that is not a project: the server still starts and every tool
+  answers `no memory provider configured for this project`.
+
+Because the file is read per call, changing a project's provider needs no restart. Passing `--url`
+turns it into a plain bridge to that one server, whatever the project says. Flags: `--url`,
+`--token-env NAME`, `--project`, `--root`, `--allow-insecure`; `--token-env` and `--project`
+override `memory.md` for memory-mcp projects. Logs go to stderr and never contain tokens or entry
+content.
 
 ## Scoped tokens
 
