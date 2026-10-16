@@ -285,7 +285,7 @@ func TestGitHubPR(t *testing.T) {
 	if err != nil || pr.URL != "https://github.com/acme/app/pull/7" {
 		t.Fatalf("pr = %+v, %v", pr, err)
 	}
-	got := strings.Join(fr.calls[0], " ")
+	got := strings.Join(fr.calls[len(fr.calls)-1], " ") // the lookup of an existing PR comes first
 	for _, want := range []string{"gh pr create", "--title feat: login", "--base main", "--head feature/login", "--draft"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("gh call %q missing %q", got, want)
@@ -300,15 +300,19 @@ func TestGitHubPR(t *testing.T) {
 	}
 }
 
-func TestBitbucketStubAndUnsupported(t *testing.T) {
-	prov, err := ProviderFor("bitbucket", nil)
-	if err != nil {
-		t.Fatal(err)
+func TestProviderForCoversTheThreePlatformsAndRejectsTheRest(t *testing.T) {
+	for _, name := range []string{"github", "gitlab", "bitbucket"} {
+		prov, err := ProviderFor(name, nil)
+		if err != nil || prov.Name() != name {
+			t.Fatalf("%s: %v %v", name, prov, err)
+		}
 	}
-	if _, err := prov.CreatePR(context.Background(), "", PRRequest{Title: "x"}); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("want ErrNotImplemented, got %v", err)
-	}
-	if _, err := ProviderFor("gitlab", nil); !errors.Is(err, ErrNotImplemented) {
-		t.Fatalf("want ErrNotImplemented, got %v", err)
+	for _, name := range []string{"azure-devops", "git", "local", "", "nope"} {
+		if _, err := ProviderFor(name, nil); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("%q must be unsupported, got %v", name, err)
+		}
+		if _, err := HostFor(name, HostOptions{}); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("%q must be unsupported by HostFor, got %v", name, err)
+		}
 	}
 }

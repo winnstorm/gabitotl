@@ -120,7 +120,7 @@ func TestOpenPRStripsAndBlocks(t *testing.T) {
 	if _, err := r.OpenPR(context.Background(), prov, PRRequest{Title: "feat: login", Body: "Adds login.\n\n" + aiFooter}); err != nil {
 		t.Fatal(err)
 	}
-	call := strings.Join(fr.calls[0], " ")
+	call := strings.Join(fr.calls[len(fr.calls)-1], " ") // after the lookup of an existing PR
 	if strings.Contains(call, llm) || !strings.Contains(call, "--body Adds login.") || seen != OpPullRequest+":1" {
 		t.Fatalf("call = %q seen = %q", call, seen)
 	}
