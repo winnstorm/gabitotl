@@ -1,23 +1,67 @@
-# GabitoTL
+<h1 align="center">🤖 GabitoTL</h1>
 
-An **agent harness** for coding agents. GabitoTL is not an LLM and does not call one:
-it is a single Go binary that gives the agent you already use (Claude Code, OpenCode,
-Kiro) a persona, a project memory, a backup habit, Git discipline and team
-coordination, so a project "remembers how to work" across chats, models and people.
+<p align="center">
+  <strong>Your coding agent, with memory, manners and teammates.</strong><br>
+  A single Go binary that gives Claude Code, OpenCode and Kiro a persona, a project memory,
+  Git discipline and team coordination.
+</p>
 
-- **Why:** chats end, models change, teammates overlap. The knowledge should live in the
-  project and in memory, not in a conversation.
-- **What you get:** one orchestrator persona (Gabito, a pragmatic Technical Leader),
-  invisible-but-always-present memory, a local backup before every modification,
-  Conventional Commits without AI attribution, and one worktree per developer.
-- **What it never does:** run an agent swarm, touch a PostgreSQL you already run, store
-  secrets, or take over config files it did not create. Solo, it adopts your Engram; for a
-  team it can run its own Memory MCP server on an isolated, labeled PostgreSQL container.
+<p align="center">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="Runtimes" src="https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenCode%20%7C%20Kiro-blueviolet">
+  <img alt="Git hosts" src="https://img.shields.io/badge/git-GitHub%20%7C%20GitLab%20%7C%20Bitbucket-orange">
+  <img alt="Memory" src="https://img.shields.io/badge/memory-Engram%20%7C%20Team%20server-blue">
+  <img alt="Status" src="https://img.shields.io/badge/status-V1%20core-yellow">
+</p>
 
-> Status: V1 core. Licensed under the [MIT License](LICENSE).
-> See [Status and limitations](#status-and-limitations) before relying on it.
+<p align="center">
+  <a href="#-30-second-quickstart">⚡ Quickstart</a> ·
+  <a href="#-skills">🧩 Skills</a> ·
+  <a href="#-delivery-settings">🚢 Delivery</a> ·
+  <a href="#-team-memory">🧠 Team memory</a> ·
+  <a href="#-who-is-here">👥 Teams</a> ·
+  <a href="#-migrating-from-gentle-ai">🔄 Migrating</a>
+</p>
 
-## 30-second quickstart
+---
+
+GabitoTL is **not an LLM and does not call one**. It is the layer around the agent you already use, so
+a project "remembers how to work" across chats, models and people.
+
+| | You get | How |
+|---|---|---|
+| 🎭 | **One orchestrator persona** | Gabito: a pragmatic Technical Leader that answers in short Argentine Spanish and builds in English. |
+| 🧠 | **Project memory** | Engram for one person, GabitoTL's own Memory MCP server over PostgreSQL for a team. Chosen per project. |
+| 🧩 | **Eight skills** | Orchestrator, collector, writer, verifier, memory, team, delivery and terminal. The agent loads the one it needs. |
+| 🚢 | **Automatic delivery** | Commit, push, PR and merge on GitHub, GitLab or Bitbucket, from settings you answer once. Big work becomes stacked PRs by itself. |
+| 💾 | **Backups first** | A local snapshot before every modification, restorable with one command. |
+| 🛡️ | **Authorship guard** | No AI branding or co-author trailers in commits, PRs, files or memory. Authorship stays with the person. |
+| 👥 | **Team awareness** | Who is working where, one worktree per task, advisory overlap warnings. Nothing ever blocks anyone. |
+| 🔄 | **Soft landing** | Coexists with Gentle-AI, imports its knowledge, and retires its Kiro files into a restorable backup. |
+
+```mermaid
+flowchart LR
+    U([👤 You]) --> R["🖥️ Your agent<br/>Claude Code · OpenCode · Kiro"]
+    R -->|persona + skills| G["🤖 gabitotl<br/>single Go binary"]
+    G --> P[".gabitotl/<br/>config you can review"]
+    G --> M{{"🧠 Memory"}}
+    M --> E[("Engram<br/>solo")]
+    M --> T[("Memory MCP + PostgreSQL<br/>team")]
+    G --> V["🚢 vcs<br/>commit · push · PR · merge"]
+    V --> H["GitHub · GitLab · Bitbucket"]
+    G --> W["👥 who · session · worktree"]
+```
+
+- **Why:** chats end, models change, teammates overlap. The knowledge should live in the project and in
+  memory, not in a conversation.
+- **What it never does:** run an agent swarm, touch a PostgreSQL you already run, store secrets, or take over
+  config files it did not create.
+
+> 📌 Status: V1 core. Licensed under the [MIT License](LICENSE).
+> See [Status and limitations](#-status-and-limitations) before relying on it.
+
+## ⚡ 30-second quickstart
 
 ```bash
 go install github.com/winnstorm/gabitotl/cmd/gabitotl@latest   # or: make build
@@ -30,7 +74,7 @@ gabitotl doctor              # read-only health check
 Without a terminal, mutating commands refuse to run unless you pass `--yes`.
 `--dry-run` never mutates anything.
 
-## The installer screen (TUI)
+## 🖥️ The installer screen (TUI)
 
 On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
 (Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish. It walks through:
@@ -40,7 +84,7 @@ On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
 3. "Tu memoria está segura" (reuse Engram, or go to shared team memory);
 4. only the questions that cannot be detected (alone or with other people, commits and PRs), one at a time;
    for a team: "Memoria compartida (recomendado para equipos)" with two roles, host and client
-   (see [Team memory](#team-memory)), and, if Engram has memory, import it, keep it as history
+   (see [Team memory](#-team-memory)), and, if Engram has memory, import it, keep it as history
    or start empty;
 5. which coding agents to configure (detected ones preselected; nothing is installed);
 6. the plan (CREATE / MODIFY / PRESERVE / IMPORT / REMOVE AFTER VERIFY / NO ACTION), with the
@@ -55,7 +99,7 @@ follows terminal resizes, and honors `NO_COLOR` (symbols, never color alone, car
 The TUI opens only when stdin **and** stdout are terminals. `--no-tui`, `--yes`, `--dry-run`,
 pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
 
-## Core concepts
+## 🧱 Core concepts
 
 | Concept | Meaning |
 |---------|---------|
@@ -75,7 +119,7 @@ should be reviewable and versioned (`project.md`, `memory.md`, `runtime.md`, `vc
 **Truth priority:** current code > `.gabitotl/` > Git > memory > imported docs.
 If memory contradicts the code, the code wins and the memory gets fixed.
 
-## Install
+## 📦 Install
 
 ```bash
 # From source
@@ -88,12 +132,12 @@ make build        # writes bin/gabitotl
 Requires Go 1.26 (see `go.mod`) and Git. Engram, Claude Code, OpenCode, Kiro and `gh` are
 optional: GabitoTL detects what exists and never installs a missing tool behind your back.
 
-## Commands
+## ⌨️ Commands
 
 | Command | What it does |
 |---------|--------------|
 | `gabitotl` | On a terminal in a project: the installer screen. Piped: onboard a project without `.gabitotl/`, otherwise a short status. Never starts an agent. |
-| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`, `--retire-gentle-kiro` (move Gentle AI's files in Kiro to a backup, see below); team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below); delivery: `--vcs-provider`, `--vcs-automation`, `--vcs-merge-method`, `--vcs-delete-branch`, `--vcs-draft` (see [Delivery settings](#delivery-settings)). |
+| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`, `--retire-gentle-kiro` (move Gentle AI's files in Kiro to a backup, see below); team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below); delivery: `--vcs-provider`, `--vcs-automation`, `--vcs-merge-method`, `--vcs-delete-branch`, `--vcs-draft` (see [Delivery settings](#-delivery-settings)). |
 | `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`, `--retire-gentle-kiro`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
@@ -111,7 +155,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
 | `guard install-hooks \| uninstall-hooks \| status` | `commit-msg` and `pre-commit` Git hooks (chained after any hook you already have). Installed by `init`/`install` unless you decline. |
-| `vcs status \| branch --task ID \| setup \| login` | Git state, provider, delivery settings, login state (`auth:`) and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#delivery-settings)); `login` checks and helps with the login to your Git platform (see [Platforms and login](#platforms-and-login)). |
+| `vcs status \| branch --task ID \| setup \| login` | Git state, provider, delivery settings, login state (`auth:`) and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#-delivery-settings)); `login` checks and helps with the login to your Git platform (see [Platforms and login](#platforms-and-login)). |
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
 | `work start \| update \| status \| overlap` | Active-work files and the soft-lock OJO. |
@@ -122,7 +166,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `version`, `help` | |
 
-## Authorship: no AI branding
+## 🛡️ Authorship: no AI branding
 
 Authorship belongs to the person who asked for the work. GabitoTL detects LLM branding that
 credits a tool as author (any model: co-author trailers, "generated with" lines, author headers,
@@ -140,7 +184,7 @@ a runtime, a model id, a config directory) are not flagged.
 
 Details, the exact mode table and the false-positive policy: [docs/GUARD.md](docs/GUARD.md).
 
-## Team memory
+## 🧠 Team memory
 
 Engram is the simple choice for one person. For a team, GabitoTL ships its own Memory MCP
 server (Go, official MCP SDK) over a PostgreSQL that **it creates and labels itself**: a
@@ -212,7 +256,7 @@ git pull && gabitotl install                                               # a t
 
 Operator guide, security model and troubleshooting: [docs/MEMORY_SERVER.md](docs/MEMORY_SERVER.md).
 
-## Who is here
+## 👥 Who is here
 
 Several people can use one project, even one working directory, and nothing blocks anyone.
 `gabitotl who` answers who is active, doing what, and where, merging three scopes and labelling
@@ -241,7 +285,7 @@ start and end name the same session (on Windows leave `--anchor-pid` out and rel
 Optionally refresh `last_seen` on long sessions with `gabitotl session touch --anchor-pid $PPID`
 from a `UserPromptSubmit` hook.
 
-## The Gabito persona
+## 🎭 The Gabito persona
 
 Gabito answers in short, natural Argentine Spanish. Long work ends with three blocks;
 `OJO` and `TIP` appear only when non-empty:
@@ -257,37 +301,276 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 
-## Skills
+## 🧩 Skills
 
-GabitoTL installs its own agent skills next to the persona, as files it owns:
+GabitoTL installs eight agent skills next to the persona, as files it owns. The persona carries one rule,
+**"load the matching `gabito-*` skill"**, so the agent pulls in only the instructions the moment needs and the
+base prompt stays small.
 
-| Runtime | Where |
+| Runtime | Where the skills go |
 |---|---|
 | Claude Code | `~/.claude/skills/<name>/SKILL.md` (project scope: `.claude/skills`) |
 | OpenCode | `~/.config/opencode/skills/<name>/SKILL.md` (`XDG_CONFIG_HOME` / `OPENCODE_CONFIG_DIR` respected; the path is not confirmed by OpenCode's docs) |
 | Kiro CLI / IDE | `~/.kiro/skills/<name>/SKILL.md` (`KIRO_HOME` respected; one shared copy for both variants) |
 
-GabitoTL ships eight skills; the persona tells the agent to load the matching one. Every skill carries
-`metadata.author: gabitotl`, and a test checks that every `gabitotl` command a skill mentions really exists.
+### 🗺️ The skills at a glance
 
-| Skill | What it does |
+| | Skill | Role | Loads when | Reads / writes |
+|---|---|---|---|---|
+| 🎼 | [`gabito-orquestador`](internal/skills/files/gabito-orquestador/SKILL.md) | Routes work and delegates without losing the thread | Planning multi-step work, 4+ files, before using a helper | Decides; no edits of its own |
+| 🔭 | [`gabito-recolector`](internal/skills/files/gabito-recolector/SKILL.md) | Maps an area of the code | Understanding needs 4+ files | 👁️ Read-only |
+| ✍️ | [`gabito-escritor`](internal/skills/files/gabito-escritor/SKILL.md) | Implements one bounded task | A task has edit surfaces and checks | ✏️ Only inside its edit surfaces |
+| ✅ | [`gabito-verificador`](internal/skills/files/gabito-verificador/SKILL.md) | Independently checks finished work | Risky change reported done | 👁️ Read-only |
+| 🧠 | [`gabito-memoria`](internal/skills/files/gabito-memoria/SKILL.md) | Queries and saves project memory | Before working, after a decision, before "done" | Memory only |
+| 👥 | [`gabito-equipo`](internal/skills/files/gabito-equipo/SKILL.md) | Coordinates with other people | Starting a task, touching shared areas | `.gabitotl/work`, sessions |
+| 🚢 | [`gabito-entrega`](internal/skills/files/gabito-entrega/SKILL.md) | Commit, push, PR and merge | Finishing a task, opening or merging a PR | Git and the platform |
+| 🐍 | [`gabito-terminal`](internal/skills/files/gabito-terminal/SKILL.md) | Python instead of a failing shell command | A command fails or its output is noisy | `.gabitotl/tmp/` (git-ignored) |
+
+### 🪜 How they work together
+
+The orchestrator climbs a ladder **only as far as the work needs**. Helpers run one at a time, never in parallel.
+
+```mermaid
+flowchart TD
+    A([📝 Request]) --> B{"Small and understood?<br/>1-3 files"}
+    B -- yes --> C["⚡ Do it inline<br/>no helper"]
+    B -- no --> D{"Needs 4+ files<br/>to understand?"}
+    D -- yes --> E["🔭 gabito-recolector<br/>returns a short handoff"]
+    D -- no --> F
+    E --> F{"Touches 2+<br/>non-trivial files?"}
+    F -- yes --> G["✍️ gabito-escritor<br/>one work-unit commit"]
+    F -- no --> C
+    G --> H{"Risky?<br/>security · data · contracts"}
+    H -- yes --> I["✅ gabito-verificador<br/>re-runs the checks"]
+    H -- no --> J
+    I --> J["🚢 gabito-entrega<br/>push · PR · merge"]
+    C --> J
+    J --> K["🧠 gabito-memoria<br/>save what matters"]
+```
+
+Around every step, `gabito-equipo` checks who else is in the area and `gabito-memoria` queries and saves, so
+the work survives a closed chat.
+
+### 🔍 Each skill in detail
+
+<details>
+<summary><strong>🎼 gabito-orquestador</strong> — delegate without losing context</summary>
+
+**What it does.** Keeps the single thread, the decisions and the user. It picks the smallest rung that fits:
+
+| Situation | Route |
 |---|---|
-| `gabito-orquestador` | Delegation ladder: inline, one mapper, one writer, one verifier, always sequential. |
-| `gabito-recolector` | Read-only code collector: maps an area and returns a short handoff with `path:line` evidence. |
-| `gabito-escritor` | Bounded writer: stays inside its edit surfaces, runs the checks, makes one work-unit commit. |
-| `gabito-verificador` | Independent read-only verifier: re-runs checks and compares the diff to the criteria. |
-| `gabito-memoria` | When and how to query and save memory (`memory_*` tools, Engram or team server). |
-| `gabito-equipo` | Working with others: `who`, `session`, `work`, `worktree`; advisory warnings only. |
-| `gabito-entrega` | Git delivery with `gabitotl vcs`: saved settings, no repeated questions, stacked PRs for big work. |
-| `gabito-terminal` | Replaces a failing shell command with a short Python script under `.gabitotl/tmp/`. |
+| Small, understood work; 1-3 files | Inline, no helper |
+| Understanding needs 4+ files | One read-only mapper (`gabito-recolector`) |
+| Change touches 2+ non-trivial files | One writer (`gabito-escritor`) |
+| Risky change: security, data loss, shared contracts, migrations | One verifier (`gabito-verificador`) after the writer |
+
+**Every delegation carries** the objective, the exact edit surfaces, observable acceptance criteria, the commands
+to verify, and the constraints (no AI attribution, no force-push, no secrets). After the helper returns, the
+orchestrator spot-checks at least one reported command: a report is a claim, not proof.
+
+**Example**
+
+```text
+Vos:    Agregá recuperación de contraseña al login.
+Gabito: Voy a mapear primero cómo funciona hoy el login (toca varios archivos).
+        → carga gabito-recolector, recibe un mapa corto con path:line
+        → delega la implementación a gabito-escritor con superficies de edición explícitas
+        → como toca auth, pasa por gabito-verificador antes de entregar
+        **Qué hice:** Recuperación de contraseña lista, con tests; verificada por separado.
+        **Progreso:** 2 de 2 pasos.
+        **Qué sigue:** Abrir el PR (gabito-entrega).
+```
+
+</details>
+
+<details>
+<summary><strong>🔭 gabito-recolector</strong> — map an area, return a short handoff</summary>
+
+**What it does.** Answers one question about the code and hands back a compact map. It never edits, commits or
+saves memory. It prefers a code-graph tool when there is one, else `rg` and `fd`, and reads ranges, not whole files.
+
+**The handoff** (about 2000 tokens at most) has fixed sections: **Answer**, **Entry points**, **Flow**,
+**Key facts**, **Risks**, **Unknowns**. Every claim carries `path:line`; a claim without evidence goes under
+*Unknowns* as an assumption.
+
+**Example**
+
+```text
+Pregunta: ¿cómo llega una petición de login hasta la base?
+Answer:       El handler valida el body y delega en AuthService, que consulta UserRepo.
+Entry points: internal/http/login.go:41  — handler POST /login
+Flow:         Login (login.go:41) -> AuthService.Verify (auth.go:88) -> UserRepo.ByEmail (repo.go:23)
+Risks:        Session() (auth.go:120) lo usan 6 handlers; cambiarlo los afecta a todos.
+Unknowns:     No pude determinar el TTL de la sesión (se lee de una variable de entorno).
+```
+
+</details>
+
+<details>
+<summary><strong>✍️ gabito-escritor</strong> — one bounded task, one work-unit commit</summary>
+
+**What it does.** Implements exactly the task it was given, proves it works and commits. It reads the task
+document first, edits only inside the allowed surfaces, and **stops** (instead of editing "just this once") when
+the task needs a file outside them or is ambiguous.
+
+**It runs every verification command in the foreground** and reports `<command>: <observed result>`. A command it
+could not run is reported as unavailable, never as "should pass". If TDD is on it writes the failing test first.
+
+**It ends with one commit:** `gabitotl vcs commit -m "feat(auth): add password recovery"`. That command enforces
+Conventional Commits, refuses the base branch and keeps `.gabitotl/local` out. The writer does not push; delivery
+is `gabito-entrega`.
+
+**Example report**
+
+```text
+Status:        done
+Commit:        3f2a9c1  feat(auth): add password recovery
+Verification:  go test ./internal/auth/...: ok, 31 passed
+               go vet ./...: ok
+Decisions:     El token vence a los 30 min (no estaba especificado).
+OJO:           Encontré deuda en session.go; no la toqué.
+```
+
+</details>
+
+<details>
+<summary><strong>✅ gabito-verificador</strong> — observed versus expected</summary>
+
+**What it does.** Checks someone else's work with fresh eyes and does not trust the writer's report: it reproduces
+it. Read-only; it never fixes what it finds. It inspects the diff, checks every changed path is inside the allowed
+surfaces, compares the diff with each acceptance criterion, re-runs the checks and probes edge cases.
+
+**It decides a risk tier and says it:**
+
+| Tier | Meaning | Depth |
+|---|---|---|
+| `passive` | Docs, comments, formatting | Structural readback |
+| `medium` | Ordinary behavior change with tests | Re-run checks, compare to criteria |
+| `high` | Security, auth, data migration or deletion, public contracts, installers | Read every hunk, probe edge cases, recommend asking the user before delivery |
+
+An unknown change counts as `high`. The verdict is `verified`, `verified with gaps` or `not verified`.
+
+**Example**
+
+```text
+Tier:      high — toca autenticación (internal/auth/recovery.go:12)
+Criteria:  1. El token vence: met (recovery_test.go:55)   2. No filtra si el mail existe: partial
+Checks:    go test ./...: ok, 214 passed
+Findings:  recovery.go:70 responde distinto si el mail no existe (enumeración de usuarios).
+Verdict:   verified with gaps — corregir el hallazgo y volver a verificar.
+```
+
+</details>
+
+<details>
+<summary><strong>🧠 gabito-memoria</strong> — query first, save what matters</summary>
+
+**What it does.** Reads `.gabitotl/memory.md` once to know the provider (`engram` or `memory-mcp`) and uses the
+same bridge tools for both: `memory_search`, `memory_save`, `memory_update`, `memory_session_summary`,
+`memory_current_project`, `memory_doctor` (and `memory_active_work` on the team server).
+
+- **Before working:** a relevance search with 2-4 specific terms, never "load everything".
+- **After a decision, bugfix, discovery, convention or closed task:** an immediate save, in four lines
+  (**What / Why / Where / Learned**), with a stable `topic_key` so later saves revise instead of piling up.
+- **Before saying "done":** a session summary. Around 75% of the context, it saves progress and suggests a new chat.
+- Memory is the lowest rung of the truth order: **code > `.gabitotl/` > Git > memory > imported docs**.
+
+**Example**
+
+```text
+memory_search  text="login recuperación"  type=decision      → encuentra: "token de 30 min"
+memory_save    type=decision  topic_key=decision/password-recovery
+               title="Token de recuperación vence a los 30 minutos"
+               content="What: ... Why: ... Where: internal/auth/recovery.go, feature/pwd-recovery ... Learned: ..."
+```
+
+</details>
+
+<details>
+<summary><strong>👥 gabito-equipo</strong> — know who else is here, advisory only</summary>
+
+**What it does.** Before starting, `gabitotl who` shows live sessions, other worktrees and pushed work.
+Before touching an area, `gabitotl work overlap --areas a,b --files x,y` checks for collisions. It registers
+presence (`session start|touch|end`), declares the task (`work start|update`) and uses one worktree per person
+and task (`worktree add --task ID`).
+
+**Overlap is information, never a verdict.** It raises an OJO and keeps working on the part that does not collide.
+It never edits another person's worktree, session or declared work, and never tells you to wait.
+
+**Example**
+
+```text
+**Ojo:** ana está trabajando en `internal/auth` (rama feature/mfa, activa hace 10 min) y vas a
+cambiar `internal/auth/session.go`. Conviene hablar con ella primero; mientras tanto sigo con `internal/api`.
+```
+
+</details>
+
+<details>
+<summary><strong>🚢 gabito-entrega</strong> — commit, push, PR and merge from saved settings</summary>
+
+**What it does.** Delivers through Git on GitHub, GitLab or Bitbucket using the settings you answered once. It
+never asks again what `vcs.md` already says, and it never asks about PR size.
+
+**Setup by dialogue.** If delivery is not configured, the agent asks you in chat, one question at a time
+(platform, how much to automate, merge method, delete branch, drafts) and saves everything in one call. It reads the
+questions from `gabitotl vcs setup --questions` and saves with `gabitotl vcs setup --yes --vcs-...`.
+
+**Delivery.** `gabitotl vcs ship` commits, pushes the task branch, opens the PR and merges when the settings allow
+and the checks pass. Above the PR budget it cuts **stacked PRs** at commit boundaries on its own.
+
+**Example**
+
+```text
+Gabito: Todavía no elegiste cómo se entrega. ¿Qué querés que haga solo?
+        1) Todo (commit, push, PR y merge)   2) Hasta el PR (el merge lo hacés vos) [por defecto]   3) Preguntar cada vez
+Vos:    1
+Gabito: ¿Cómo mergeo? 1) squash [por defecto]  2) merge  3) rebase
+Vos:    1
+        … (borrar la rama, borradores) …
+Gabito: Listo. Guardé la entrega en .gabitotl/vcs.md. No te lo vuelvo a preguntar.
+```
+
+```bash
+gabitotl vcs ship --title "feat(auth): add password recovery"     # commit, push, PR, merge
+gabitotl vcs ship --title "feat(auth): add password recovery" --dry-run   # only the plan
+```
+
+</details>
+
+<details>
+<summary><strong>🐍 gabito-terminal</strong> — Python instead of fighting the shell</summary>
+
+**What it does.** When a shell command fails or its output is noisy (multiline or quoted commands, PowerShell
+or cmd escaping, mangled output), the agent does **not** retry the same command. After the first failure it writes
+a short Python script in `.gabitotl/tmp/` (git-ignored), runs it and reads the output. It works on any OS and is
+the default for analysis: logs, JSON/YAML/XML, API calls, reports.
+
+**Rules.** `pathlib` for paths, `subprocess.run([...])` with an argument list (never `shell=True`), compact output,
+no secrets, delete the script when done. Simple one-line commands that work stay as they are.
+
+**Example**
+
+```text
+$ Get-ChildItem -Recurse | Where-Object { $_.Name -match "(?<=a)b" } | Select ...   ✗ error de escapado
+Gabito: Falló por el escapado. No reintento: escribo .gabitotl/tmp/find_names.py y lo corro.
+        → 12 match(es), primeros 50 con path:línea. Borro el script.
+```
+
+</details>
+
+### 🔐 How installation treats skills
 
 - `install` creates the files (the plan lists them as CREATE, MODIFY or NO ACTION), backs up an existing target
   first and verifies the result; `doctor` checks them.
 - A skill file that already exists with other content and that GabitoTL did not write is kept: it is never overwritten.
 - `uninstall` removes a skill only while it is byte-for-byte what GabitoTL wrote. If you edited it, it stays and
   is reported; directories GabitoTL created are removed only when they end up empty.
+- Every skill carries `metadata.author: gabitotl`, and a test fails if a skill mentions a `gabitotl` command that
+  does not exist, so the skills cannot drift from the binary.
 
-## Migrating from Gentle-AI
+## 🔄 Migrating from Gentle-AI
 
 `gabitotl migrate gentle-ai` is a soft landing, not a replacement-by-force.
 
@@ -325,7 +608,7 @@ because it changed after the plan. Running it again finds nothing and asks nothi
 sets coexist, `gabitotl doctor` warns (never fails) that two always-on instruction sets apply
 and prints the exact fix, for example `gabitotl install --runtime kiro-cli --retire-gentle-kiro`.
 
-## Delivery settings
+## 🚢 Delivery settings
 
 Commit, push, PR and merge follow settings you answer **once**; they are saved and never asked again.
 The questions appear while `vcs.md` is not configured (a new project, or an existing one without the
@@ -424,7 +707,7 @@ anything). `vcs status` shows an `auth:` line (`ok`, what is missing with the ex
 and bodies are checked for AI attribution before any request, merges obey `permissions.merge`, and
 nothing ever force-pushes.
 
-## Project layout
+## 🗂️ Project layout
 
 ```text
 .gabitotl/
@@ -439,7 +722,7 @@ nothing ever force-pushes.
 
 Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Security
+## 🔒 Security
 
 - Nothing under `.gabitotl/` may hold a secret. Every write runs a secret guard; credentials
   are references only: `env:NAME`, `keychain:NAME` or `native`.
@@ -449,7 +732,7 @@ Code layout and the dependency rule: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md
 - History is never rewritten: no force-push, `reset --hard`, amend or rebase. Roll back with a revert commit.
 - Remote, PR and merge actions follow `vcs.md` permissions (`allow` / `ask` / `deny`); your own overrides live in the git-ignored `local/users/<id>/vcs.md`.
 
-## Status and limitations
+## 📌 Status and limitations
 
 V1 is deliberately small. Known gaps (details in [docs/ROADMAP.md](docs/ROADMAP.md)):
 
@@ -460,20 +743,23 @@ V1 is deliberately small. Known gaps (details in [docs/ROADMAP.md](docs/ROADMAP.
 - The Engram import is tested against hand-built fixtures that follow the upstream export schema
   (see `internal/memory/migrate/engrammcp`), not against exports of every Engram version.
 - Kiro has not been smoke-tested against the real tool; no `gabitotl update`/`upgrade` yet.
-- Bitbucket PRs are a documented stub (`ErrNotImplemented`); GitLab/Azure DevOps have no PR support.
+- GitHub, GitLab and Bitbucket Cloud delivery is tested against fake CLIs and servers only, never against the real
+  services (`gh`/`glab` JSON fields, retargeting a child PR before merging its parent, Bitbucket drafts). A PR with no
+  registered checks merges at once. Azure DevOps has no PR support.
 - Kiro and Claude Code config formats are partly assumed; each assumption is listed in the
   package docs (`internal/runtime/claudecode`, `internal/runtime/opencode`, `internal/runtime/kiro`).
 - `ListModels` is unsupported for every runtime; the model name is whatever you set.
-- Commits, reverts, PRs, the context-budget checkpoint and saving the project map are library
-  capabilities for the agent runtimes; they have no dedicated CLI command yet.
+- Commit, push, PR and merge have CLI commands (`gabitotl vcs ...`); reverts, the context-budget checkpoint and
+  saving the project map are still library capabilities for the agent runtimes.
+- The OpenCode skills path is an assumption, and the skills have not been exercised by a real Kiro or OpenCode session.
 - Windows is untested; CI covers Linux and macOS.
 
-## Contributing
+## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: `make test`, Conventional Commits, no
 AI attribution trailers, no secrets.
 
-## More docs
+## 📚 More docs
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - packages, invariants
 - [docs/DECISIONS.md](docs/DECISIONS.md) - why it is built this way
