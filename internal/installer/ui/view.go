@@ -200,6 +200,7 @@ func RenderResult(w io.Writer, m Messages, res installer.Result, inv installer.I
 				fmt.Fprintf(w, "%s %s\n", SymOK, m.Format("result.gentle.kept"))
 			}
 		}
+		renderGentleKiro(w, m, res.GentleKiro, paths)
 		if res.Snapshot != nil {
 			fmt.Fprintf(w, "\n%s\n", m.Format("result.snapshot", "path", paths.Short(res.Snapshot.Dir)))
 		}

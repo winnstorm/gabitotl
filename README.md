@@ -93,8 +93,8 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | Command | What it does |
 |---------|--------------|
 | `gabitotl` | On a terminal in a project: the installer screen. Piped: onboard a project without `.gabitotl/`, otherwise a short status. Never starts an agent. |
-| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`; team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below). |
-| `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`. |
+| `install [--dry-run] [--yes] [--no-tui]` | Detect, snapshot, configure runtimes, verify. Idempotent. Flags: `--runtime`, `--user`, `--name`, `--memory`, `--retire-gentle-kiro` (move Gentle AI's files in Kiro to a backup, see below); team memory: `--memory-role host\|client`, `--memory-url`, `--memory-token-env`, `--memory-store-token`, `--memory-invite`, `--import-engram` (see below). |
+| `migrate gentle-ai` | Soft landing from Gentle-AI (see below). Adds `--remove-gentle-ai`, `--migrate-persona`, `--retire-gentle-kiro`. |
 | `doctor` | Read-only health check of install and project. Non-zero exit on errors. |
 | `restore [id]` | List snapshots, or restore agent configs from one. |
 | `uninstall` | Remove only what GabitoTL installed, driven by its ownership state (including its Git guard hooks; a hook of yours that was chained is restored byte for byte). |
@@ -283,6 +283,17 @@ GabitoTL itself is verified. `gabitotl restore <id>` puts them back byte for byt
 provably Gentle's are moved (a known name, or a skill whose front matter says
 `author: gentleman-programming`); your own skills, agents, MCP entries and settings are never
 touched, and Gentle AI itself is not uninstalled.
+
+The installer never decides this for you. On a terminal it shows what it found in Kiro (the
+steering file, N skills, N agents, N shared references) and what stays, then asks whether to
+move them to a backup now; the default is **no**, which keeps both. Without a terminal, or with
+`--yes` alone, it keeps both and the plan notes how to change that: pass
+`--retire-gentle-kiro` (also on `migrate gentle-ai`), which answers the question with yes.
+`--dry-run` never asks and shows the plan the flag would make. The result reports how many
+files moved, the snapshot id and `gabitotl restore <id>`, plus any file it did not touch
+because it changed after the plan. Running it again finds nothing and asks nothing. While both
+sets coexist, `gabitotl doctor` warns (never fails) that two always-on instruction sets apply
+and prints the exact fix, for example `gabitotl install --runtime kiro-cli --retire-gentle-kiro`.
 
 ## Project layout
 

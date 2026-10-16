@@ -51,6 +51,7 @@ const (
 	scrEngram
 	scrForm
 	scrPersona
+	scrGentleKiro
 	scrBuilding
 	scrPlan
 	scrApply
@@ -107,6 +108,7 @@ type Model struct {
 	scroll int
 
 	memoryAsked, modeDecided, personaAsked bool
+	gentleKiroAsked                        bool
 	teamAsked, engramAsked                 bool
 	teamAsked2                             []string
 	form                                   *huh.Form
@@ -293,6 +295,8 @@ func (m *Model) items() []menuItem {
 		}
 	case scrPersona:
 		return []menuItem{{id: "persona-do", label: f("tui.persona.do")}, {id: "persona-keep", label: f("tui.persona.keep")}}
+	case scrGentleKiro:
+		return []menuItem{{id: "kiro-keep", label: f("tui.gentle-kiro.keep")}, {id: "kiro-do", label: f("tui.gentle-kiro.do")}}
 	case scrPlan:
 		var it []menuItem
 		switch {
@@ -389,7 +393,7 @@ func (m *Model) quit() tea.Cmd {
 func (m *Model) reset() {
 	m.screen, m.stage, m.cur, m.scroll = scrHome, stMemory, 0, 0
 	m.opts = m.cfg.Options
-	m.memoryAsked, m.modeDecided, m.personaAsked, m.showDetails = false, false, false, false
+	m.memoryAsked, m.modeDecided, m.personaAsked, m.gentleKiroAsked, m.showDetails = false, false, false, false, false
 	m.teamAsked, m.engramAsked, m.teamAsked2 = false, false, nil
 	m.form, m.personaBlocks = nil, nil
 }
@@ -433,6 +437,14 @@ func (m *Model) choose(id string) tea.Cmd {
 		m.personaAsked = true
 		m.opts.MigratePersona = id == "persona-do"
 		return m.planCmd(m.opts, false)
+	case "kiro-do", "kiro-keep":
+		m.gentleKiroAsked = true
+		if id == "kiro-keep" {
+			m.screen = scrPlan // m.plan already is the plan that keeps both
+			return nil
+		}
+		m.opts.RetireGentleKiro = true
+		return m.planCmd(m.opts, false) // replan: the plan then lists exactly what moves
 	case "toggle":
 		m.showDetails = !m.showDetails
 	case "apply":
@@ -512,16 +524,27 @@ func (m *Model) onPlan(p planMsg) tea.Cmd {
 		if len(m.personaBlocks) == 0 {
 			m.personaAsked = true
 			m.screen = scrPlan
+			if m.asksGentleKiro(m.plan) {
+				m.screen = scrGentleKiro
+			}
 		}
 	case !m.personaAsked && !m.opts.MigratePersona && p.plan.HasNote(installer.NotePersonaConflict):
 		po := m.opts
 		po.MigratePersona = true
 		m.plan = p.plan
 		return m.planCmd(po, true)
+	case m.asksGentleKiro(p.plan):
+		m.plan, m.screen = p.plan, scrGentleKiro
 	default:
 		m.plan, m.screen = p.plan, scrPlan
 	}
 	return nil
+}
+
+// asksGentleKiro reports whether the plan found Gentle AI's files in Kiro that
+// the user has neither retired (flag or answer) nor been asked about yet.
+func (m *Model) asksGentleKiro(p installer.Plan) bool {
+	return !m.gentleKiroAsked && !m.opts.RetireGentleKiro && p.GentleKiro != nil && !p.GentleKiro.Empty()
 }
 
 // wantsTeam reports whether the choices so far lead to team memory.

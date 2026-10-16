@@ -343,3 +343,58 @@ func TestCorruptSavedCopyAbortsRetirement(t *testing.T) {
 		}
 	}
 }
+
+func TestDoctorWarnsWhileBothInstructionSetsCoexist(t *testing.T) {
+	f, _, _ := gentleFixture(t)
+	installed(t, f, Options{User: "gabi", UserName: "Gabi", Runtimes: []string{"kiro-cli"}})
+	before := treeHash(t, f.home, f.root)
+	d := Doctor(context.Background(), f.env)
+	if treeHash(t, f.home, f.root) != before {
+		t.Fatal("doctor must stay read-only")
+	}
+	l := codesOf(d, "runtimes")[DocRuntimeGentleKiro]
+	if l.Code == "" || l.Status != LineWarn || l.Detail != "kiro-cli" {
+		t.Fatalf("expected a warning naming the runtime to fix: %+v", l)
+	}
+	errsWith := d.Errors()
+
+	// Retiring Gentle AI's files clears the warning, and it was never a failure.
+	installed(t, f, Options{User: "gabi", UserName: "Gabi", Runtimes: []string{"kiro-cli"}, RetireGentleKiro: true})
+	d = Doctor(context.Background(), f.env)
+	if l := codesOf(d, "runtimes")[DocRuntimeGentleKiro]; l.Code != "" {
+		t.Fatalf("nothing coexists anymore, doctor must say nothing: %+v", l)
+	}
+	if d.Errors() != errsWith {
+		t.Fatalf("the coexistence warning must not count as an error: %d vs %d", errsWith, d.Errors())
+	}
+}
+
+func TestDoctorSaysNothingWithoutGentleKiroFiles(t *testing.T) {
+	f := newFixture(t)
+	installed(t, f, Options{User: "gabi", UserName: "Gabi", Runtimes: []string{"kiro-cli"}})
+	if l := codesOf(Doctor(context.Background(), f.env), "runtimes")[DocRuntimeGentleKiro]; l.Code != "" {
+		t.Fatalf("no Gentle AI files, no warning: %+v", l)
+	}
+}
+
+func TestDoctorIgnoresGentleKiroFilesWhenGabitotlIsNotInKiro(t *testing.T) {
+	f, _, _ := gentleFixture(t) // Gentle's files, but GabitoTL never installed
+	if l := codesOf(Doctor(context.Background(), f.env), "runtimes")[DocRuntimeGentleKiro]; l.Code != "" {
+		t.Fatalf("two sets only coexist once GabitoTL's steering file is there: %+v", l)
+	}
+}
+
+func TestPlanAfterRetirementAsksNothingAndKeepsNoNote(t *testing.T) {
+	f, _, _ := gentleFixture(t)
+	if _, err := runPlan(t, f, Options{User: "gabi", UserName: "Gabi", Runtimes: []string{"kiro-cli"}, RetireGentleKiro: true}); err != nil {
+		t.Fatal(err)
+	}
+	snaps, _ := ListSnapshots(f.env)
+	_, pl := buildPlan(t, f, Options{Runtimes: []string{"kiro-cli"}})
+	if pl.GentleKiro != nil || pl.HasNote(NoteGentleKiroPresent) {
+		t.Fatalf("after retirement there is nothing to ask about: %+v", pl.Notes)
+	}
+	if after, _ := ListSnapshots(f.env); len(after) != len(snaps) {
+		t.Fatal("planning must not create a snapshot")
+	}
+}

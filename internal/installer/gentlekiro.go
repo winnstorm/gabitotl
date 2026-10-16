@@ -167,6 +167,21 @@ func GentleKiroRoots(env Env, runtimes []string) []string {
 	return out
 }
 
+// gentleKiroCoexists reports whether Gentle AI's files still sit in a Kiro tree
+// that also holds GabitoTL's own steering file: two always-on instruction sets.
+// It is read-only; doctor warns about it and names the command that fixes it.
+func gentleKiroCoexists(env Env, runtime string) bool {
+	for _, root := range GentleKiroRoots(env, []string{runtime}) {
+		if _, err := os.Stat(filepath.Join(root, "steering", "gabitotl.md")); err != nil {
+			continue
+		}
+		if !DetectGentleKiro([]string{root}).Empty() {
+			return true
+		}
+	}
+	return false
+}
+
 // DetectGentleKiro is read-only: it inventories Gentle AI's files under roots.
 func DetectGentleKiro(roots []string) GentleKiroInventory {
 	var inv GentleKiroInventory

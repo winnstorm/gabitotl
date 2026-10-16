@@ -95,6 +95,7 @@ type installFlags struct {
 	dryRun, yes, noTUI                      bool
 	tui                                     bool // the caller allows the full-screen interface
 	migratePersona, removeGentle, preserveE bool
+	retireGentleKiro                        bool
 	noGuardHooks                            bool
 
 	// Team memory (flags of the plain flow; the TUI asks the same things).
@@ -114,6 +115,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.BoolVar(&f.yes, "yes", false, "do not ask; required when there is no terminal")
 	fs.BoolVar(&f.noTUI, "no-tui", false, "use the plain text flow even on a terminal")
 	fs.BoolVar(&f.migratePersona, "migrate-persona", false, "retire the managed Gentleman/Gentle-AI persona block after verification")
+	fs.BoolVar(&f.retireGentleKiro, "retire-gentle-kiro", false, "move Gentle AI's files in Kiro (steering, skills, agents) to a backup and remove them after verification")
 	fs.StringVar(&f.memoryRole, "memory-role", "", "team memory role with --memory memory-mcp: host (this machine runs the server) or client (connect to one)")
 	fs.StringVar(&f.memoryURL, "memory-url", "", "team memory server endpoint, for example https://memoria.example.com/mcp (client: the server; host: the address teammates use, never loopback; omit it for a local-only host)")
 	fs.StringVar(&f.memoryTokenEnv, "memory-token-env", "", "NAME of the environment variable that holds your token (default "+installer.DefaultTokenEnv+"); never the token itself")
@@ -260,7 +262,7 @@ func execute(env Env, f installFlags, source string) int {
 
 	opts := installer.Options{
 		Source: source, Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
-		MigratePersona: f.migratePersona, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks,
+		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks,
 		MemoryRole: f.memoryRole, MemoryURL: f.memoryURL, MemoryTokenEnv: f.memoryTokenEnv, StoreToken: f.memoryStoreToken,
 		Invites: f.memoryInvites, ServerEngine: f.memoryEngine, ServerPort: f.memoryPort, ServerInstance: f.memoryInstance,
 		ImportEngram: f.importEngram,
@@ -293,6 +295,19 @@ func execute(env Env, f installFlags, source string) int {
 					fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
 					return ExitUsage
 				}
+			}
+		}
+	}
+
+	// Gentle AI's files in Kiro: say what was found and ask; the default is to
+	// keep both. Without a terminal, or with --yes, nothing is retired unless the
+	// flag was given (the plan note says how).
+	if interactive && !opts.RetireGentleKiro && plan.GentleKiro != nil && !plan.GentleKiro.Empty() {
+		if pr.ConfirmGentleKiro(*plan.GentleKiro) {
+			opts.RetireGentleKiro = true
+			if plan, err = installer.BuildPlan(ctx, ienv, inv, opts); err != nil {
+				fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
+				return ExitUsage
 			}
 		}
 	}
