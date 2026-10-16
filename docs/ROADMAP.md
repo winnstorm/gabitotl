@@ -50,9 +50,8 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
 
 ## Product
 
-- Delivery commands (S3b): `vcs commit|push|pr|merge` are done (D35): driven by the saved settings (D33) and the
-  hosts of D34, merging only when the checks pass. Still to come: `vcs ship` (the whole flow in one command)
-  and the automatic stacked-PR slicing above `pr_budget_lines`.
+- Delivery commands (S3b) are done (D35): `vcs commit|push|pr|merge|ship`, driven by the saved settings, merging only when
+  the checks pass, with automatic stacked-PR slicing above `pr_budget_lines`.
 - Azure DevOps and Bitbucket Server / Data Center pull requests (reported as unsupported today).
 - Dashboard for memory and progress.
 - Additional importers (other harnesses and tools beyond Kiro, Gentle-AI, Engram

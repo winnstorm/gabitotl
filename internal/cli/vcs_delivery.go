@@ -119,6 +119,8 @@ func (d *delivery) fail(err error) int {
 		d.warn("deliver.commit.attribution")
 	case errors.Is(err, vcs.ErrInvalidCommitMessage):
 		d.warn("deliver.commit.invalid")
+	case errors.Is(err, vcs.ErrNothingToShip):
+		d.warn("deliver.err.nothing")
 	case errors.Is(err, vcs.ErrNoPR):
 		cur, _ := d.repo.CurrentBranch(context.Background())
 		d.warn("deliver.err.nopr", "branch", cur)
