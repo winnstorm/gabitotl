@@ -163,22 +163,26 @@ func TestFullInstallAsksOnlyWhatCannotBeDetectedOneAtATime(t *testing.T) {
 	}
 	cfg := mc.config(installer.Options{})
 	cfg.Need = func(installer.Inventory, installer.Options) ui.Need {
-		return ui.Need{Name: true, Mode: true, Git: true}
+		return ui.Need{Name: true, Mode: true, Delivery: true, DeliveryFull: true}
 	}
 	d := newDriver(t, cfg)
 	d.pick(lbl("tui.action.install"))
 	d.require(lbl("tui.memory.title")) // Engram exists: reuse or shared first
 	d.pick(lbl("tui.memory.use"))      // answers solo/team, so no separate mode question
 	d.require(lbl("ask.name"))
-	if d.has(lbl("ask.git")) || d.has(lbl("tui.runtimes.title")) {
+	if d.has(lbl("ask.vcs.auto")) || d.has(lbl("tui.runtimes.title")) {
 		t.Fatal("questions must come one at a time")
 	}
 	d.require("Test Dev") // suggested name, prefilled
 	d.key("ctrl+a", "ctrl+k")
 	d.typeText("Gabi")
 	d.key("enter")
-	d.require(lbl("ask.git"))
-	d.key("enter") // default: ask every time
+	d.require("¿En qué plataforma vive el repositorio?")
+	d.key("enter") // default: none yet
+	d.require(lbl("ask.vcs.auto"))
+	d.key("enter") // default: automatic up to the PR
+	d.require(lbl("ask.vcs.draft"))
+	d.key("enter") // default: normal PRs
 	d.require(lbl("tui.runtimes.title"))
 	d.require("Claude Code")
 	d.key("enter")

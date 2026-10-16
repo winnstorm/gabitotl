@@ -275,16 +275,14 @@ func (r *run) migrateKnowledge(ctx context.Context) error {
 			r.emit(PhaseMigrate, "ok", "install authorship guard hooks", "commit-msg, pre-commit")
 		}
 	}
-	if r.pl.Options.AutomateGit && slices.Contains(res.Created, relTo(r.env.ProjectRoot, l.VCS())) {
-		cfg, err := gabitotl.LoadVCS(l)
+	// The delivery answers (asked once, or given by flags) go where
+	// gabitotl.SaveDelivery decides: the team file, or this person's own file.
+	if da := r.pl.Options.Delivery; !da.Empty() {
+		res, err := gabitotl.SaveDelivery(l, gabitotl.ActiveUserID(), da)
 		if err != nil {
 			return err
 		}
-		cfg.RemoteActions = "automatic"
-		cfg.Permissions = gabitotl.VCSPermissions{Branches: gabitotl.PermAllow, Commits: gabitotl.PermAllow, Push: gabitotl.PermAllow, PullRequests: gabitotl.PermAllow}
-		if err := gabitotl.SaveVCS(l, cfg); err != nil {
-			return err
-		}
+		r.emit(PhaseMigrate, "ok", "save delivery settings", res.Target)
 	}
 	if r.pl.Options.UserName != "" {
 		u, err := identity.New(r.pl.Options.User, r.pl.Options.UserName, "")

@@ -89,9 +89,15 @@ func (p *Prompter) Confirm(question string) bool {
 }
 
 // Need says which onboarding questions are still open: only what cannot be
-// detected is ever asked (never runtime, Engram, Git or provider).
+// detected is ever asked (never runtime, Engram or Git itself).
 type Need struct {
-	Name, Mode, Git bool
+	Name, Mode bool
+	// Delivery means the delivery settings (commit, push, PR, merge) were never
+	// answered for this project. DeliveryFull asks the whole short sequence; without
+	// it only the person's automation is asked (the team already answered the rest).
+	// Inferred is the platform found in origin, offered as the default.
+	Delivery, DeliveryFull bool
+	Inferred               string
 	// Current is the provider the project already uses when Mode is asked about a
 	// project that exists: the question then offers to change it (to team memory)
 	// instead of choosing one.
@@ -135,10 +141,8 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 	} else if n.Team && opts.Memory == "memory-mcp" {
 		p.askTeam(opts, n)
 	}
-	if n.Git {
-		if i, ok := p.Choose(p.m.Format("ask.git"), []string{p.m.Format("ask.git.yes"), p.m.Format("ask.git.no")}, 1); ok && i == 0 {
-			opts.AutomateGit = true
-		}
+	if n.Delivery {
+		p.Delivery(&opts.Delivery, n)
 	}
 }
 

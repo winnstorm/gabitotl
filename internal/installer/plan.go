@@ -34,7 +34,6 @@ type Options struct {
 	Mode           string   // solo | team; empty: solo (team when Memory is memory-mcp)
 	User           string   // developer id (slug)
 	UserName       string   // developer display name
-	AutomateGit    bool     // let Gabito handle commits and PRs (vcs.md permissions)
 	MigratePersona bool     // retire the managed Gentleman/Gentle-AI persona block after verify
 	RemoveGentleAI bool     // run Gentle-AI's own uninstall after verify (destructive)
 	// RetireGentleKiro moves Gentle AI's files in Kiro (steering, skills, agents)
@@ -55,6 +54,10 @@ type Options struct {
 	ServerPort     int      // host: published loopback port (0: automatic)
 	ServerInstance string   // host: named instance of the managed server
 	ImportEngram   bool     // host: import the Engram memory into the team memory (needs the safety export)
+
+	// Delivery holds the answers to the delivery questions (commit, push, PR, merge),
+	// asked once and saved in vcs.md (docs/DECISIONS.md D33).
+	Delivery gabitotl.DeliveryAnswers
 }
 
 // Note is something presenters must tell the user about the plan.
@@ -270,6 +273,10 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 					pl.Items = append(pl.Items, PlanItem{Kind: rt.Modify, Target: f, Detail: "team memory settings (references only)"})
 					continue
 				}
+				if f == l.VCS() && !opts.Delivery.Empty() { // the delivery answers are written into the existing vcs.md
+					pl.Items = append(pl.Items, PlanItem{Kind: rt.Modify, Target: f, Detail: "delivery settings (commit, push, PR, merge)"})
+					continue
+				}
 				pl.add(rt.Preserve, f, WhyExists)
 				continue
 			}
@@ -391,7 +398,7 @@ var (
 // snapshot itself. A plan that does not mutate is an idempotent re-run: nothing
 // to apply, no new snapshot.
 func (p Plan) Mutates() bool {
-	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || p.retireGentleKiro() || (p.Team != nil && !p.Team.Unchanged) {
+	if len(p.ProjectFiles) > 0 || len(p.Retire) > 0 || p.GentleArgs != nil || p.Options.RemoveGentleAI || p.retireGentleKiro() || !p.Options.Delivery.Empty() || (p.Team != nil && !p.Team.Unchanged) {
 		return true
 	}
 	for _, it := range p.Items {

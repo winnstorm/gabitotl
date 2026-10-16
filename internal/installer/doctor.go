@@ -60,6 +60,9 @@ const (
 	DocGitRepo           = "doctor.git.repo"
 	DocGitNoRepo         = "doctor.git.no-repo"
 	DocGitProvider       = "doctor.git.provider"
+	DocGitDelivery       = "doctor.git.delivery"
+	DocGitDeliveryTodo   = "doctor.git.delivery-todo"
+	DocGitProviderDiffer = "doctor.git.provider-differs"
 	DocGitIdentity       = "doctor.git.identity"
 	DocGitNoIdentity     = "doctor.git.no-identity"
 	DocLegacyGentle      = "doctor.legacy.gentle"
@@ -76,7 +79,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -134,6 +137,8 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	provider := gabitotl.MemoryEngram
 	var memCfg gabitotl.MemoryConfig
 	var memOrigin gabitotl.MemoryOrigin
+	var vcsCfg gabitotl.VCSConfig
+	vcsOK := false
 	hasProject := false
 	switch {
 	case env.ProjectRoot == "":
@@ -160,8 +165,9 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		}
 		_, err = gabitotl.LoadRuntime(l)
 		check("runtime.md", err)
-		_, err = gabitotl.LoadVCS(l)
+		vcsCfg, err = gabitotl.LoadVCS(l)
 		check("vcs.md", err)
+		vcsOK = err == nil
 		_, err = gabitotl.LoadWorkflow(l)
 		check("workflow.md", err)
 		if bad == 0 {
@@ -282,6 +288,17 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		}
 	} else if env.ProjectRoot != "" {
 		git = append(git, L(LineWarn, DocGitNoRepo, ""))
+	}
+	// Delivery settings: never a failure, only a pointer to `gabitotl vcs setup`.
+	if hasProject && vcsOK {
+		if vcsCfg.IsConfigured() {
+			git = append(git, L(LineOK, DocGitDelivery, vcsCfg.AutomationLevel()))
+		} else {
+			git = append(git, L(LineWarn, DocGitDeliveryTodo, ""))
+		}
+		if inf := inv.Project.Provider; inf != "" && inf != vcsCfg.Provider {
+			git = append(git, L(LineWarn, DocGitProviderDiffer, "vcs.md: "+vcsCfg.Provider+", origin: "+inf))
+		}
 	}
 	if env.ProjectRoot != "" {
 		if u, err := identity.Active(env.ProjectRoot); err == nil {

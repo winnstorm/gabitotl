@@ -405,3 +405,34 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   `gabitotl`, and a test proves they are never selected.
 - **Open point:** the OpenCode skills directory is derived from Gentle AI's steering text and is not confirmed by
   OpenCode's documentation (ASSUMPTION in the adapter's package doc).
+
+## D33. Delivery settings are asked once and split between the team and each person
+- **Problem:** the only Git question was a yes/no for a NEW project, written into the shared `vcs.md` as "everything
+  allowed". It never confirmed the platform, had no merge permission, and could not tell what the team agreed on from
+  what one person wants. Asking about PR size or exceptions was never acceptable.
+- **Decision:** `VCSConfig` is a merged view (the same design as D30). The committed `.gabitotl/vcs.md` holds the team
+  settings: `provider`, `permissions` (now with `merge`), `merge_method` (default squash), `delete_branch` (true),
+  `draft_prs` (false), `base_branch` (empty: the repository default), `pr_budget_lines` (400), `chain` (`stacked`) and
+  the marker `configured`. The git-ignored `.gabitotl/local/users/<id>/vcs.md` holds the `auth` reference and optional
+  permission overrides; the local value wins. Every new key is optional, so older files load unchanged and a legacy
+  `auth` in the shared file moves to the person's file on the next write.
+- **Configured:** `configured: true`, or (a file from before the marker) any permission other than `ask` or
+  `remote_actions: automatic`. A file that is still the defaults is not configured.
+- **Questions:** at most five, only while the project is not configured (new projects and existing ones without the
+  marker), in the plain installer, the TUI and `gabitotl vcs setup`: platform (the one inferred from `origin` is the
+  default), automation (everything / up to the PR, default / ask each time), merge method and branch deletion (only
+  when merge is automatic) and draft PRs (unless everything asks). There is no question about size, budgets, chaining
+  or exceptions: those are settings with defaults, changed by editing `vcs.md`. Work over the budget is sliced into
+  stacked PRs without asking.
+- **Flags:** `--vcs-provider`, `--vcs-automation=all|until-pr|ask`, `--vcs-merge-method`, `--vcs-delete-branch`,
+  `--vcs-draft` on `install`, `migrate` and `vcs setup`. `--vcs-automation` settles the questions without a terminal;
+  `--yes` and a missing terminal never ask and never mark anything configured.
+- **Where an answer goes (`SaveDelivery`):** the team file when it is new or unconfigured, when a team-wide setting is
+  answered, or with `vcs setup --shared`; otherwise (the team already answered and the person only picks how much to
+  automate) the person's file, as overrides of what differs from the team. A teammate who pulls a configured project is
+  asked nothing.
+- **Guard:** `vcs.OpMerge` is gated by `permissions.merge` like the other operations (a missing key reads as `ask`).
+  The merge itself is not implemented yet (the platform operations come next).
+- **Doctor:** reports whether delivery is configured (pointing at `gabitotl vcs setup`) and warns, never fails, when the
+  platform of `origin` differs from `vcs.md`.
+

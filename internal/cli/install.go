@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	goruntime "runtime"
 	"strings"
@@ -97,6 +99,7 @@ type installFlags struct {
 	migratePersona, removeGentle, preserveE bool
 	retireGentleKiro                        bool
 	noGuardHooks                            bool
+	delivery                                deliveryFlags
 
 	// Team memory (flags of the plain flow; the TUI asks the same things).
 	memoryRole, memoryURL, memoryTokenEnv, memoryEngine, memoryInstance string
@@ -126,6 +129,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.StringVar(&f.memoryInstance, "memory-instance", "", "host: named instance of the managed server")
 	fs.BoolVar(&f.importEngram, "import-engram", false, "host: import the Engram memory into the team memory (safety export first; Engram stays intact)")
 	fs.BoolVar(&f.noGuardHooks, "no-guard-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
+	f.delivery.bind(fs)
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
 	if migrate {
 		fs.BoolVar(&f.preserveE, "preserve-engram", false, "keep using the existing Engram memory (always the case: Engram is adopted, never copied)")
@@ -184,7 +188,16 @@ func suggestName(ctx context.Context, ienv installer.Env, root string) string {
 // works with other people, to move it to team memory. The identity comes from the
 // OS user, so nobody is asked who they are.
 func openQuestions(root string, inv installer.Inventory, opts installer.Options) ui.Need {
-	need := ui.Need{Git: !inv.Project.Exists}
+	need := ui.Need{}
+	// The delivery questions (commit, push, PR, merge) are asked until they are
+	// answered once: a new project, or an existing one whose vcs.md is not configured.
+	// A project the team already configured is never asked again. The automation
+	// flag answers them without asking.
+	if opts.Delivery.Automation == "" {
+		v, verr := gabitotl.LoadVCS(gabitotl.NewLayout(root))
+		need.Delivery = !inv.Project.Exists || errors.Is(verr, fs.ErrNotExist) || (verr == nil && !v.IsConfigured())
+		need.DeliveryFull, need.Inferred = true, inv.Project.Provider
+	}
 	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(root))
 	known := inv.Project.Exists && err == nil
 	switch {
@@ -223,6 +236,11 @@ func execute(env Env, f installFlags, source string) int {
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
 		return ExitError
+	}
+	delivery, err := f.delivery.answers()
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
+		return ExitUsage
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
@@ -265,7 +283,7 @@ func execute(env Env, f installFlags, source string) int {
 		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks,
 		MemoryRole: f.memoryRole, MemoryURL: f.memoryURL, MemoryTokenEnv: f.memoryTokenEnv, StoreToken: f.memoryStoreToken,
 		Invites: f.memoryInvites, ServerEngine: f.memoryEngine, ServerPort: f.memoryPort, ServerInstance: f.memoryInstance,
-		ImportEngram: f.importEngram,
+		ImportEngram: f.importEngram, Delivery: delivery,
 	}
 	if opts.UserName == "" {
 		opts.UserName = f.user

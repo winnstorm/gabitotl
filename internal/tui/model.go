@@ -68,7 +68,7 @@ const (
 	stMode
 	stTeam
 	stEngram
-	stGit
+	stDelivery
 	stRuntimes
 	stPlan
 )
@@ -116,7 +116,8 @@ type Model struct {
 	nameVal, modeVal                       string
 	urlVal, tokenEnvVal, storeVal          string
 	secretVal, invitesVal                  string
-	gitVal                                 bool
+	vcsVal                                 string
+	deliveryDone                           []ui.DeliveryStep
 	rtVal                                  []string
 
 	personaBlocks []rt.Action
@@ -394,7 +395,7 @@ func (m *Model) reset() {
 	m.screen, m.stage, m.cur, m.scroll = scrHome, stMemory, 0, 0
 	m.opts = m.cfg.Options
 	m.memoryAsked, m.modeDecided, m.personaAsked, m.gentleKiroAsked, m.showDetails = false, false, false, false, false
-	m.teamAsked, m.engramAsked, m.teamAsked2 = false, false, nil
+	m.teamAsked, m.engramAsked, m.teamAsked2, m.deliveryDone = false, false, nil, nil
 	m.form, m.personaBlocks = nil, nil
 }
 
@@ -489,9 +490,10 @@ func (m *Model) advance() tea.Cmd {
 				m.screen = scrEngram
 				return nil
 			}
-		case stGit:
-			if m.need.Git {
-				return m.startForm("git")
+		case stDelivery:
+			if next := ui.NextDeliveryStep(m.need, m.opts.Delivery, m.deliveryDone); next != "" {
+				m.stage-- // come back until the delivery questions are answered
+				return m.startForm(deliveryPrefix + string(next))
 			}
 		case stRuntimes:
 			if len(m.inv.Runtimes) > 0 && len(m.cfg.Options.Runtimes) == 0 {
