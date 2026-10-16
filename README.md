@@ -276,6 +276,14 @@ Safety guarantees:
 - The Gentleman persona block is replaced only with `--migrate-persona` (or your explicit answer).
 - `~/.gentle-ai/backups`, your skills, secrets and repositories are never removed.
 
+Gentle AI also leaves always-on files in Kiro (its steering file, its skills and its agents),
+so Kiro would carry two personas. The installer can retire exactly those files: they are
+copied into the install snapshot first, verified by size and SHA-256, and removed only after
+GabitoTL itself is verified. `gabitotl restore <id>` puts them back byte for byte. Only files
+provably Gentle's are moved (a known name, or a skill whose front matter says
+`author: gentleman-programming`); your own skills, agents, MCP entries and settings are never
+touched, and Gentle AI itself is not uninstalled.
+
 ## Project layout
 
 ```text

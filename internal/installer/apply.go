@@ -79,6 +79,7 @@ type Result struct {
 	Imports        []importer.Outcome
 	Checks         []Check
 	Retired        Retired
+	GentleKiro     *GentleKiroResult
 	Team           *TeamResult
 	Server         *ServerResult
 	Tokens         []IssuedToken // teammate tokens, shown once and never stored

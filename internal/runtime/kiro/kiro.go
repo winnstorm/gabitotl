@@ -33,6 +33,7 @@ package kiro
 import (
 	"encoding/json"
 	"path/filepath"
+	"slices"
 
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/runtime/engine"
@@ -61,6 +62,23 @@ func (Core) base(env rt.Env, s rt.Scope) string {
 		return filepath.Join(env.ProjectRoot, ".kiro")
 	}
 	return home(env)
+}
+
+// ForeignAssetRoots lists the Kiro directories that exist and can hold assets of
+// another harness: the global tree (KIRO_HOME or ~/.kiro) and the workspace
+// .kiro. The installer looks for Gentle AI's files only inside them.
+func (Core) ForeignAssetRoots(env rt.Env) []string {
+	var out []string
+	for _, s := range []rt.Scope{rt.ScopeGlobal, rt.ScopeProject} {
+		b := Core{}.base(env, s)
+		if s == rt.ScopeProject && env.ProjectRoot == "" {
+			continue
+		}
+		if env.Has(b) && !slices.Contains(out, b) {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 func (c Core) steeringPath(env rt.Env, s rt.Scope) string {

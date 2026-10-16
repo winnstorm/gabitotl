@@ -38,7 +38,8 @@ func (r *run) retire(ctx context.Context) error {
 		personaWork = personaWork || len(acts) > 0
 	}
 	maybeGentle := g.Found && args != nil && (r.pl.Options.RemoveGentleAI || r.hooks.ConfirmRetire != nil)
-	if !personaWork && !maybeGentle {
+	kiroWork := r.pl.retireGentleKiro()
+	if !personaWork && !maybeGentle && !kiroWork {
 		if r.pl.Options.RemoveGentleAI && g.Found && !manual {
 			r.warn("no selected runtime matches a Gentle-AI agent: nothing was retired")
 		}
@@ -74,6 +75,13 @@ func (r *run) retire(ctx context.Context) error {
 		}
 		if blocks > 0 {
 			r.emit(PhaseRetire, "ok", "retire persona "+name, fmt.Sprintf("%d block(s)", blocks))
+		}
+	}
+
+	// 1b. Gentle AI's files in Kiro: already in the snapshot, removed only now.
+	if kiroWork {
+		if err := r.retireGentleKiro(); err != nil {
+			return err
 		}
 	}
 

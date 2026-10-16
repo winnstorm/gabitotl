@@ -269,6 +269,16 @@ func CreateSnapshot(ctx context.Context, env Env, inv Inventory, pl Plan, obs Ob
 		obs.emit(PhaseSnapshot, "ok", "snapshot "+name, "")
 	}
 
+	// Gentle AI's files in Kiro: copied and verified now, removed after verify.
+	if pl.retireGentleKiro() {
+		files, err := backupGentleKiro(dir, pl.GentleKiro)
+		if err != nil {
+			return fail(err)
+		}
+		snap.Manifest.Files = append(snap.Manifest.Files, files...)
+		obs.emit(PhaseSnapshot, "ok", "snapshot gentle-kiro", fmt.Sprintf("%d file(s)", len(files)))
+	}
+
 	// Project files the run may create or modify: recording "did not exist"
 	// lets rollback and restore remove exactly what a run created.
 	for _, p := range projectPaths(env, pl) {
@@ -434,6 +444,9 @@ func (s *Snapshot) RestoreFiles(includeProject bool) ([]string, error) {
 		want, err := s.copyOf(mf)
 		if err != nil {
 			return fmt.Errorf("snapshot copy of %s is missing: %w", mf.Path, err)
+		}
+		if mf.SHA256 != "" && sha(want) != mf.SHA256 { // never write a damaged copy over a file
+			return fmt.Errorf("snapshot copy of %s is damaged (its hash changed)", mf.Path)
 		}
 		if curExists && string(cur) == string(want) {
 			return nil
