@@ -114,6 +114,8 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `backup create \| list \| restore \| prune` | Local snapshots under `.gabitotl/.bak/<user>/`. |
 | `worktree add \| list \| remove` | One worktree per developer/task, as a sibling directory. |
 | `work start \| update \| status \| overlap` | Active-work files and the soft-lock OJO. |
+| `who [--json] [--no-memory] [--no-worktrees]` | Who is active here, in other worktrees and in pushed work (active-work files, shared memory). Advisory; never fails because a source is unavailable. |
+| `session start \| touch \| end` | Register an agent session's presence for any memory provider (`--task`, `--branch`, `--areas`, `--anchor-pid`). Silent outside a project. |
 | `runtime list \| detect \| plan \| apply \| verify \| remove \| set` | Per-runtime configuration and model choice. |
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats]` | Print the installed persona prompt. |
@@ -166,6 +168,35 @@ gabitotl install --memory memory-mcp --memory-role client \
   timestamps kept, unknown authors recorded as `legacy`, Engram never modified.
 
 Operator guide, security model and troubleshooting: [docs/MEMORY_SERVER.md](docs/MEMORY_SERVER.md).
+
+## Who is here
+
+Several people can use one project, even one working directory, and nothing blocks anyone.
+`gabitotl who` answers who is active, doing what, and where, merging three scopes and labelling
+each row with its source: live sessions of this directory (`directory`), live sessions of the
+other worktrees from `git worktree list` (`worktree`), and pushed state (`remote`: active-work
+files and, with memory-mcp, the shared memory). The same person and task seen through several
+sources is one row. `--json` prints a stable shape (`self`, `people[]`, `warnings[]`).
+
+A session registers itself when it starts work through `work start|update` or the stdio memory
+servers. An agent session on an Engram-only project registers through `gabitotl session`;
+the commands are silent outside a project and never fail. To do it automatically with Claude Code,
+add this to `.claude/settings.json` (or `~/.claude/settings.json`). It is a manual option for now;
+the installer does not write hooks. `$PPID` is the Claude Code process that runs the hook, so
+start and end name the same session (on Windows leave `--anchor-pid` out and rely on the 12 h expiry).
+`session start` prints a short advisory on stdout, which Claude Code adds to the session context.
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "gabitotl session start --runtime claude-code --anchor-pid $PPID"}]}],
+    "SessionEnd":   [{"hooks": [{"type": "command", "command": "gabitotl session end --anchor-pid $PPID"}]}]
+  }
+}
+```
+
+Optionally refresh `last_seen` on long sessions with `gabitotl session touch --anchor-pid $PPID`
+from a `UserPromptSubmit` hook.
 
 ## The Gabito persona
 

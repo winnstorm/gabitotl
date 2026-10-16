@@ -237,3 +237,24 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   nor print: their output is shown inside `git commit` and they have no stable anchor.
 - **Why:** several people in one working directory is normal; blocking the second one only pushed them to work around
   the lock. Git still decides real conflicts (D9).
+
+## D27. `who` and agent-agnostic session commands
+- **Decision:** `gabitotl who` is a read-only, advisory view that merges three scopes: live sessions of this directory,
+  live sessions of every other worktree (`git worktree list`, each read from that worktree's own
+  `.gabitotl/local/sessions`) and pushed state (`.gabitotl/work/<user>/*.md` active tasks, plus `ActiveWork` of the
+  memory-mcp provider, last 24 h). Each row carries its scope and source. It always exits 0: a source that cannot be
+  read (not a Git repository, memory unreachable) becomes a warning; Engram has no `ActiveWork` and is skipped silently.
+- **De-duplication:** rows of the same user are one when they share a task, or when one side has no task and both share
+  a branch, or when both are bare sessions in the same place. The most specific source wins (this directory, another
+  worktree, work file, memory) and only fills what it lacks (branch, areas, runtime); the earliest start is kept.
+- **Session commands:** `gabitotl session start|touch|end` register, refresh and remove the active identity's session so
+  any agent runtime can show presence whatever memory provider the project uses (closes the gap that an Engram-only
+  project had no automatic registration). The anchor is `--anchor-pid` or the parent process. `start` prints the notice
+  for other live people once on stdout (so a hook can pass it to the agent as context) and nothing else. Outside an
+  initialized project, or without an identity, all three succeed silently; an unwritable sessions directory is a
+  warning; none of them blocks. `touch` never creates a session.
+- **Hooks:** no runtime adapter writes agent hooks yet. The Claude Code snippet is documented in the README as a
+  manual option. Wiring it into the installer needs a managed merge of object entries in `hooks.<Event>` arrays
+  (`engine.PlanKey` would replace the whole array and `PlanItem` handles strings only), see the README.
+- **Why:** presence is only useful if it covers every way of working (agents, shells, other worktrees, other machines)
+  and only trustworthy if it can never get in the way (D25, D26).
