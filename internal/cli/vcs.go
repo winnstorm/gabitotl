@@ -96,6 +96,7 @@ func runVCSSetup(env Env, args []string) int {
 	root := fl.String("root", "", "project root (default: Git top-level of the current directory)")
 	yes := fl.Bool("yes", false, "do not ask; keep the current values unless flags were given")
 	shared := fl.Bool("shared", false, "write the team file even when the team already answered (changes it for everyone)")
+	questions := fl.Bool("questions", false, "print the delivery questions that still apply as JSON, for an agent to ask in chat; changes nothing")
 	df.bind(fl)
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
@@ -126,16 +127,19 @@ func runVCSSetup(env Env, args []string) int {
 		fmt.Fprintf(env.Stderr, "gabitotl vcs setup: %v\n", err)
 		return ExitError
 	}
+	inferred := ""
+	if st, err := vcs.New(dir, cfg).Status(context.Background()); err == nil {
+		inferred = st.Provider
+	}
+	need := ui.Need{
+		Delivery: true, Inferred: inferred,
+		DeliveryFull: !cfg.IsConfigured() || da.Shared || da.TeamLevel(),
+	}
+	if *questions {
+		return printDeliveryQuestions(env, m, cfg, need)
+	}
 	interactive := env.IsTTY && !*yes
 	if interactive && da.Automation == "" {
-		inferred := ""
-		if st, err := vcs.New(dir, cfg).Status(context.Background()); err == nil {
-			inferred = st.Provider
-		}
-		need := ui.Need{
-			Delivery: true, Inferred: inferred,
-			DeliveryFull: !cfg.IsConfigured() || da.Shared || da.TeamLevel(),
-		}
 		ui.NewPrompter(env.Stdin, env.Stdout, m).Delivery(&da, need)
 	}
 	adoptInferredProvider(dir, cfg, &da)
@@ -154,6 +158,69 @@ func runVCSSetup(env Env, args []string) int {
 	}
 	fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.setup.saved."+res.Target, "path", res.Path))
 	printDeliverySummary(env.Stdout, m, res.Config)
+	return ExitOK
+}
+
+// deliveryFlagOf maps a delivery step to the `vcs setup` flag that answers it.
+var deliveryFlagOf = map[ui.DeliveryStep]string{
+	ui.StepPlatform: "--vcs-provider", ui.StepAutomation: "--vcs-automation", ui.StepMerge: "--vcs-merge-method",
+	ui.StepDelete: "--vcs-delete-branch", ui.StepDraft: "--vcs-draft",
+}
+
+// deliveryAutomationOf says for which automation answers a step is asked (nil: always).
+var deliveryAutomationOf = map[ui.DeliveryStep][]string{
+	ui.StepMerge:  {gabitotl.AutomationAll},
+	ui.StepDelete: {gabitotl.AutomationAll},
+	ui.StepDraft:  {gabitotl.AutomationAll, gabitotl.AutomationUntilPR},
+}
+
+// printDeliveryQuestions lets an agent run the delivery setup as a conversation:
+// it prints, as JSON, the questions that apply now (same text, options and defaults
+// as the terminal flow) and the command that saves the answers. It writes nothing.
+func printDeliveryQuestions(env Env, m ui.Messages, cfg gabitotl.VCSConfig, need ui.Need) int {
+	type option struct {
+		Value string `json:"value"`
+		Label string `json:"label"`
+	}
+	type question struct {
+		ID                string   `json:"id"`
+		Flag              string   `json:"flag"`
+		Title             string   `json:"title"`
+		Options           []option `json:"options"`
+		Default           string   `json:"default"`
+		OnlyIfAutomation  []string `json:"only_if_automation,omitempty"`
+		OmitFlagForValues []string `json:"omit_flag_for_values,omitempty"`
+	}
+	scope := "team"
+	if !need.DeliveryFull {
+		scope = "personal"
+	}
+	out := struct {
+		Configured bool       `json:"configured"`
+		Scope      string     `json:"scope"`
+		Inferred   string     `json:"inferred_platform,omitempty"`
+		Questions  []question `json:"questions"`
+		Apply      string     `json:"apply"`
+	}{Configured: cfg.IsConfigured(), Scope: scope, Inferred: need.Inferred,
+		Apply: "gabitotl vcs setup --yes <flag>=<value> ... (one call, after every answer is in; boolean flags as --vcs-delete-branch=true|false)"}
+	steps := []ui.DeliveryStep{ui.StepPlatform, ui.StepAutomation, ui.StepMerge, ui.StepDelete, ui.StepDraft}
+	for _, s := range steps {
+		if !need.DeliveryFull && s != ui.StepAutomation {
+			continue
+		}
+		title, opts, def := m.DeliveryQuestion(s, need)
+		q := question{ID: string(s), Flag: deliveryFlagOf[s], Title: title, OnlyIfAutomation: deliveryAutomationOf[s]}
+		for _, o := range opts {
+			q.Options = append(q.Options, option{o.Value, o.Label})
+		}
+		q.Default = opts[def].Value
+		if s == ui.StepPlatform {
+			q.OmitFlagForValues = []string{"none"}
+		}
+		out.Questions = append(out.Questions, q)
+	}
+	b, _ := json.MarshalIndent(out, "", "  ")
+	fmt.Fprintln(env.Stdout, string(b))
 	return ExitOK
 }
 

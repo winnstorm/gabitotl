@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -196,5 +197,63 @@ func TestLegacyAutomatedFileCountsAsConfiguredAndIsNotAsked(t *testing.T) {
 	got, _ := gabitotl.LoadVCS(l)
 	if got.Permissions.MergePermission() != "ask" {
 		t.Fatalf("merge stays ask for such a file: %+v", got.Permissions)
+	}
+}
+
+func TestVCSSetupQuestionsPrintWhatToAskAndChangeNothing(t *testing.T) {
+	t.Setenv("GABITOTL_USER", "ana")
+	root := project(t)
+	l := gabitotl.NewLayout(root)
+	before, _ := os.ReadFile(l.VCS())
+
+	type q struct {
+		ID, Flag, Default string
+		Options           []struct{ Value string }
+		OnlyIfAutomation  []string `json:"only_if_automation"`
+	}
+	type out struct {
+		Configured bool
+		Scope      string
+		Questions  []q
+	}
+	read := func(args ...string) out {
+		t.Helper()
+		r := runIn(t, "", false, root, append([]string{"vcs", "setup", "--questions"}, args...)...)
+		var o out
+		if r.code != 0 || json.Unmarshal([]byte(r.out), &o) != nil {
+			t.Fatalf("%+v", r)
+		}
+		return o
+	}
+	ids := func(o out) string {
+		var s []string
+		for _, x := range o.Questions {
+			s = append(s, x.ID)
+		}
+		return strings.Join(s, ",")
+	}
+
+	o := read()
+	if o.Configured || o.Scope != "team" || ids(o) != "platform,automation,merge,delete,draft" {
+		t.Fatalf("fresh project asks everything: %+v", o)
+	}
+	for _, x := range o.Questions {
+		if !strings.HasPrefix(x.Flag, "--vcs-") || x.Default == "" || len(x.Options) < 2 {
+			t.Errorf("incomplete question: %+v", x)
+		}
+		if strings.Contains(strings.ToLower(x.ID), "size") || strings.Contains(strings.ToLower(x.ID), "budget") {
+			t.Errorf("never ask about PR size: %+v", x)
+		}
+	}
+	if after, _ := os.ReadFile(l.VCS()); string(after) != string(before) {
+		t.Fatal("--questions writes nothing")
+	}
+
+	runIn(t, "", false, root, "vcs", "setup", "--vcs-automation=all")
+	if o := read(); !o.Configured || o.Scope != "personal" || ids(o) != "automation" {
+		t.Fatalf("a configured team asks only your automation: %+v", o)
+	}
+	if o := read("--shared"); o.Scope != "team" || len(o.Questions) != 5 {
+		t.Fatalf("--shared asks the team questions again: %+v", o)
 	}
 }

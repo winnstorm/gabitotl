@@ -16,15 +16,32 @@ Never ask the user again what `vcs.md` already answers.
 
 Run `gabitotl vcs status`. Read three things:
 
-- `delivery:` If it says not configured, run `gabitotl vcs setup` ONCE. It asks the platform, how much is
-  automatic, the merge method, branch deletion and drafts, then saves them (team file or your own file).
-  Do not pre-answer for the user, and do not run setup again once configured. To change one answer use
-  `gabitotl vcs setup` with the matching flag (`--vcs-automation`, `--vcs-merge-method`, `--vcs-delete-branch`,
-  `--vcs-draft`, `--vcs-provider`), only when the user asks.
+- `delivery:` If it says not configured, set it up as a short conversation, ONCE (see "Setup by dialogue").
+  Do not pre-answer for the user, and do not ask again once configured. To change one answer later, run
+  `gabitotl vcs setup --yes` with the matching flag (`--vcs-automation`, `--vcs-merge-method`,
+  `--vcs-delete-branch`, `--vcs-draft`, `--vcs-provider`), only when the user asks.
 - `auth:` If it is not ok, run `gabitotl vcs login`. It uses `gh auth` or `glab auth`, or for Bitbucket a token
   from an environment variable. Show the user the exact fix it prints. `gabitotl vcs login --check` only verifies.
   Never loop on login prompts: run it once, report the result, and stop if it still fails.
 - The current branch and the base branch.
+
+## Setup by dialogue
+
+You ask the questions, in chat; the user is never sent to a terminal prompt.
+
+1. Run `gabitotl vcs setup --questions`. It prints JSON and changes nothing: the questions that apply now (`id`,
+   `title`, `options` with `value` and `label`, `default`), the `flag` that carries each answer, the inferred
+   platform, and `scope` (`team` asks everything, `personal` asks only how much to automate for this person).
+2. Ask ONE question at a time with the runtime's question tool if it has one, else in plain chat with numbered
+   options, using each `title` and `label` as given. Mark the `default`. Then STOP and wait for the answer.
+   Skip a question whose `only_if_automation` does not include the automation answer. Never invent questions:
+   nothing about PR size, budgets, chaining or exceptions.
+3. When every answer is in, save them in ONE call:
+   `gabitotl vcs setup --yes --vcs-automation=all --vcs-merge-method=squash --vcs-delete-branch=true --vcs-draft=false`
+   (omit `--vcs-provider` when the platform answer is `none`). Say in one line what was saved and where.
+4. If the user said "no preguntes" or "usá lo estándar", use the defaults for the open questions.
+
+Without a terminal, `gabitotl vcs setup` alone changes nothing and exits with an error; that is expected.
 
 ## 2. Deliver
 
