@@ -17,8 +17,8 @@ type Resolved struct {
 	ModelSource      string `json:"model_source,omitempty"`
 }
 
-// localRuntime is the front matter of .gabitotl/local/runtime.md: a per-user,
-// per-worktree override. Only the fields that are set override the project file.
+// localRuntime is the front matter of .gabitotl/local/users/<id>/runtime.md: a
+// per-person, per-worktree override. Only the fields that are set override the project file.
 type localRuntime struct {
 	Runtime string `yaml:"runtime,omitempty"`
 	Model   string `yaml:"model,omitempty"`
@@ -31,11 +31,24 @@ Per-developer and per-worktree override of the project runtime and model.
 This file is never committed.
 `
 
-func loadLocal(l gabitotl.Layout) (localRuntime, error) {
+// loadLocal reads the override of user. When that file is absent it falls back
+// to the legacy shared local/runtime.md (read only, never migrated). An empty
+// user has no override.
+func loadLocal(l gabitotl.Layout, user string) (localRuntime, error) {
 	var c localRuntime
-	d, err := gabitotl.ReadDoc(l.LocalRuntime())
-	if errors.Is(err, fs.ErrNotExist) {
+	if user == "" {
 		return c, nil
+	}
+	path, err := l.LocalRuntime(user)
+	if err != nil {
+		return c, err
+	}
+	d, err := gabitotl.ReadDoc(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		d, err = gabitotl.ReadDoc(l.LegacyLocalRuntime())
+		if errors.Is(err, fs.ErrNotExist) {
+			return c, nil
+		}
 	}
 	if err != nil {
 		return c, err
@@ -52,13 +65,14 @@ func loadProject(l gabitotl.Layout) (gabitotl.RuntimeConfig, error) {
 }
 
 // ResolveRuntime merges the project default (.gabitotl/runtime.md) with the
-// local override (.gabitotl/local/runtime.md); the local file wins.
-func ResolveRuntime(l gabitotl.Layout) (Resolved, error) {
+// override of user (.gabitotl/local/users/<user>/runtime.md); the local file
+// wins. An empty user skips the override.
+func ResolveRuntime(l gabitotl.Layout, user string) (Resolved, error) {
 	p, err := loadProject(l)
 	if err != nil {
 		return Resolved{}, err
 	}
-	loc, err := loadLocal(l)
+	loc, err := loadLocal(l, user)
 	if err != nil {
 		return Resolved{}, err
 	}
@@ -79,9 +93,9 @@ func ResolveRuntime(l gabitotl.Layout) (Resolved, error) {
 }
 
 // SetRuntime stores the runtime and/or model (empty means unchanged) in the
-// project default or, with local, in the per-user override. It touches
+// project default or, with local, in the override of user. It touches
 // runtime.md only: persona, memory and workflow files are never written.
-func SetRuntime(l gabitotl.Layout, runtimeName, model string, local bool) error {
+func SetRuntime(l gabitotl.Layout, user, runtimeName, model string, local bool) error {
 	if runtimeName == "" && model == "" {
 		return errors.New("runtime: nothing to set (give a runtime and/or a model)")
 	}
@@ -93,7 +107,11 @@ func SetRuntime(l gabitotl.Layout, runtimeName, model string, local bool) error 
 		return fmt.Errorf("runtime: runtime.md has allow_model_switch: false; refusing to change the model")
 	}
 	if local {
-		loc, err := loadLocal(l)
+		path, err := l.LocalRuntime(user)
+		if err != nil {
+			return fmt.Errorf("runtime: a local override needs the active user: %w", err)
+		}
+		loc, err := loadLocal(l, user)
 		if err != nil {
 			return err
 		}
@@ -104,10 +122,13 @@ func SetRuntime(l gabitotl.Layout, runtimeName, model string, local bool) error 
 			loc.Model = model
 		}
 		body := bodyLocal
-		if d, err := gabitotl.ReadDoc(l.LocalRuntime()); err == nil {
+		if d, err := gabitotl.ReadDoc(path); err == nil {
 			body = d.Body
 		}
-		return gabitotl.WriteDoc(l.LocalRuntime(), loc, body)
+		if _, err := gabitotl.EnsureLocalUserDir(l, user); err != nil {
+			return err
+		}
+		return gabitotl.WriteDoc(path, loc, body)
 	}
 	if runtimeName != "" {
 		p.Runtime = runtimeName

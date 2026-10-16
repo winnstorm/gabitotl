@@ -108,7 +108,7 @@ func modelFor(root string, a rt.Adapter) string {
 	if root == "" {
 		return ""
 	}
-	r, err := rt.ResolveRuntime(gabitotl.NewLayout(root))
+	r, err := rt.ResolveRuntime(gabitotl.NewLayout(root), activeID(root))
 	if err != nil || r.Runtime != a.Name() {
 		return ""
 	}
@@ -124,7 +124,7 @@ func runRuntimeList(env Env, args []string) int {
 	}
 	cur := rt.Resolved{}
 	if r := projectRoot(env, *root); r != "" {
-		cur, _ = rt.ResolveRuntime(gabitotl.NewLayout(r))
+		cur, _ = rt.ResolveRuntime(gabitotl.NewLayout(r), activeID(r))
 	}
 	for _, a := range registryFn().All() {
 		mark := " "
@@ -332,11 +332,11 @@ func runRuntimeSet(env Env, args []string) int {
 		}
 	}
 	layout := gabitotl.NewLayout(dir)
-	if err := rt.SetRuntime(layout, *name, *model, *local); err != nil {
+	if err := rt.SetRuntime(layout, activeID(dir), *name, *model, *local); err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl runtime set: %v\n", err)
 		return ExitError
 	}
-	r, _ := rt.ResolveRuntime(layout)
+	r, _ := rt.ResolveRuntime(layout, activeID(dir))
 	fmt.Fprintf(env.Stdout, "runtime: %s (%s)\n", r.Runtime, r.RuntimeSource)
 	if r.Model != "" {
 		fmt.Fprintf(env.Stdout, "model: %s (%s)\n", r.Model, r.ModelSource)

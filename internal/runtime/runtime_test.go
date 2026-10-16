@@ -17,22 +17,60 @@ func TestResolveRuntimeLocalOverridesProject(t *testing.T) {
 	if _, err := gabitotl.Init(root, gabitotl.InitOptions{Name: "p", Runtime: "claude-code"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := SetRuntime(l, "", "sonnet", false); err != nil {
+	if err := SetRuntime(l, "ana", "", "sonnet", false); err != nil {
 		t.Fatal(err)
 	}
-	r, _ := ResolveRuntime(l)
+	r, _ := ResolveRuntime(l, "ana")
 	if r.Runtime != "claude-code" || r.Model != "sonnet" || r.ModelSource != "project" {
 		t.Fatalf("%+v", r)
 	}
-	if err := SetRuntime(l, "opencode", "", true); err != nil {
+	if err := SetRuntime(l, "ana", "opencode", "", true); err != nil {
 		t.Fatal(err)
 	}
-	r, _ = ResolveRuntime(l)
+	r, _ = ResolveRuntime(l, "ana")
 	if r.Runtime != "opencode" || r.RuntimeSource != "local" || r.Model != "sonnet" {
 		t.Fatalf("%+v", r)
 	}
-	if err := SetRuntime(l, "", "", false); err == nil {
+	if err := SetRuntime(l, "ana", "", "", false); err == nil {
 		t.Fatal("empty set must fail")
+	}
+}
+
+func TestLocalRuntimeIsPerPersonWithLegacyFallback(t *testing.T) {
+	root := t.TempDir()
+	l := gabitotl.NewLayout(root)
+	if _, err := gabitotl.Init(root, gabitotl.InitOptions{Name: "p", Runtime: "claude-code"}); err != nil {
+		t.Fatal(err)
+	}
+	// A legacy shared local/runtime.md is read when the person has no file.
+	if err := gabitotl.WriteDoc(l.LegacyLocalRuntime(), localRuntime{Runtime: "kiro-cli"}, bodyLocal); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := ResolveRuntime(l, "ana"); r.Runtime != "kiro-cli" || r.RuntimeSource != "local" {
+		t.Fatalf("legacy fallback: %+v", r)
+	}
+	// A per-person file wins and is isolated from other people.
+	if err := SetRuntime(l, "ana", "opencode", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := ResolveRuntime(l, "ana"); r.Runtime != "opencode" {
+		t.Fatalf("ana: %+v", r)
+	}
+	if r, _ := ResolveRuntime(l, "bob"); r.Runtime != "kiro-cli" {
+		t.Fatalf("bob must not see ana's override: %+v", r)
+	}
+	if p, _ := l.LocalRuntime("ana"); !strings.HasSuffix(p, "local/users/ana/runtime.md") {
+		t.Fatalf("path = %s", p)
+	}
+	if _, err := os.Stat(l.LegacyLocalRuntime()); err != nil {
+		t.Errorf("legacy file must be left in place: %v", err)
+	}
+	// No user: no override, and a local set is refused.
+	if r, _ := ResolveRuntime(l, ""); r.Runtime != "claude-code" {
+		t.Fatalf("no user: %+v", r)
+	}
+	if err := SetRuntime(l, "", "x", "", true); err == nil {
+		t.Fatal("local set without a user must fail")
 	}
 }
 
@@ -46,10 +84,10 @@ func TestSetModelTouchesOnlyRuntimeFiles(t *testing.T) {
 	for _, p := range []string{l.Project(), l.Memory(), l.Workflow(), l.VCS()} {
 		before[p], _ = os.ReadFile(p)
 	}
-	if err := SetRuntime(l, "kiro-cli", "auto", false); err != nil {
+	if err := SetRuntime(l, "ana", "kiro-cli", "auto", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := SetRuntime(l, "", "other", true); err != nil {
+	if err := SetRuntime(l, "ana", "", "other", true); err != nil {
 		t.Fatal(err)
 	}
 	for p, b := range before {
@@ -65,7 +103,7 @@ func TestModelSwitchCanBeForbidden(t *testing.T) {
 	if err := gabitotl.SaveRuntime(l, gabitotl.RuntimeConfig{Runtime: "x", AllowModelSwitch: false}); err != nil {
 		t.Fatal(err)
 	}
-	if err := SetRuntime(l, "", "m", false); err == nil {
+	if err := SetRuntime(l, "ana", "", "m", false); err == nil {
 		t.Fatal("must refuse")
 	}
 }

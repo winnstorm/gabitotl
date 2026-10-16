@@ -63,10 +63,35 @@ func (l Layout) WorkFile(user, task string) (string, error) {
 	return l.join("work", user, task+".md"), nil
 }
 
-// Local-only files (never committed).
-func (l Layout) Local() string        { return l.join("local") }
-func (l Layout) LocalRuntime() string { return l.join("local", "runtime.md") }
-func (l Layout) LocalSession() string { return l.join("local", "session.md") }
+// Local-only files (never committed). Several OS users may share one working
+// directory, so per-person state lives under local/users/<id>/.
+func (l Layout) Local() string { return l.join("local") }
+
+// LocalUserDir is the local state directory of one person.
+func (l Layout) LocalUserDir(user string) (string, error) {
+	if err := checkID(user); err != nil {
+		return "", err
+	}
+	return l.join("local", "users", user), nil
+}
+
+// LocalRuntime is the per-person runtime override.
+func (l Layout) LocalRuntime(user string) (string, error) { return l.localFile(user, "runtime.md") }
+
+// LocalSession is the per-person session state.
+func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
+
+// LegacyLocalRuntime is the pre-per-person override (local/runtime.md). It is
+// only read, as a fallback; it is never migrated or deleted.
+func (l Layout) LegacyLocalRuntime() string { return l.join("local", "runtime.md") }
+
+func (l Layout) localFile(user, name string) (string, error) {
+	d, err := l.LocalUserDir(user)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, name), nil
+}
 
 // Bak is the backup root; BakUser is one user's backup directory.
 func (l Layout) Bak() string { return l.join(".bak") }

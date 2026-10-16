@@ -291,7 +291,7 @@ func TestContextBudgetCheckpointFiresOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := budget.Config{Limit: 1000, Threshold: 0.75}
-	mon, err := budget.New(l, cfg)
+	mon, err := budget.New(l, "ana", cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func TestContextBudgetCheckpointFiresOnce(t *testing.T) {
 	if d, _ := mon.Check(); d.ShouldSave {
 		t.Fatal("the checkpoint fired twice in one session")
 	}
-	mon2, err := budget.New(l, cfg)
+	mon2, err := budget.New(l, "ana", cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

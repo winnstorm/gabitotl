@@ -48,7 +48,7 @@ func runHome(env Env) int {
 	if mem, err := gabitotl.LoadMemory(l); err == nil {
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("home.status.memory", "detail", fmt.Sprintf("%s (%s, %s)", mem.Provider, mem.Mode, mem.ProjectKey)))
 	}
-	if r, err := rt.ResolveRuntime(l); err == nil && r.Runtime != "" && r.Runtime != "unset" {
+	if r, err := rt.ResolveRuntime(l, activeID(root)); err == nil && r.Runtime != "" && r.Runtime != "unset" {
 		d := r.Runtime
 		if r.Model != "" {
 			d += " / " + r.Model

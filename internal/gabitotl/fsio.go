@@ -113,3 +113,14 @@ func saveConfig(path string, v interface{ Validate() error }, defaultBody string
 	}
 	return WriteDoc(path, v, body)
 }
+
+// EnsureLocalUserDir creates local/users/<user>/ with group-writable
+// permissions (subject to the umask) so that another OS user sharing the
+// directory can create its own sibling. Existing directories are not chmod-ed.
+func EnsureLocalUserDir(l Layout, user string) (string, error) {
+	d, err := l.LocalUserDir(user)
+	if err != nil {
+		return "", err
+	}
+	return d, os.MkdirAll(d, 0o775)
+}

@@ -37,14 +37,32 @@ func TestSlugAndValidID(t *testing.T) {
 	}
 }
 
+func TestLayoutLocalUserPaths(t *testing.T) {
+	l := NewLayout("/p")
+	for _, tc := range []struct {
+		fn   func(string) (string, error)
+		want string
+	}{
+		{l.LocalUserDir, "/p/.gabitotl/local/users/ana"},
+		{l.LocalRuntime, "/p/.gabitotl/local/users/ana/runtime.md"},
+		{l.LocalSession, "/p/.gabitotl/local/users/ana/session.md"},
+	} {
+		if p, err := tc.fn("ana"); err != nil || p != tc.want {
+			t.Errorf("got %s, %v; want %s", p, err, tc.want)
+		}
+		if _, err := tc.fn("../x"); err == nil {
+			t.Errorf("%s: an invalid id must be rejected", tc.want)
+		}
+	}
+}
+
 func TestLayoutPaths(t *testing.T) {
 	l := NewLayout("/p")
 	want := map[string]string{
 		l.Project(): "/p/.gabitotl/project.md", l.Memory(): "/p/.gabitotl/memory.md",
 		l.Runtime(): "/p/.gabitotl/runtime.md", l.VCS(): "/p/.gabitotl/vcs.md",
 		l.Workflow(): "/p/.gabitotl/workflow.md", l.Imports(): "/p/.gabitotl/imports.md",
-		l.LocalRuntime(): "/p/.gabitotl/local/runtime.md",
-		l.LocalSession(): "/p/.gabitotl/local/session.md", l.Bak(): "/p/.gabitotl/.bak",
+		l.LegacyLocalRuntime(): "/p/.gabitotl/local/runtime.md", l.Bak(): "/p/.gabitotl/.bak",
 		l.Tmp(): "/p/.gabitotl/tmp", l.Gitignore(): "/p/.gabitotl/.gitignore",
 	}
 	for got, w := range want {

@@ -30,7 +30,7 @@ func TestConfigValidate(t *testing.T) {
 	if err := DefaultConfig().Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(gabitotl.NewLayout(t.TempDir()), Config{}); err == nil {
+	if _, err := New(gabitotl.NewLayout(t.TempDir()), "ana", Config{}); err == nil {
 		t.Fatal("New must validate the config")
 	}
 }
@@ -38,7 +38,7 @@ func TestConfigValidate(t *testing.T) {
 func newMon(t *testing.T, limit int) (*Monitor, gabitotl.Layout) {
 	t.Helper()
 	l := gabitotl.NewLayout(t.TempDir())
-	m, err := New(l, Config{Limit: limit, Threshold: 0.75})
+	m, err := New(l, "ana", Config{Limit: limit, Threshold: 0.75})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestCheckFiresOncePerSession(t *testing.T) {
 		t.Fatal("must fire only once per session")
 	}
 	// State survives a restart (new Monitor, same session.md).
-	m2, err := New(l, Config{Limit: 1000, Threshold: 0.75})
+	m2, err := New(l, "ana", Config{Limit: 1000, Threshold: 0.75})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +84,31 @@ func TestCheckFiresOncePerSession(t *testing.T) {
 	_ = m2.ReportTokens(900)
 	if d, _ = m2.Check(); !d.ShouldSave {
 		t.Fatalf("new session should fire again: %+v", d)
+	}
+}
+
+func TestSessionIsPerPerson(t *testing.T) {
+	l := gabitotl.NewLayout(t.TempDir())
+	cfg := Config{Limit: 1000, Threshold: 0.75}
+	ana, err := New(l, "ana", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ana.ReportTokens(400); err != nil {
+		t.Fatal(err)
+	}
+	bob, err := New(l, "bob", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := bob.Used(); u != 0 {
+		t.Fatalf("bob sees ana's session: %d", u)
+	}
+	if p, _ := l.LocalSession("ana"); !strings.HasSuffix(p, "local/users/ana/session.md") {
+		t.Fatalf("path = %s", p)
+	}
+	if _, err := New(l, "../x", cfg); err == nil {
+		t.Fatal("an invalid user must be rejected")
 	}
 }
 
