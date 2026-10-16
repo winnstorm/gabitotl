@@ -23,8 +23,12 @@ func (m *Model) startForm(kind string) tea.Cmd {
 		field = huh.NewInput().Title(f("ask.name")).Value(&m.nameVal)
 	case "mode":
 		m.modeVal = gabitotl.ModeSolo
-		field = huh.NewSelect[string]().Title(f("ask.mode")).Description(f("tui.mode.limit")).
-			Options(huh.NewOption(f("ask.mode.solo"), gabitotl.ModeSolo), huh.NewOption(f("ask.mode.team"), gabitotl.ModeTeam)).
+		question, solo, team := "ask.mode", "ask.mode.solo", "ask.mode.team"
+		if m.need.Current != "" { // the project already has a provider: offer to change it
+			question, solo, team = "ask.change", "ask.change.no", "ask.change.yes"
+		}
+		field = huh.NewSelect[string]().Title(f(question)).Description(f("tui.mode.limit")).
+			Options(huh.NewOption(f(solo), gabitotl.ModeSolo), huh.NewOption(f(team), gabitotl.ModeTeam)).
 			Value(&m.modeVal)
 	case "invites":
 		m.invitesVal = ""

@@ -11,6 +11,8 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/identity"
+	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
@@ -57,10 +59,20 @@ func doInit(env Env, f initFlags) error {
 	}
 	l := gabitotl.NewLayout(root)
 
-	if env.IsTTY && !f.yes {
-		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
-		if f.mode == "" {
-			f.mode = p.ask("Memory mode (solo/team)", gabitotl.ModeSolo)
+	existed := gabitotl.Exists(root)
+	interactive := env.IsTTY && !f.yes
+	if interactive {
+		// One reader for every question of this run, including the chained team
+		// setup: separate readers would swallow each other's buffered input.
+		env.Stdin = bufio.NewReader(env.Stdin)
+	}
+	// Alone or with other people picks the memory provider. Flags (--mode,
+	// --provider) answer it, and so does a project that already exists.
+	chain := false
+	if interactive && !existed && f.mode == "" && f.provider == "" {
+		chain = askWorksWithOthers(env, ui.Default())
+		if chain {
+			f.mode = gabitotl.ModeTeam
 		}
 	}
 
@@ -92,6 +104,37 @@ func doInit(env Env, f initFlags) error {
 	}
 	if a, err := identity.Active(root); err == nil {
 		fmt.Fprintf(env.Stdout, "  identity: %s (%s)\n", a.ID, a.Name)
+	}
+	switch {
+	case chain: // team memory chosen for a new project: finish it with the existing team setup
+		return chainInstall(env, root, "")
+	case interactive && existed && f.mode == "" && f.provider == "":
+		if cfg, err := gabitotl.LoadMemory(l); err == nil && cfg.Provider == gabitotl.MemoryEngram {
+			m := ui.Default()
+			if i, ok := ui.NewPrompter(env.Stdin, env.Stdout, m).Choose(m.Format("ask.change"),
+				[]string{m.Format("ask.change.no"), m.Format("ask.change.yes")}, 0); ok && i == 1 {
+				return chainInstall(env, root, gabitotl.MemoryMemoryMCP)
+			}
+		}
+	}
+	return nil
+}
+
+// askWorksWithOthers is the one question that picks the memory provider of a new
+// project: alone means local Engram, with other people means shared team memory.
+// Ended input answers "alone", the safe default.
+func askWorksWithOthers(env Env, m ui.Messages) bool {
+	i, ok := ui.NewPrompter(env.Stdin, env.Stdout, m).Choose(m.Format("ask.mode"),
+		[]string{m.Format("ask.mode.solo"), m.Format("ask.mode.team")}, 0)
+	return ok && i == 1
+}
+
+// chainInstall continues with the install flow of the same project, which already
+// knows the team setup (host or client, server URL, token variable, Engram
+// import) and applies it with a snapshot, verification and rollback.
+func chainInstall(env Env, root, memory string) error {
+	if code := execute(env, installFlags{root: root, memory: memory, noTUI: true, memoryEngine: "auto"}, installer.SourceInstall); code != ExitOK {
+		return errors.New("the team memory setup did not complete (the project itself was created; run `gabitotl install` to retry)")
 	}
 	return nil
 }

@@ -131,6 +131,17 @@ proxy appended; leading entries are client-supplied and ignored); an absent or i
 back to the TCP peer. Off by default, because anyone who can reach the server directly could forge the
 header: only enable it when the server is reachable exclusively through your proxy.
 
+## Changing a project from Engram to the team memory
+
+The provider is per project (`provider` in `.gabitotl/memory.md`) and is chosen by a question,
+not a command. A project that used Engram and now works with other people can move with the
+interactive `gabitotl install` (it asks "Do you now work with other people?") or with
+`gabitotl memory use memory-mcp --role host --migrate`. Both run the installer pipeline of
+[Installer](#installer-both-roles-in-one-step): the plan shows the number of entries to import,
+`memory.md` is saved in the snapshot first, the import is the migrator below (idempotent and
+verified), and a failure restores the old `memory.md`. `--migrate` is a host-only step; a client
+asks the host to run `gabitotl memory migrate engram`. Moving back to Engram is not supported.
+
 ## Migrating from Engram
 
 ```text

@@ -290,3 +290,24 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Migration for existing installs:** the next `gabitotl install`/`runtime apply` adds the bridge entry (Engram users) or
   Engram's entry (team users with the binary); nothing GabitoTL created earlier is removed while Engram exists. The default
   provider written by `init` is unchanged; the explicit per-project choice UX is a separate task.
+
+## D29. The provider is chosen by a question per project; changing it is a migration
+- **Decision:** the memory provider of a project is picked by one question, "do you work on this project alone or with other
+  people?", asked by `init` and by the installer (plain and full-screen flows share the wording): alone is Engram, with others
+  is memory-mcp. For team memory the installer's existing team setup asks only what it needs (host or client, server URL, token
+  variable, Engram import). A project that already exists on Engram is asked once, when the interactive flow is re-run, whether
+  it now works with other people. The commands are the non-interactive equivalent: `--provider` (init), `--memory` (install)
+  and `gabitotl memory use <engram|memory-mcp> [--migrate] [--yes] [--dry-run] [--role ...]`. Nothing prompts without a
+  terminal or with `--yes`.
+- **Change is a migration, through the existing pipeline:** there is no second migrator. `memory use` and the interactive
+  change run the install flow with the provider fixed, so they inherit the plan with the entry count and `--dry-run`, the
+  snapshot that holds the previous `memory.md`, the tested Engram migrator (safety export, no duplicates, verified, Engram
+  never modified), idempotent re-runs, and the rollback that restores `memory.md` to the old provider when anything fails.
+  Entries imported before a failure stay in the team memory (nothing is deleted); the result reports the counts.
+- **Direction:** Engram to memory-mcp only. memory-mcp to Engram has no migrator, so it is refused (`ErrNoReverseMigration`,
+  `memory use engram`) and leaves memory.md untouched rather than stranding the team's memory. Importing needs the database, so
+  `--migrate` is a host-only step; a client switch records the connection and the import runs on the host.
+- **Collisions:** `memory.md` is committed, so a change reaches teammates when they pull. One advisory line says so after a
+  change; it never blocks. `doctor` reports the chosen provider and warns when the mode and provider disagree or team memory
+  has no server or token reference.
+- **Also:** a host without `--user` now uses the OS-user identity (D25) instead of failing.

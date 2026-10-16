@@ -92,32 +92,40 @@ func TestInitDefaultsUseCwdRootAndOSIdentity(t *testing.T) {
 }
 
 func TestInitPrompts(t *testing.T) {
+	// The question picks the provider: 1 is alone (Engram), 2 is with other people.
 	root := t.TempDir()
-	r := runIn(t, "team\n", true, t.TempDir(), "init", "--root", root)
+	r := runIn(t, "1\n", true, t.TempDir(), "init", "--root", root)
 	if r.code != 0 {
 		t.Fatalf("exit %d: %s", r.code, r.err)
 	}
-	if !strings.Contains(r.out, "Memory mode") || strings.Contains(r.out, "Your name") {
+	if !strings.Contains(r.out, "¿Trabajás solo o con otras personas en este proyecto?") || strings.Contains(r.out, "Your name") {
 		t.Errorf("prompts: %q", r.out)
 	}
-	if mem, _ := gabitotl.LoadMemory(gabitotl.NewLayout(root)); mem.Mode != "team" {
-		t.Errorf("mode = %q", mem.Mode)
+	if mem, _ := gabitotl.LoadMemory(gabitotl.NewLayout(root)); mem.Mode != "solo" || mem.Provider != "engram" {
+		t.Errorf("alone must be Engram: %+v", mem)
 	}
 	if u, err := identity.Active(root); err != nil || u.ID != "gabi" {
 		t.Fatalf("active = %+v, %v", u, err)
 	}
 
 	// A rerun with flags set asks nothing and keeps the identity.
-	r = runIn(t, "", true, t.TempDir(), "init", "--root", root, "--mode", "team")
-	if r.code != 0 || strings.Contains(r.out, "Your name") || !strings.Contains(r.out, "identity: gabi") {
+	r = runIn(t, "", true, t.TempDir(), "init", "--root", root, "--mode", "solo")
+	if r.code != 0 || strings.Contains(r.out, "otras personas") || !strings.Contains(r.out, "identity: gabi") {
 		t.Fatalf("rerun: %+v", r)
 	}
 
 	// --yes never prompts even on a TTY; EOF on stdin falls back to defaults.
 	root2 := t.TempDir()
 	r = runIn(t, "", true, t.TempDir(), "init", "--root", root2, "--yes")
-	if r.code != 0 || strings.Contains(r.out, "Memory mode") {
+	if r.code != 0 || strings.Contains(r.out, "otras personas") {
 		t.Fatalf("--yes prompted: %+v", r)
+	}
+
+	// Without a terminal nothing is asked and the default stays local.
+	root3 := t.TempDir()
+	r = runIn(t, "", false, t.TempDir(), "init", "--root", root3)
+	if mem, _ := gabitotl.LoadMemory(gabitotl.NewLayout(root3)); r.code != 0 || strings.Contains(r.out, "otras personas") || mem.Provider != "engram" {
+		t.Fatalf("no terminal: %+v %+v", r, mem)
 	}
 }
 

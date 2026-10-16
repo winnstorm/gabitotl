@@ -316,7 +316,7 @@ func TestInteractiveFlowAsksOnlyWhatCannotBeDetected(t *testing.T) {
 			t.Errorf("asked something detectable: %q", forbidden)
 		}
 	}
-	if strings.Contains(r.out, "¿Cómo querés que te llame?") || strings.Count(r.out, "¿Cómo vas a trabajar?") != 1 {
+	if strings.Contains(r.out, "¿Cómo querés que te llame?") || strings.Count(r.out, "¿Trabajás solo o con otras personas en este proyecto?") != 1 {
 		t.Fatalf("each question exactly once:\n%s", r.out)
 	}
 	for _, want := range []string{"Esto es exactamente lo que voy a quitar", "[gentle-ai block persona]", "¿Aplico el plan?", "Gentle-AI ya no es necesario"} {

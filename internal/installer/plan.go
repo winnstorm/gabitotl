@@ -120,6 +120,11 @@ type Plan struct {
 // Sentinel errors of plan building.
 var ErrUnknownRuntime = errors.New("unknown runtime")
 
+// ErrNoReverseMigration refuses moving a project from shared team memory back to
+// local Engram: no migrator exists in that direction, so the switch would strand
+// the team's memory. memory.md stays as it is.
+var ErrNoReverseMigration = errors.New("moving from team memory (memory-mcp) back to Engram is not supported: there is no migrator in that direction, so memory.md stays on memory-mcp")
+
 // HasNote reports whether the plan carries a note with this code.
 func (p Plan) HasNote(code string) bool {
 	return slices.ContainsFunc(p.Notes, func(n Note) bool { return n.Code == code })
@@ -214,6 +219,11 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		return pl, fmt.Errorf("--memory must be engram or memory-mcp, got %q", pl.MemoryChoice)
 	}
 	pl.Options.Memory = pl.MemoryChoice
+	if pl.MemoryChoice == gabitotl.MemoryEngram && inv.Project.Exists {
+		if cur, err := gabitotl.LoadMemory(l); err == nil && cur.Provider == gabitotl.MemoryMemoryMCP {
+			return pl, ErrNoReverseMigration
+		}
+	}
 	if err := planTeam(ctx, env, inv, opts, &pl); err != nil {
 		return pl, err
 	}
