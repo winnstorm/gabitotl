@@ -198,6 +198,7 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		"Este chat ya viene bastante largo", "one or two sentences", "Back up existing files",
 		"Authorship (highest priority)", "Never add AI/LLM branding or attribution anywhere",
 		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
+		"## Noisy terminal", "do not retry the same command", "short Python script in `.gabitotl/tmp/`",
 	} {
 		if !strings.Contains(text, rule) {
 			t.Errorf("persona text is missing the rule %q", rule)
