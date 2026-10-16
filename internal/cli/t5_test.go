@@ -180,8 +180,11 @@ func TestInstallYesIsIdempotent(t *testing.T) {
 	if !strings.Contains(string(md), "gabitotl:start persona") || !strings.HasPrefix(string(md), cUser) {
 		t.Fatalf("%s", md)
 	}
-	if u, err := os.ReadFile(f.root + "/.gabitotl/local/user.md"); err != nil || !strings.Contains(string(u), "gabi") {
-		t.Fatalf("identity not saved: %v", err)
+	if u, err := os.ReadFile(f.root + "/.gabitotl/users/gabi.md"); err != nil || !strings.Contains(string(u), "gabi") {
+		t.Fatalf("profile not saved: %v", err)
+	}
+	if _, err := os.Stat(f.root + "/.gabitotl/local/user.md"); err == nil {
+		t.Fatal("install must not write a local identity file")
 	}
 	after := chash(t, f.home, f.root)
 	r = f.run("", false, "install", "--yes", "--runtime", "claude-code", "--runtime", "opencode", "--user", "gabi")
@@ -302,8 +305,8 @@ func slurpT(t *testing.T, p string) string {
 
 func TestInteractiveFlowAsksOnlyWhatCannotBeDetected(t *testing.T) {
 	f := newCfix(t)
-	// 1 migrate | name | mode (default solo) | git (default no) | persona yes | apply yes | retire: do it
-	in := "1\nGabi\n\n\ns\ns\n1\n"
+	// 1 migrate | mode (default solo) | git (default no) | persona yes | apply yes | retire: do it
+	in := "1\n\n\ns\ns\n1\n"
 	r := f.run(in, true, "install")
 	if r.code != 0 {
 		t.Fatalf("%+v", r)
@@ -313,7 +316,7 @@ func TestInteractiveFlowAsksOnlyWhatCannotBeDetected(t *testing.T) {
 			t.Errorf("asked something detectable: %q", forbidden)
 		}
 	}
-	if strings.Count(r.out, "¿Cómo querés que te llame?") != 1 || strings.Count(r.out, "¿Cómo vas a trabajar?") != 1 {
+	if strings.Contains(r.out, "¿Cómo querés que te llame?") || strings.Count(r.out, "¿Cómo vas a trabajar?") != 1 {
 		t.Fatalf("each question exactly once:\n%s", r.out)
 	}
 	for _, want := range []string{"Esto es exactamente lo que voy a quitar", "[gentle-ai block persona]", "¿Aplico el plan?", "Gentle-AI ya no es necesario"} {
@@ -325,13 +328,13 @@ func TestInteractiveFlowAsksOnlyWhatCannotBeDetected(t *testing.T) {
 	if f.calls("gentle-ai uninstall") != 1 || strings.Contains(slurpT(t, f.home+"/.claude/CLAUDE.md"), "gentle-ai:persona") {
 		t.Fatalf("log=%v", f.runner.Log())
 	}
-	if !strings.Contains(slurpT(t, f.root+"/.gabitotl/local/user.md"), "Gabi") {
-		t.Fatal("name not saved")
+	if !strings.Contains(slurpT(t, f.root+"/.gabitotl/users/gabi.md"), "gabi") {
+		t.Fatal("OS-derived profile not created")
 	}
 
 	// Declining the persona question keeps the block; declining retirement keeps Gentle-AI.
 	g := newCfix(t)
-	r = g.run("1\nGabi\n\n\nn\ns\n2\n", true, "install")
+	r = g.run("1\n\n\nn\ns\n2\n", true, "install")
 	if r.code != 0 || g.calls("gentle-ai") != 0 || !strings.Contains(slurpT(t, g.home+"/.claude/CLAUDE.md"), "gentle-ai:persona") {
 		t.Fatalf("%+v log=%v", r, g.runner.Log())
 	}

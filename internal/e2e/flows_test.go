@@ -39,11 +39,14 @@ func TestNewProjectOnboardingByFlags(t *testing.T) {
 	}
 
 	r = m.ok(proj, "init", "--yes", "--user-name", "Gabi Dev", "--mode", "solo")
-	contains(t, "init output", r.out, "identity: gabi-dev")
-	for _, f := range []string{"project.md", "memory.md", "runtime.md", "vcs.md", "workflow.md", "imports.md", ".gitignore", "local/user.md"} {
+	contains(t, "init output", r.out, "profile: gabi-dev", "identity: ana")
+	for _, f := range []string{"project.md", "memory.md", "runtime.md", "vcs.md", "workflow.md", "imports.md", ".gitignore", "users/gabi-dev.md", "users/ana.md"} {
 		if !exists(filepath.Join(proj, ".gabitotl", f)) {
 			t.Errorf(".gabitotl/%s was not created", f)
 		}
+	}
+	if exists(filepath.Join(proj, ".gabitotl/local/user.md")) {
+		t.Error("no local identity file may be written")
 	}
 	// A README alone is not enough to call a project "existing".
 	contains(t, "project.md", read(t, filepath.Join(proj, ".gabitotl/project.md")), "kind: new")
@@ -53,14 +56,14 @@ func TestNewProjectOnboardingByFlags(t *testing.T) {
 	// Idempotent: a second init creates nothing and keeps the identity.
 	before := hash(t, nil, proj)
 	r = m.ok(proj, "init", "--yes")
-	contains(t, "second init", r.out, "created: 0", "identity: unchanged")
+	contains(t, "second init", r.out, "created: 0", "identity: ana")
 	if hash(t, nil, proj) != before {
 		t.Fatal("a second init changed files")
 	}
 
 	// With a project present, the bare command prints a short status.
 	r = m.ok(proj)
-	contains(t, "status", r.out, "GabitoTL en este proyecto", "Identidad: Gabi Dev")
+	contains(t, "status", r.out, "GabitoTL en este proyecto", "Identidad: Test Dev")
 }
 
 // (b, CLI half) An existing project is detected, scanned, initialized and its
@@ -195,8 +198,8 @@ func TestInstallDryRunIdempotenceAndUninstall(t *testing.T) {
 			t.Errorf("%s was not created", f)
 		}
 	}
-	if !exists(filepath.Join(proj, ".gabitotl/local/user.md")) {
-		t.Error("identity not saved")
+	if !exists(filepath.Join(proj, ".gabitotl/users/gabi.md")) {
+		t.Error("profile not saved")
 	}
 
 	// Idempotent: second run changes nothing.

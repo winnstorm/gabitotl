@@ -178,14 +178,14 @@ func TestGuardScanFixWithBackup(t *testing.T) {
 	}
 
 	r = m.ok(proj, "guard", "fix", "--yes")
-	contains(t, "fix", r.out, "Listo. Saqué 2 línea(s) en 2 archivo(s)", "Backup en .gabitotl/.bak/gabi-dev/")
+	contains(t, "fix", r.out, "Listo. Saqué 2 línea(s) en 2 archivo(s)", "Backup en .gabitotl/.bak/ana/")
 	if got := read(t, filepath.Join(proj, "README.md")); got != "# App\n\nSupports "+cl+" Code as a runtime.\n" {
 		t.Fatalf("README = %q", got)
 	}
 	if got := read(t, filepath.Join(proj, "util.go")); got != "package main\n\nfunc main() {}\n" {
 		t.Fatalf("util.go = %q", got)
 	}
-	baks, _ := filepath.Glob(filepath.Join(proj, ".gabitotl/.bak/gabi-dev/*/README.md"))
+	baks, _ := filepath.Glob(filepath.Join(proj, ".gabitotl/.bak/ana/*/README.md"))
 	if len(baks) != 1 || read(t, baks[0]) != readme {
 		t.Fatalf("the backup must hold the original README: %v", baks)
 	}

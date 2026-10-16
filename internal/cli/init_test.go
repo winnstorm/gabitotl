@@ -45,17 +45,14 @@ func TestInitEndToEnd(t *testing.T) {
 	if v, err := gabitotl.LoadVCS(l); err != nil || v.Provider != "github" {
 		t.Fatalf("vcs = %+v, %v", v, err)
 	}
-	if u, err := identity.Active(root); err != nil || u.ID != "gabi" || u.Name != "Gabriela" {
-		t.Fatalf("active = %+v, %v", u, err)
-	}
-	if _, err := identity.Load(root, "gabi"); err != nil {
-		t.Fatal(err)
+	if u, err := identity.Load(root, "gabi"); err != nil || u.Name != "Gabriela" {
+		t.Fatalf("explicit profile = %+v, %v", u, err)
 	}
 	gi, _ := os.ReadFile(l.Gitignore())
 	if string(gi) != "local/\n.bak/\ntmp/\n" {
 		t.Errorf("gitignore = %q", gi)
 	}
-	if !strings.Contains(r.out, "identity: gabi") {
+	if !strings.Contains(r.out, "profile: gabi") {
 		t.Errorf("output = %q", r.out)
 	}
 
@@ -70,7 +67,8 @@ func TestInitEndToEnd(t *testing.T) {
 	}
 }
 
-func TestInitDefaultsUseCwdRootAndNoIdentity(t *testing.T) {
+func TestInitDefaultsUseCwdRootAndOSIdentity(t *testing.T) {
+	t.Setenv("GABITOTL_USER", "ana")
 	root := t.TempDir()
 	r := runIn(t, "", false, root, "init", "--yes")
 	if r.code != 0 {
@@ -79,10 +77,13 @@ func TestInitDefaultsUseCwdRootAndNoIdentity(t *testing.T) {
 	if !gabitotl.Exists(root) {
 		t.Fatal(".gabitotl not created in cwd")
 	}
-	if _, err := identity.Active(root); err == nil {
-		t.Error("identity must not be set without --user-name")
+	if u, err := identity.Load(root, "ana"); err != nil || u.ID != "ana" {
+		t.Errorf("OS-derived profile not created: %+v, %v", u, err)
 	}
-	if !strings.Contains(r.out, "identity: not set") {
+	if _, err := os.Stat(gabitotl.NewLayout(root).Local() + "/user.md"); err == nil {
+		t.Error("init must not write a local identity file")
+	}
+	if !strings.Contains(r.out, "identity: ana") {
 		t.Errorf("output = %q", r.out)
 	}
 	if mem, _ := gabitotl.LoadMemory(gabitotl.NewLayout(root)); mem.Mode != "solo" || mem.Provider != "engram" {
@@ -92,23 +93,23 @@ func TestInitDefaultsUseCwdRootAndNoIdentity(t *testing.T) {
 
 func TestInitPrompts(t *testing.T) {
 	root := t.TempDir()
-	r := runIn(t, "team\nGabi Pérez\n", true, t.TempDir(), "init", "--root", root)
+	r := runIn(t, "team\n", true, t.TempDir(), "init", "--root", root)
 	if r.code != 0 {
 		t.Fatalf("exit %d: %s", r.code, r.err)
 	}
-	if !strings.Contains(r.out, "Memory mode") || !strings.Contains(r.out, "Your name") {
-		t.Errorf("missing prompts: %q", r.out)
+	if !strings.Contains(r.out, "Memory mode") || strings.Contains(r.out, "Your name") {
+		t.Errorf("prompts: %q", r.out)
 	}
 	if mem, _ := gabitotl.LoadMemory(gabitotl.NewLayout(root)); mem.Mode != "team" {
 		t.Errorf("mode = %q", mem.Mode)
 	}
-	if u, err := identity.Active(root); err != nil || u.ID != "gabi-perez" {
+	if u, err := identity.Active(root); err != nil || u.ID != "gabi" {
 		t.Fatalf("active = %+v, %v", u, err)
 	}
 
-	// With an active identity and flags set, a TTY run asks nothing about the user.
+	// A rerun with flags set asks nothing and keeps the identity.
 	r = runIn(t, "", true, t.TempDir(), "init", "--root", root, "--mode", "team")
-	if r.code != 0 || strings.Contains(r.out, "Your name") || !strings.Contains(r.out, "identity: unchanged") {
+	if r.code != 0 || strings.Contains(r.out, "Your name") || !strings.Contains(r.out, "identity: gabi") {
 		t.Fatalf("rerun: %+v", r)
 	}
 

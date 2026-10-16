@@ -47,7 +47,7 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 ## D8. Worktrees are sibling directories
 - **Decision:** `<repo-parent>/<repo-name>-worktrees/<task-or-user>`; temp directories are refused; removal never forces
   and never touches the main worktree.
-- **Why:** each developer needs their own working directory and `.gabitotl/local` identity; siblings keep the repo clean.
+- **Why:** each developer needs their own working directory; siblings keep the repo clean.
 
 ## D9. Soft locks only
 - **Decision:** overlapping work is detected from active-work files (shared through Git) and memory search and reported as
@@ -203,3 +203,13 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   (empty commit and PR text, no session link; the empty-string value is an ASSUMPTION, see docs/GUARD.md); OpenCode
   and Kiro have no documented option, so none is invented.
 
+## D25. Identity comes from the OS user; collisions are advisory
+- **Decision:** the active identity is the slug of the OS username (a Windows `DOMAIN\` prefix and a `user@domain`
+  suffix are dropped); `GABITOTL_USER` overrides it. There is no identity file and no first-run question. `Active`
+  silently creates the shared profile `.gabitotl/users/<id>.md` (display name from `git config user.name`, else the
+  id) and never rewrites an existing one. `--user`/`--user-name` still create an explicit profile. A leftover
+  `.gabitotl/local/user.md` is ignored. Collisions between people on the same project are advisory: warn, never block.
+- **Why:** several people can share one working directory, and each must be told apart without anyone typing a name.
+  The OS user is already the boundary the operating system enforces.
+- **Consequence:** the same person on another machine is the same id only if the usernames match; otherwise they are a
+  different user, by design (set `GABITOTL_USER` to align them).

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
-	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/memory"
@@ -177,12 +176,11 @@ func suggestName(ctx context.Context, ienv installer.Env, root string) string {
 	return ""
 }
 
-// openQuestions is what cannot be detected and so must still be asked: the name
-// when no identity is active, solo or team and Git automation for a new project.
-func openQuestions(root string, inv installer.Inventory, opts installer.Options) ui.Need {
-	_, activeErr := identity.Active(root)
+// openQuestions is what cannot be detected and so must still be asked: solo or
+// team and Git automation for a new project. The identity comes from the OS
+// user, so nobody is asked who they are.
+func openQuestions(_ string, inv installer.Inventory, opts installer.Options) ui.Need {
 	return ui.Need{
-		Name: opts.UserName == "" && activeErr != nil,
 		Mode: opts.Memory == "" && !inv.Project.Exists,
 		Git:  !inv.Project.Exists,
 	}

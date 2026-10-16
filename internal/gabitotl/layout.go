@@ -65,7 +65,6 @@ func (l Layout) WorkFile(user, task string) (string, error) {
 
 // Local-only files (never committed).
 func (l Layout) Local() string        { return l.join("local") }
-func (l Layout) LocalUser() string    { return l.join("local", "user.md") }
 func (l Layout) LocalRuntime() string { return l.join("local", "runtime.md") }
 func (l Layout) LocalSession() string { return l.join("local", "session.md") }
 

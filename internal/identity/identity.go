@@ -1,20 +1,27 @@
 // Package identity manages the developer identity: a shared profile in
-// .gabitotl/users/<id>.md and the active identity in .gabitotl/local/user.md.
-// Emails are never stored.
+// .gabitotl/users/<id>.md and the active identity, derived from the OS user
+// (GABITOTL_USER overrides). No identity file is kept and nobody is asked who
+// they are. Emails are never stored.
 package identity
 
 import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
 
-// ErrNoActive is returned by Active when no local identity is set.
-var ErrNoActive = errors.New("no active identity: .gabitotl/local/user.md is missing")
+// EnvUser overrides the identity derived from the OS user.
+const EnvUser = "GABITOTL_USER"
+
+// ErrNoActive is returned by Active when no id can be derived from the
+// environment.
+var ErrNoActive = errors.New("no active identity: cannot derive an id from the OS user (set GABITOTL_USER)")
 
 // User is a developer known to the project.
 type User struct {
@@ -27,12 +34,6 @@ const body = `
 # Developer
 
 Known developer of this project. No emails or secrets are stored here.
-`
-
-const localBody = `
-# Active identity
-
-Local only (not shared through Git). Identifies who is working in this checkout.
 `
 
 // Slug turns free text into a user ID.
@@ -69,21 +70,16 @@ func (u User) Validate() error {
 	return nil
 }
 
-// Save writes the shared profile (users/<id>.md) and makes the user the
-// active identity (local/user.md).
+// Save writes the shared profile (users/<id>.md), keeping an existing body.
 func Save(root string, u User) error {
 	if err := u.Validate(); err != nil {
 		return err
 	}
-	l := gabitotl.NewLayout(root)
-	shared, err := l.UserFile(u.ID)
+	shared, err := gabitotl.NewLayout(root).UserFile(u.ID)
 	if err != nil {
 		return err
 	}
-	if err := gabitotl.WriteDoc(shared, u, keepBody(shared, body)); err != nil {
-		return err
-	}
-	return gabitotl.WriteDoc(l.LocalUser(), u, keepBody(l.LocalUser(), localBody))
+	return gabitotl.WriteDoc(shared, u, keepBody(shared, body))
 }
 
 func keepBody(path, def string) string {
@@ -108,13 +104,64 @@ func read(path string) (User, error) {
 	return u, nil
 }
 
-// Active returns the identity in local/user.md, or ErrNoActive.
+// OSUserID derives the active id: GABITOTL_USER when set, else the OS user
+// name. The result is a slug; it is empty when nothing usable is available.
+func OSUserID() string {
+	if v := strings.TrimSpace(os.Getenv(EnvUser)); v != "" {
+		return Slug(v)
+	}
+	raw := ""
+	if u, err := user.Current(); err == nil {
+		raw = u.Username
+	}
+	if raw == "" {
+		for _, k := range []string{"USER", "USERNAME", "LOGNAME"} {
+			if raw = os.Getenv(k); raw != "" {
+				break
+			}
+		}
+	}
+	return slugOSName(raw)
+}
+
+// slugOSName strips a Windows DOMAIN\ prefix and a user@domain suffix, then
+// slugs what is left.
+func slugOSName(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if i := strings.LastIndexByte(raw, '\\'); i >= 0 {
+		raw = raw[i+1:]
+	}
+	if i := strings.IndexByte(raw, '@'); i >= 0 {
+		raw = raw[:i]
+	}
+	return Slug(raw)
+}
+
+// Active returns the identity of the OS user (see OSUserID) and silently
+// creates its shared profile when the project has none. An existing profile is
+// never rewritten. It returns ErrNoActive only when no id can be derived.
 func Active(root string) (User, error) {
-	u, err := read(gabitotl.NewLayout(root).LocalUser())
-	if errors.Is(err, fs.ErrNotExist) {
+	id := OSUserID()
+	if !gabitotl.ValidID(id) {
 		return User{}, ErrNoActive
 	}
-	return u, err
+	u, err := Load(root, id)
+	if err == nil {
+		return u, nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return User{}, err // present but unreadable: never overwrite it
+	}
+	u = User{ID: id, Name: id, DisplayName: id}
+	if n := gitName(root); n != "" {
+		u.Name, u.DisplayName = n, n
+	}
+	// Best effort: only inside an initialized project, and a read-only
+	// checkout must not make the identity unavailable.
+	if gabitotl.Exists(root) {
+		_ = Save(root, u)
+	}
+	return u, nil
 }
 
 // Load returns a known user by ID from users/<id>.md.
@@ -126,17 +173,13 @@ func Load(root, id string) (User, error) {
 	return read(p)
 }
 
-// SuggestFromGit proposes an identity from `git config user.name`. It is only
-// a suggestion for the user to confirm; it returns ok=false when git has no name.
-func SuggestFromGit() (u User, ok bool) {
-	out, err := exec.Command("git", "config", "user.name").Output()
+// gitName returns `git config user.name` as seen from dir, or "".
+func gitName(dir string) string {
+	cmd := exec.Command("git", "config", "user.name")
+	cmd.Dir = dir
+	out, err := cmd.Output()
 	if err != nil {
-		return User{}, false
+		return ""
 	}
-	name := strings.TrimSpace(string(out))
-	if name == "" {
-		return User{}, false
-	}
-	u, err = New("", name, "")
-	return u, err == nil
+	return strings.TrimSpace(string(out))
 }
