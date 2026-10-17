@@ -536,3 +536,18 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   sending them to a fixed command; an agent's shell has no terminal, so a prompt there never works.
 - **Single source:** the JSON is built from the same `NextDeliveryStep`/`DeliveryQuestion` data as the plain
   prompt and the TUI, so the three never diverge. Nothing about PR size, budgets or exceptions is ever listed.
+
+## D38. Own chat-concision modes instead of a third-party plugin
+
+- **Decision:** `gabitotl persona mode [normal|lite|full]` sets how short Gabito's chat replies are. The default
+  is `normal`; `lite` drops filler and closing offers; `full` is telegraphic. With no argument the command prints
+  the active mode and its rules, and the persona carries one line telling the agent to run it at the start of a
+  chat and whenever the user asks for shorter or longer replies.
+- **Why:** a terse-reply plugin was evaluated and rejected. Gabito is already terse, so the gain is small; its
+  style clashes with the es-AR voice; it can degrade PR, memory and doc text; and it would eat the persona
+  budget (the persona sits at about 1500 estimated tokens).
+- **Consequences:** the mode is per person, never shared: `.gabitotl/local/users/<id>/persona.md` (git-ignored)
+  in a project, else `~/.gabitotl/persona.md`, read in that order and falling back to `normal` (an unreadable or
+  invalid file never fails a command). The rules text lives in the binary and is printed by the command, not
+  installed in the persona. The rules apply to chat only: artifacts (code, commits, PRs, docs, memory), security
+  warnings, destructive-action confirmations and questions to the user are never shortened.

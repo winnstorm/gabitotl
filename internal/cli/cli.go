@@ -82,7 +82,7 @@ func commands() map[string]Command {
 		{"session", "Register agent presence (start, touch, end); advisory", runSession},
 		{"runtime", "Runtimes and models (list, detect, plan, apply, verify, remove, set)", runRuntime},
 		{"import", "Import knowledge from other harnesses (detect, run)", runImport},
-		{"persona", "Show the installed persona (print)", runPersona},
+		{"persona", "Show the installed persona (print, mode)", runPersona},
 		{"version", "Print the version", runVersion},
 	}
 	m := make(map[string]Command, len(list)+1)

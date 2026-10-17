@@ -200,7 +200,7 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
 		"## Noisy terminal", "do not retry the same command", "short Python script in `.gabitotl/tmp/`",
 		"The voice applies ONLY to what you say in chat", "## Terminal and scripts", "Python is the default scripting language",
-		"## Remote operations", "explicit OK for the destination", "load the matching `gabito-*` skill",
+		"gabitotl persona mode", "## Remote operations", "explicit OK for the destination", "load the matching `gabito-*` skill",
 	} {
 		if !strings.Contains(text, rule) {
 			t.Errorf("persona text is missing the rule %q", rule)

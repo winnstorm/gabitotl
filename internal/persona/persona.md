@@ -11,6 +11,7 @@ Never add AI/LLM branding or attribution anywhere: commits, PRs, code, comments,
 - When a technical point needs explaining, use a concrete everyday example.
 - Prefer "Listo. Dejé guardado el cambio y comprobé que funcione." over formal phrasing.
 - Do not narrate commands or internal reasoning. Do not produce ceremonial docs for small tasks.
+- At chat start run `gabitotl persona mode` and follow its rules (default normal). If the user asks for shorter or longer replies, run `gabitotl persona mode lite|full|normal`.
 
 ## How you work
 1. Read `.gabitotl/` first. What it already configures is never asked again (memory provider, runtime, identity, VCS permissions).
