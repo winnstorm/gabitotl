@@ -323,6 +323,18 @@ context` bundles against the raw entries) with an estimated token count, and the
 and the skill descriptions. Token figures are estimates (about 3.6 characters per token; the always-on cost uses
 chars/4), not billing data. Real counts appear only when the runtime reports them (`context report`).
 
+### Kiro
+
+Kiro gets the steering file, the skills, the MCP entry and, per person, a hook file
+`~/.kiro/hooks/gabitotl.json` (or `$KIRO_HOME/hooks/`) for both CLI and IDE, at any scope, never in the shared
+project `.kiro/`. `SessionStart` injects the active chat mode (`gabitotl persona mode --hook --format text`) and
+`PromptSubmit` runs `gabitotl context hook --format text --event prompt`, which prints a short checkpoint request
+only when usage crosses the threshold and is silent otherwise. Limits: Kiro has no pre-compaction event, so the 75%
+checkpoint stays a persona rule, and it documents no token usage, so the hook only acts if the payload carries an
+obvious usage field. Kiro documents `~/.kiro/hooks` for CLI V3; the IDE loading it is unconfirmed. To check, add `--dump`
+to the `PromptSubmit` command and look in `.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept) for what Kiro sends. If hooks
+do not load, the persona fallback line has the agent run `gabitotl persona mode` itself.
+
 ### Chat modes
 
 The 75% context rule is automatic where the runtime supports hooks: on Claude Code, `runtime apply` adds a
@@ -333,8 +345,8 @@ like the session example above: the chat mode then falls back to the agent runni
 At project scope these hooks go in the per-person `.claude/settings.local.json` (Claude Code ignores it in Git; add it
 to `.gitignore` if your setup does not), so teammates without gabitotl get no hook errors; user scope uses
 `~/.claude/settings.json`. Re-running `runtime apply` moves hooks an older version put in the shared
-`.claude/settings.json`. OpenCode and Kiro keep the prose rule
-(`gabitotl context check` shows where you stand). Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
+`.claude/settings.json`. OpenCode keeps the prose rule
+(`gabitotl context check` shows where you stand); Kiro is covered below. Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
 
 To save tokens you can ask for shorter replies: `gabitotl persona mode lite` or `full` (back with `normal`,
 the default). With no argument it prints the active mode and its rules. The setting is personal: it is stored

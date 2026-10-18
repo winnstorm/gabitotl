@@ -661,3 +661,16 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Why:** a saving nobody can reproduce is marketing. The estimator was copied in three packages and could drift.
 - **Consequences:** numbers are estimates and say so; a bytes-saved figure ignores what the agent would not have read
   anyway. Per person and local, so there is no team-wide total.
+
+## D48. Kiro hooks are per-person and plain text
+
+- **Decision:** the Kiro adapter owns one file, `<KIRO_HOME or ~/.kiro>/hooks/gabitotl.json`, for every scope (never the
+  shared project `.kiro/`). `SessionStart` runs `gabitotl persona mode --hook --format text` and `PromptSubmit` runs
+  `gabitotl context hook --format text --event prompt`. Both hook commands accept `--format claude|text` (default
+  `claude`), always exit 0, never write to stderr and print nothing when there is nothing to say, because Kiro adds
+  every stdout to the agent context. `context hook --dump` records the raw stdin so the undocumented Kiro payload can be
+  inspected.
+- **Why:** a project-level hook file would make teammates without gabitotl see an error on every prompt (a failing
+  `PromptSubmit` can block in the IDE). Plain text is what Kiro injects; Claude JSON would be noise.
+- **Consequences:** Kiro has no pre-compaction event, so the 75% checkpoint stays a persona rule; the hook only nudges
+  when it can read usage from stdin. Loading of `~/.kiro/hooks` by the IDE is unconfirmed (documented for CLI V3).

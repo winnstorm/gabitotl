@@ -120,3 +120,23 @@ func TestPersonaModeHookOutput(t *testing.T) {
 		t.Fatalf("outside a project the hook must still succeed: %+v", r)
 	}
 }
+
+func TestPersonaModeHookTextFormat(t *testing.T) {
+	root := initProject(t)
+	r := runIn(t, "", false, root, "persona", "mode", "--hook", "--format", "text")
+	if r.code != 0 || r.err != "" || strings.Contains(r.out, "{") || !strings.Contains(r.out, "Persona mode normal") {
+		t.Fatalf("normal: %+v", r)
+	}
+	for _, m := range []string{"lite", "full"} {
+		if r := runIn(t, "", false, root, "persona", "mode", m); r.code != 0 {
+			t.Fatalf("%+v", r)
+		}
+		r := runIn(t, "", false, root, "persona", "mode", "--hook", "--format", "text")
+		if r.code != 0 || r.err != "" || strings.Contains(r.out, "additionalContext") || !strings.HasPrefix(r.out, "Persona ") || strings.Contains(r.out, "normal: no change") {
+			t.Fatalf("%s: %+v", m, r)
+		}
+	}
+	if r := runIn(t, "", false, root, "persona", "mode", "--hook", "--bogus"); r.code != 0 || r.err != "" {
+		t.Fatalf("bad flag in hook mode must be silent: %+v", r)
+	}
+}
