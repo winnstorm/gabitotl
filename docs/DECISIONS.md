@@ -589,3 +589,18 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   old finding must not defeat the cache.
 - **Consequences:** a rules change, an unreadable cache or a git failure (a tip object gone) means one full scan.
   Bump `historyRulesVersion` whenever branding detection changes. `guard fix` and `doctor` still scan fully.
+
+## D42. Per-person hooks and a lighter persona
+
+- **Decision:** Claude Code hooks (D39 plus `SessionStart` → `gabitotl persona mode --hook`, which injects the active
+  chat mode as `additionalContext`) are written to `.claude/settings.local.json` at project scope and to
+  `~/.claude/settings.json` at user scope; attribution keys stay in the shared file. Owned hooks an older version put
+  in the shared `.claude/settings.json` are removed on the next apply. The terminal, noisy-terminal and remote
+  sections left the always-on persona for the `gabito-terminal` skill (persona keeps one line to load it and the
+  one-line remote-authorization rule); the helper rule now reads "one helper at a time, sequentially".
+- **Why:** project hooks in the shared file break teammates without gabitotl, the mode cost a tool call per chat, and
+  the persona sat at the 1500-token cap (about 1500 to 1200 estimated tokens).
+- **Consequences:** `normal` injects a one-line confirmation, not nothing, so the fallback tool call is not triggered.
+  OpenCode and Kiro keep the fallback ("if no persona-mode rules were injected, run `gabitotl persona mode`"). The
+  installer does not edit `.gitignore`; Claude Code ignores `settings.local.json` itself. Fixing a JSON splice bug in
+  `ownership.Set` was needed to add a second key after a pretty-printed one.

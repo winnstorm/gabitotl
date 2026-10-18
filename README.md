@@ -308,13 +308,19 @@ lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 The 75% context rule is automatic where the runtime supports hooks: on Claude Code, `runtime apply` adds a
 `PreCompact` hook (runs `gabitotl context checkpoint`) and a `UserPromptSubmit` hook (runs `gabitotl context hook`,
 which reads the real token usage from the transcript and, past the threshold, asks the agent to checkpoint). A hook
-you already defined for the same event is kept and ours is skipped. OpenCode and Kiro keep the prose rule
+you already defined for the same event is kept and ours is skipped (that includes a `SessionStart` hook of yours,
+like the session example above: the chat mode then falls back to the agent running `gabitotl persona mode`).
+At project scope these hooks go in the per-person `.claude/settings.local.json` (Claude Code ignores it in Git; add it
+to `.gitignore` if your setup does not), so teammates without gabitotl get no hook errors; user scope uses
+`~/.claude/settings.json`. Re-running `runtime apply` moves hooks an older version put in the shared
+`.claude/settings.json`. OpenCode and Kiro keep the prose rule
 (`gabitotl context check` shows where you stand). Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
 
 To save tokens you can ask for shorter replies: `gabitotl persona mode lite` or `full` (back with `normal`,
 the default). With no argument it prints the active mode and its rules. The setting is personal: it is stored
 in `.gabitotl/local/users/<id>/persona.md` (git-ignored) inside a project, or in `~/.gabitotl/persona.md`
-outside one, so a teammate is never affected. The agent reads it at the start of a chat.
+outside one, so a teammate is never affected. On Claude Code a `SessionStart` hook (`gabitotl persona mode --hook`)
+injects the active mode at session start, so it costs no tool call; elsewhere the agent runs `gabitotl persona mode` itself.
 
 | Mode | Style | Example |
 |---|---|---|

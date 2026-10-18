@@ -1,6 +1,6 @@
 ---
 name: gabito-terminal
-description: Replaces a failing or noisy shell command with a short Python script run from .gabitotl/tmp/. Trigger: a shell command fails, its output is mangled or truncated, or the task is log, file, JSON, API or report analysis.
+description: Replaces a failing or noisy shell command with a short Python script run from .gabitotl/tmp/. Trigger: before shell work, scripts or any remote operation; a shell command fails or its output is mangled; or the task is log, file, JSON, API or report analysis.
 license: MIT
 metadata:
   author: gabitotl
@@ -14,6 +14,7 @@ metadata:
 - A shell command failed and the cause looks like quoting, escaping or line breaks.
 - The command is multiline, deeply quoted, or relies on PowerShell/cmd escaping.
 - The output is mangled, truncated or too noisy to read.
+- Any remote operation (SSH, remote hosts, file transfer, authenticated sessions): see Remote operations below.
 - The task is analysis: logs, file discovery, text processing, JSON/YAML/XML, API calls, reports, diagnostics.
 
 ## When NOT to use
@@ -29,8 +30,10 @@ metadata:
 3. Run it with `python3` (or `python` on Windows) and read its output.
 4. Delete the script when you are done.
 
-Python is the default for analysis on every OS. Use PowerShell only for Windows-specific work
-(registry, services, Windows-only tooling).
+Python is the default for analysis on every OS (logs, file discovery, text processing, JSON/YAML/XML,
+API calls, reports, diagnostics). Use PowerShell only for Windows-specific work (services, Active
+Directory, networking, native cmdlets); avoid PowerShell one-liners and long pipelines when Python can
+do it. Simple one-line commands that work stay as they are.
 
 ## Rules
 
@@ -38,9 +41,14 @@ Python is the default for analysis on every OS. Use PowerShell only for Windows-
 - Use `subprocess.run([...], capture_output=True, text=True)` with an argument list, never `shell=True`.
 - Print compact results: counts, the first matches, a short summary. Never dump whole files.
 - Never print, log or hardcode secrets, tokens or passwords.
-- No SSH, remote hosts, file transfer or authenticated sessions without the user's explicit OK for the
-  destination, the operation and the credential to use.
 - Keep scripts small and single-purpose. One script, one question.
+
+## Remote operations
+
+Local permission does not authorize remote work. Before using SSH, remote hosts, file transfer or any
+authenticated session, get the user's explicit OK for the destination, the operation and the credential
+to use. Never discover or reuse ambient SSH agents, sockets or sessions. If anything is unclear, ask and
+stay local.
 
 ## Template: search files for a pattern
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,5 +82,41 @@ func TestPersonaModeOutsideProjectUsesHome(t *testing.T) {
 	}
 	if r := runIn(t, "", false, dir, "persona", "mode"); !strings.HasPrefix(r.out, "mode: full\n") || !strings.Contains(r.out, string(persona.ModeFull)) {
 		t.Fatalf("get: %+v", r)
+	}
+}
+
+func TestPersonaModeHookOutput(t *testing.T) {
+	isolatedHome(t)
+	root := t.TempDir()
+	t.Setenv("GABITOTL_USER", "ana")
+	if r := runIn(t, "", false, root, "init", "--root", root, "--name", "Shop", "--kind", "existing", "--user-id", "ana", "--user-name", "Ana", "--mode", "solo", "--provider", "engram", "--vcs", "git", "--yes"); r.code != 0 {
+		t.Fatalf("init: %s", r.err)
+	}
+	ctx := func() string {
+		r := runIn(t, "", false, root, "persona", "mode", "--hook")
+		var out struct {
+			H struct {
+				Event string `json:"hookEventName"`
+				Ctx   string `json:"additionalContext"`
+			} `json:"hookSpecificOutput"`
+		}
+		if r.code != 0 || json.Unmarshal([]byte(r.out), &out) != nil || out.H.Event != "SessionStart" {
+			t.Fatalf("hook output: %+v", r)
+		}
+		return out.H.Ctx
+	}
+	if c := ctx(); !strings.Contains(c, "mode normal") || len(c) > 100 {
+		t.Fatalf("normal must be a one-line confirmation: %q", c)
+	}
+	runIn(t, "", false, root, "persona", "mode", "lite")
+	if c := ctx(); !strings.Contains(c, "Mode lite") || !strings.Contains(c, "ONLY to what you say in chat") {
+		t.Fatalf("lite: %q", c)
+	}
+	runIn(t, "", false, root, "persona", "mode", "full")
+	if c := ctx(); !strings.Contains(c, "Mode full") {
+		t.Fatalf("full: %q", c)
+	}
+	if r := runIn(t, "", false, t.TempDir(), "persona", "mode", "--hook"); r.code != 0 || !strings.Contains(r.out, "additionalContext") {
+		t.Fatalf("outside a project the hook must still succeed: %+v", r)
 	}
 }

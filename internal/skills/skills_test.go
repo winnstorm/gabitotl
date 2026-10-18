@@ -101,3 +101,24 @@ func TestAllIsSortedAndNamesMatch(t *testing.T) {
 		t.Error("gabito-terminal must ship")
 	}
 }
+
+// TestTerminalSkillCarriesTheMovedPersonaRules guards the rules that left the
+// always-on persona for the on-demand skill (D42): nothing may be lost.
+func TestTerminalSkillCarriesTheMovedPersonaRules(t *testing.T) {
+	var content string
+	for _, s := range All() {
+		if s.Name == "gabito-terminal" {
+			content = s.Content
+		}
+	}
+	for _, rule := range []string{
+		"Python is the default", "PowerShell only for Windows-specific work", "avoid PowerShell one-liners",
+		"Do not retry the same command", "`.gabitotl/tmp/<purpose>.py`", "`pathlib`", "subprocess.run([...]",
+		"Python is missing", "Local permission does not authorize remote work", "explicit OK for the destination",
+		"Never discover or reuse ambient SSH agents", "ask and\nstay local",
+	} {
+		if !strings.Contains(content, rule) {
+			t.Errorf("gabito-terminal is missing %q", rule)
+		}
+	}
+}
