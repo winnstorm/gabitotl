@@ -2,8 +2,12 @@ package guard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -169,29 +173,82 @@ type HistoryResult struct {
 	Scanned  int
 }
 
-// ScanHistoryIncremental is ScanHistory limited to commits not yet scanned
-// clean. store is a file of ref tips whose whole ancestry was scanned without
-// findings; "" disables remembering. full ignores it and rescans everything.
-// Tips are recorded only after a scan with no findings, so findings are
-// reported again until fixed. A stored tip whose object no longer exists is
-// ignored; one that still exists but is no longer reachable is still valid,
-// because its ancestry was scanned when it was recorded.
+// historyRulesVersion must be bumped whenever branding detection changes, so
+// caches written under older rules are not trusted.
+const historyRulesVersion = "1"
+
+// maxKnownTips caps the --not list so the command line stays short; dropping
+// tips only enlarges the scan.
+const maxKnownTips = 500
+
+// historyCache is the per-person memory of a past history scan: the ref tips
+// whose whole ancestry was scanned, the findings in that ancestry (history is
+// never rewritten, so old findings stay) and the rules they were found under.
+type historyCache struct {
+	Rules    string           `json:"rules"`
+	Tips     []string         `json:"tips"`
+	Findings []HistoryFinding `json:"findings"`
+}
+
+func rulesFingerprint(s Settings) string {
+	terms := append([]string(nil), s.ExtraTerms...)
+	sort.Strings(terms)
+	sum := sha256.Sum256([]byte(historyRulesVersion + "\x00" + strings.Join(terms, "\x00")))
+	return hex.EncodeToString(sum[:])
+}
+
+func findingKey(f HistoryFinding) string { return f.Commit + "\x00" + f.Where + "\x00" + f.Text }
+
+// ScanHistoryIncremental is ScanHistory limited to commits not yet scanned.
+// store is a JSON cache file; "" disables remembering. full ignores the cache
+// and rescans everything. Findings of already covered history come from the
+// cache, so they keep being reported without rereading those commits. A cache
+// written under other rules, unreadable, or naming an object that no longer
+// exists is ignored (one full scan).
 func ScanHistoryIncremental(ctx context.Context, run vcs.Runner, dir string, s Settings, store string, full bool) (HistoryResult, error) {
-	const rs, us = "\x1e", "\x1f"
 	tips := currentTips(ctx, run, dir)
-	args := []string{"log", "--all", "--format=%H" + "%x1f" + "%an" + "%x1f" + "%ae" + "%x1f" + "%cn" + "%x1f" + "%ce" + "%x1f" + "%B" + "%x1e"}
+	rules := rulesFingerprint(s)
+	var cached []HistoryFinding
+	var res HistoryResult
+	done := false
 	if store != "" && !full {
-		var known []string
-		for _, t := range readTips(store) {
-			if _, err := run.Run(ctx, dir, "git", "rev-parse", "--verify", "-q", t+"^{commit}"); err == nil {
-				known = append(known, t)
+		if c, ok := readCache(store); ok && c.Rules == rules && len(c.Tips) > 0 {
+			known := c.Tips
+			if len(known) > maxKnownTips {
+				known = known[:maxKnownTips]
+			}
+			args := append([]string{"--not"}, known...)
+			if r, err := scanLog(ctx, run, dir, s, args); err == nil {
+				res, cached, done = r, c.Findings, true
 			}
 		}
-		if len(known) > 0 {
-			args = append(args, "--not")
-			args = append(args, known...)
+	}
+	if !done {
+		r, err := scanLog(ctx, run, dir, s, nil)
+		if err != nil {
+			return HistoryResult{}, err
+		}
+		res = r
+	}
+	seen := map[string]bool{}
+	var all []HistoryFinding
+	for _, f := range append(cached, res.Findings...) {
+		if k := findingKey(f); !seen[k] {
+			seen[k] = true
+			all = append(all, f)
 		}
 	}
+	res.Findings = all
+	if store != "" && len(tips) > 0 {
+		_ = writeCache(store, historyCache{Rules: rules, Tips: tips, Findings: all}) // best effort: a lost cache only costs a full scan
+	}
+	return res, nil
+}
+
+// scanLog reads the commits `git log --all <extra>` lists and reports their findings.
+func scanLog(ctx context.Context, run vcs.Runner, dir string, s Settings, extra []string) (HistoryResult, error) {
+	const rs, us = "\x1e", "\x1f"
+	args := append([]string{"log", "--all", "--format=%H" + "%x1f" + "%an" + "%x1f" + "%ae" + "%x1f" + "%cn" + "%x1f" + "%ce" + "%x1f" + "%B" + "%x1e"}, extra...)
 	out, err := run.Run(ctx, dir, "git", args...)
 	if err != nil {
 		return HistoryResult{}, err
@@ -220,9 +277,6 @@ func ScanHistoryIncremental(ctx context.Context, run vcs.Runner, dir string, s S
 			add("message", fd.Class, fd.Text)
 		}
 	}
-	if store != "" && len(res.Findings) == 0 && len(tips) > 0 {
-		_ = writeTips(store, tips) // best effort: a lost cache only costs a full scan
-	}
 	return res, nil
 }
 
@@ -246,23 +300,25 @@ func currentTips(ctx context.Context, run vcs.Runner, dir string) []string {
 	return tips
 }
 
-func readTips(store string) []string {
+func readCache(store string) (historyCache, bool) {
 	b, err := os.ReadFile(store)
 	if err != nil {
-		return nil
+		return historyCache{}, false
 	}
-	var tips []string
-	for _, t := range strings.Fields(string(b)) {
-		if len(t) >= 40 && len(t) <= 64 && strings.Trim(t, "0123456789abcdef") == "" {
-			tips = append(tips, t)
-		}
+	var c historyCache
+	if json.Unmarshal(b, &c) != nil {
+		return historyCache{}, false
 	}
-	return tips
+	return c, true
 }
 
-func writeTips(store string, tips []string) error {
+func writeCache(store string, c historyCache) error {
+	b, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(store), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(store, []byte(strings.Join(tips, "\n")+"\n"), 0o644)
+	return os.WriteFile(store, b, 0o644)
 }

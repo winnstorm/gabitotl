@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -339,7 +340,8 @@ func slicesHas(l []string, s string) bool {
 func TestScanHistoryIncremental(t *testing.T) {
 	ctx := context.Background()
 	dir := newRepo(t)
-	store := filepath.Join(t.TempDir(), "u", "guard-history.txt")
+	store := filepath.Join(t.TempDir(), "u", "guard-history.json")
+	set := Settings{}
 	commit := func(name, msg string) {
 		put(t, dir, name, name+"\n")
 		git(t, dir, "add", name)
@@ -347,7 +349,7 @@ func TestScanHistoryIncremental(t *testing.T) {
 	}
 	scan := func(full bool) HistoryResult {
 		t.Helper()
-		r, err := ScanHistoryIncremental(ctx, runner(), dir, Settings{}, store, full)
+		r, err := ScanHistoryIncremental(ctx, runner(), dir, set, store, full)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -365,17 +367,57 @@ func TestScanHistoryIncremental(t *testing.T) {
 	if r := scan(false); r.Scanned != 1 || len(r.Findings) != 1 {
 		t.Fatalf("new bad commit = %+v", r)
 	}
-	if r := scan(false); r.Scanned != 1 || len(r.Findings) != 1 {
-		t.Fatalf("finding must be re-reported: %+v", r)
+	if r := scan(false); r.Scanned != 0 || len(r.Findings) != 1 {
+		t.Fatalf("legacy finding must be re-reported without rescanning: %+v", r)
 	}
-	if r := scan(true); r.Scanned != 3 {
+	commit("d.txt", "feat: d")
+	if r := scan(false); r.Scanned != 1 || len(r.Findings) != 1 {
+		t.Fatalf("cached + new = %+v", r)
+	}
+	if r := scan(true); r.Scanned != 4 || len(r.Findings) != 1 {
 		t.Fatalf("--full = %+v", r)
 	}
-	// An unreachable (garbage) stored tip is ignored, not an error.
-	if err := os.WriteFile(store, []byte(strings.Repeat("ab", 20)+"\nnot-a-sha\n"), 0o644); err != nil {
+	// Changed rules invalidate the cache.
+	set = Settings{ExtraTerms: []string{"zzz-unlikely"}}
+	if r := scan(false); r.Scanned != 4 {
+		t.Fatalf("rules change must force a full scan: %+v", r)
+	}
+	if r := scan(false); r.Scanned != 0 {
+		t.Fatalf("same rules reuse the cache: %+v", r)
+	}
+	// An unknown stored tip (missing object) falls back to a full scan.
+	bad := historyCache{Rules: rulesFingerprint(set), Tips: []string{strings.Repeat("ab", 20)}}
+	if err := writeCache(store, bad); err != nil {
 		t.Fatal(err)
 	}
-	if r := scan(false); r.Scanned != 3 {
-		t.Fatalf("unknown stored tip must fall back to full: %+v", r)
+	if r := scan(false); r.Scanned != 4 || len(r.Findings) != 1 {
+		t.Fatalf("missing object must fall back to full: %+v", r)
+	}
+	// An unreadable cache means no cache.
+	if err := os.WriteFile(store, []byte("old format\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := scan(false); r.Scanned != 4 {
+		t.Fatalf("unreadable cache = %+v", r)
+	}
+}
+
+func TestScanHistoryManyTips(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	put(t, dir, "a.txt", "a\n")
+	git(t, dir, "add", "a.txt")
+	git(t, dir, "commit", "-q", "-m", "feat: a")
+	for i := 0; i < 520; i++ {
+		git(t, dir, "commit", "-q", "--allow-empty", "-m", "feat: "+strconv.Itoa(i))
+		git(t, dir, "update-ref", "refs/tags/t"+strconv.Itoa(i), "HEAD")
+	}
+	store := filepath.Join(t.TempDir(), "h.json")
+	if r, err := ScanHistoryIncremental(ctx, runner(), dir, Settings{}, store, false); err != nil || r.Scanned != 521 {
+		t.Fatalf("first = %+v %v", r, err)
+	}
+	git(t, dir, "commit", "-q", "--allow-empty", "-m", "feat: new")
+	if r, err := ScanHistoryIncremental(ctx, runner(), dir, Settings{}, store, false); err != nil || r.Scanned != 1 {
+		t.Fatalf("second = %+v %v", r, err)
 	}
 }

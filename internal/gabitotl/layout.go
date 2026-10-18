@@ -91,7 +91,7 @@ func (l Layout) LocalPersona(user string) (string, error) { return l.localFile(u
 
 // LocalGuardHistory remembers the ref tips whose history the guard scanned clean.
 func (l Layout) LocalGuardHistory(user string) (string, error) {
-	return l.localFile(user, "guard-history.txt")
+	return l.localFile(user, "guard-history.json")
 }
 
 // LocalSession is the per-person session state.
