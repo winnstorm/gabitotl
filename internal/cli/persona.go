@@ -47,16 +47,27 @@ func runPersonaMode(env Env, args []string) int {
 		}
 		return flagExit(err)
 	}
+	// Go stops flag parsing at the first positional: accept flags after the mode too.
+	var pos []string
+	for rest := fs.Args(); len(rest) > 0; rest = fs.Args() {
+		pos = append(pos, rest[0])
+		if err := fs.Parse(rest[1:]); err != nil {
+			if *hook {
+				return ExitOK
+			}
+			return flagExit(err)
+		}
+	}
 	if *hook {
 		return runPersonaModeHook(env, *rootFlag, *format)
 	}
-	if fs.NArg() > 1 {
+	if len(pos) > 1 {
 		fmt.Fprintln(env.Stderr, "Usage: gabitotl persona mode [normal|lite|full] [--root DIR]")
 		return ExitUsage
 	}
 	var want persona.Mode
-	if fs.NArg() == 1 {
-		m, err := persona.ParseMode(fs.Arg(0))
+	if len(pos) == 1 {
+		m, err := persona.ParseMode(pos[0])
 		if err != nil {
 			fmt.Fprintf(env.Stderr, "gabitotl persona mode: %v\n", err)
 			return ExitUsage

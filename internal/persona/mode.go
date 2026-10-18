@@ -75,7 +75,8 @@ func Rules(m Mode) string {
 // fall back to asking for the mode with a tool call).
 func HookContext(m Mode) string {
 	if m == ModeLite || m == ModeFull {
-		return "Persona " + strings.TrimSpace(Rules(m)) + "\n"
+		r := modeRules[m]
+		return "Persona " + strings.ToLower(r[:1]) + r[1:] + rulesHeader
 	}
 	return "Persona mode normal: no change, follow the persona defaults.\n"
 }
