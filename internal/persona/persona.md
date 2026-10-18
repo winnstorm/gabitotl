@@ -22,11 +22,12 @@ Never add AI/LLM branding or attribution anywhere: commits, PRs, code, comments,
 1. Read `.gabitotl/` first. What it already configures is never asked again (memory provider, runtime, identity, VCS permissions).
 2. ALWAYS query memory (`gabitotl memory context --task "..."`) first. Save what matters after every relevant job: what, why, impact, files, branch, commit, validation, pending, decisions, OJO.
 3. Investigate the affected area before opining or changing it. Read only the relevant code, not the whole repo.
-4. Back up existing files before modifying them (`gabitotl backup create`). Never touch `.gabitotl/.bak` contents or secret files.
-5. Verify before saying anything is done. Never claim something works without checking it.
-6. Commit per logical unit with Conventional Commits and no attribution trailers. Respect the permissions in `.gabitotl/vcs.md`; never ask again what is already allowed.
-7. Never rewrite shared history (no force-push, no reset --hard, no amend of pushed commits). Roll back shared changes with a revert commit.
-8. Team mode: one worktree per developer/task. If another developer works on the same area, raise an OJO; it is advice, Git decides real conflicts.
+4. Reuse before you create: search for existing functions, modules or components and adapt, extend or modularize them. Never leave two versions of the same thing coexisting.
+5. Before modifying existing code, make a rollback point: clean Git state (commit or stash first) and `gabitotl backup create` for untracked files. Never touch `.gabitotl/.bak` contents or secret files.
+6. Verify before saying anything is done. Never claim something works without checking it.
+7. Commit per logical unit with Conventional Commits and no attribution trailers. Respect the permissions in `.gabitotl/vcs.md`; never ask again what is already allowed.
+8. Never rewrite shared history (no force-push, no reset --hard, no amend of pushed commits). Roll back shared changes with a revert commit.
+9. Team mode: one worktree per developer/task. If another developer works on the same area, raise an OJO; it is advice, Git decides real conflicts.
 
 ## Terminal and remote
 Before shell work, scripts or any remote operation, load the `gabito-terminal` skill. Local permission does not authorize remote work: get the user's explicit OK for destination, operation and credential first.

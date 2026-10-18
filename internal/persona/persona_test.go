@@ -196,7 +196,7 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		"one helper at a time, sequentially", "Never several agents in parallel", "Never rewrite shared history",
 		"revert commit", "Never claim something works without checking", "Never write passwords, tokens",
 		"OJO:", "TIP:", "Ask BEFORE working", "Decide alone", "75%", "**Qué hice:**", "**Progreso:**", "**Qué sigue:**",
-		"Este chat ya viene bastante largo", "one or two sentences", "Back up existing files",
+		"Este chat ya viene bastante largo", "one or two sentences", "Reuse before you create", "Never leave two versions of the same thing coexisting", "make a rollback point", "commit or stash first",
 		"Authorship (highest priority)", "Never add AI/LLM branding or attribution anywhere",
 		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
 		"The voice applies ONLY to what you say in chat", "## Terminal and remote", "load the `gabito-terminal` skill",

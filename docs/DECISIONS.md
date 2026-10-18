@@ -686,3 +686,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   judgment they rely on.
 - **Consequences:** advisory replies can be longer than the block format; persona grew to ~1346 of 1500 tokens. Big
   unrequested changes are still proposed, never made.
+
+## D50. Reuse before creating; rollback point before modifying
+
+- **Decision:** the persona and the `gabito-escritor` skill require searching for existing functions, modules and
+  components first and adapting, extending or modularizing them instead of creating a parallel version; a new file needs a
+  stated reason. Before modifying existing code there is always a rollback point: a clean Git state (commit or stash
+  pending work first) plus `gabitotl backup create` for files Git does not track cleanly.
+- **Why:** duplicated modules multiply files and drift apart; changes without a rollback point turn a mistake into lost
+  work.
+- **Consequences:** persona at ~1408 of 1500 tokens; little room is left for new always-on rules, so future rules should
+  live in skills.

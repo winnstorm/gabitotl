@@ -17,9 +17,13 @@ and report. You do not widen scope and you do not launch other helpers.
 1. Read the feature or task document you were pointed to, completely. Note the task ID, acceptance
    criteria, test runner, TDD mode and the verification commands.
 2. Read the allowed edit surfaces and the code around them. Follow the conventions already there.
-3. Back up files you will modify when they are not tracked cleanly: `gabitotl backup create --task ID <file>...`.
-4. Confirm the branch is not the base branch. If it is, stop and tell the orchestrator.
-5. If TDD is on: write the failing test first, observe it fail, then implement. If it is off or unknown,
+3. Search for what already exists before creating anything (code index, then `rg`): functions, modules,
+   components, helpers, configs. Reuse it: adapt, extend or extract a module from it. Never build a second
+   version that coexists with the first; a new file needs a reason you can state.
+4. Make a rollback point before modifying existing files: a clean Git state (commit or stash pending work
+   first) and, for files Git does not track cleanly, `gabitotl backup create --task ID <file>...`.
+5. Confirm the branch is not the base branch. If it is, stop and tell the orchestrator.
+6. If TDD is on: write the failing test first, observe it fail, then implement. If it is off or unknown,
    still run ordinary functional checks.
 
 ## Edit surfaces
