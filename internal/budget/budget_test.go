@@ -48,14 +48,14 @@ func newMon(t *testing.T, limit int) (*Monitor, gabitotl.Layout) {
 
 func TestCheckFiresOncePerSession(t *testing.T) {
 	m, l := newMon(t, 1000) // 750 tokens = 3000 chars
-	if err := m.AddText(strings.Repeat("x", 2000)); err != nil {
+	if err := m.AddText(strings.Repeat("x", 1800)); err != nil {
 		t.Fatal(err)
 	}
 	d, err := m.Check()
 	if err != nil || d.ShouldSave || d.Source != SourceEstimated {
 		t.Fatalf("below threshold: %+v %v", d, err)
 	}
-	_ = m.AddText(strings.Repeat("x", 1200))
+	_ = m.AddText(strings.Repeat("x", 1080))
 	d, _ = m.Check()
 	if !d.ShouldSave || !strings.HasPrefix(d.Message, "**TIP:** Este chat ya viene bastante largo") || d.Percent < 75 {
 		t.Fatalf("at threshold: %+v", d)
@@ -114,11 +114,11 @@ func TestSessionIsPerPerson(t *testing.T) {
 
 func TestReportedTokensWinOverEstimates(t *testing.T) {
 	m, _ := newMon(t, 1000)
-	_ = m.AddText(strings.Repeat("x", 4000)) // 1000 estimated
+	_ = m.AddText(strings.Repeat("x", 3600)) // 1000 estimated
 	if err := m.ReportTokens(100); err != nil {
 		t.Fatal(err)
 	}
-	_ = m.AddText(strings.Repeat("x", 4000)) // ignored now
+	_ = m.AddText(strings.Repeat("x", 3600)) // ignored now
 	d, _ := m.Check()
 	if d.ShouldSave || d.Used != 100 || d.Source != SourceReported {
 		t.Fatalf("decision = %+v", d)
@@ -215,5 +215,14 @@ func TestCheckpointFailureRearms(t *testing.T) {
 func TestPersonaFitsTokenBudget(t *testing.T) {
 	if n := EstimateTokens(persona.DefaultText()); n > 1500 {
 		t.Fatalf("persona is ~%d tokens, budget is 1500", n)
+	}
+}
+
+func TestEstimateTextTokensLeansHigherThanChars4(t *testing.T) {
+	if got := EstimateTextTokens(strings.Repeat("a", 36)); got != 10 {
+		t.Fatalf("36 chars = %d, want 10", got)
+	}
+	if EstimateTextTokens("") != 0 || EstimateTextTokens("ñ") != 1 {
+		t.Fatal("edge cases")
 	}
 }

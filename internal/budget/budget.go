@@ -37,6 +37,15 @@ func EstimateTokens(s string) int {
 	return (utf8.RuneCountInString(s) + 3) / 4
 }
 
+// EstimateTextTokens estimates tokens as ceil(characters / 3.6), counting runes.
+// It is the estimate for live conversation text and transcripts (the context
+// budget): Spanish and non-ASCII text tokenize worse than the chars/4 rule, so
+// this leans higher and the checkpoint fires earlier rather than late.
+// EstimateTokens (chars/4) stays as the persona-size yardstick.
+func EstimateTextTokens(s string) int {
+	return (utf8.RuneCountInString(s)*5 + 17) / 18
+}
+
 // Config sets the context budget.
 type Config struct {
 	Limit     int     // tokens
@@ -159,7 +168,7 @@ func (m *Monitor) AddText(text string) error {
 	if m.state.TokenSource == SourceReported {
 		return nil
 	}
-	m.state.UsedTokens += EstimateTokens(text)
+	m.state.UsedTokens += EstimateTextTokens(text)
 	m.state.TokenSource = SourceEstimated
 	return m.save()
 }
@@ -175,6 +184,20 @@ func (m *Monitor) ReportTokens(used int) error {
 	return m.save()
 }
 
+// SetUsed overwrites the session size with a measured value (a real count or an
+// estimate taken from a whole transcript). When usage is back under the
+// threshold, for example after a compaction, the checkpoint is re-armed.
+func (m *Monitor) SetUsed(used int, source string) error {
+	if used < 0 {
+		return errors.New("budget: token count must not be negative")
+	}
+	m.state.UsedTokens, m.state.TokenSource = used, source
+	if float64(used) < m.Config.Threshold*float64(m.Config.Limit) {
+		m.state.Notified = false
+	}
+	return m.save()
+}
+
 // Used returns the current token count and its source.
 func (m *Monitor) Used() (int, string) {
 	src := m.state.TokenSource
@@ -182,6 +205,15 @@ func (m *Monitor) Used() (int, string) {
 		src = SourceEstimated
 	}
 	return m.state.UsedTokens, src
+}
+
+// Peek reports the current usage without consuming the one-shot checkpoint
+// signal: ShouldSave is true when usage is at or over the threshold.
+func (m *Monitor) Peek() Decision {
+	used, src := m.Used()
+	d := Decision{Used: used, Limit: m.Config.Limit, Source: src, Percent: float64(used) / float64(m.Config.Limit) * 100}
+	d.ShouldSave = float64(used) >= m.Config.Threshold*float64(m.Config.Limit)
+	return d
 }
 
 // Check decides whether the session should save its state now. It reports

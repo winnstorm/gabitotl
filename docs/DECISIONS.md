@@ -551,3 +551,18 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   invalid file never fails a command). The rules text lives in the binary and is printed by the command, not
   installed in the persona. The rules apply to chat only: artifacts (code, commits, PRs, docs, memory), security
   warnings, destructive-action confirmations and questions to the user are never shortened.
+
+## D39. Context budget is enforced by host hooks
+
+- **Decision:** `gabitotl context add|report|check|checkpoint` wires `internal/budget`, and the Claude Code adapter
+  installs two owned `settings.json` hooks: `PreCompact` runs `gabitotl context checkpoint`, and `UserPromptSubmit`
+  runs `gabitotl context hook`, which measures the transcript (the latest assistant `usage`, else file size / 4) and,
+  once per crossing of the threshold, injects a one-line instruction to checkpoint. Runtime text is estimated at
+  chars/3.6 (`EstimateTextTokens`); the persona-size check keeps chars/4.
+- **Why:** the 75% rule existed only as prose that a long chat forgets, and nothing called the budget code. Hooks run
+  outside the model, cost no tool call, and read real usage.
+- **Consequences:** hooks are declared by the adapter through the ownership engine (backed up, removed on uninstall);
+  core never branches on runtime names (D3). `Stop` is unused because its output cannot add context. An existing
+  user hook for the same event is preserved and ours is skipped. OpenCode and Kiro have no equivalent, so they keep
+  the prose rule. The check is re-armed when usage drops under the threshold (after compaction). Hook failures never
+  block the host: every error exits 0 silently.

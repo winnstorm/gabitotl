@@ -128,7 +128,49 @@ func TestAttributionProjectScope(t *testing.T) {
 			n++
 		}
 	}
-	if n != 3 {
+	if n != 5 { // three attribution keys and two hooks
 		t.Fatalf("project scope writes %s: %v", want, plan)
+	}
+}
+
+func TestContextHooksAreManagedAndRemovable(t *testing.T) {
+	env, home := fixture(t, true)
+	settings := filepath.Join(home, ".claude", "settings.json")
+	must(t, os.WriteFile(settings, []byte(userSettings), 0o644))
+	a := New()
+	plan, err := a.Plan(env, opts)
+	must(t, err)
+	_, err = a.Apply(env, plan)
+	must(t, err)
+	got := read(t, settings)
+	for _, want := range []string{`"PreCompact"`, "gabitotl context checkpoint", `"UserPromptSubmit"`, "gabitotl context hook", "// my settings"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("settings.json is missing %s:\n%s", want, got)
+		}
+	}
+	_, err = a.RemoveGabitoConfig(env)
+	must(t, err)
+	got = read(t, settings)
+	if strings.Contains(got, "gabitotl context") || strings.Contains(got, "PreCompact") {
+		t.Fatalf("hooks must be removed on uninstall:\n%s", got)
+	}
+	if !strings.Contains(got, `"theme": "dark"`) {
+		t.Fatalf("user settings lost:\n%s", got)
+	}
+}
+
+func TestContextHooksKeepAUsersOwnHook(t *testing.T) {
+	env, home := fixture(t, true)
+	settings := filepath.Join(home, ".claude", "settings.json")
+	own := `{"hooks":{"PreCompact":[{"hooks":[{"type":"command","command":"mine"}]}]}}`
+	must(t, os.WriteFile(settings, []byte(own), 0o644))
+	a := New()
+	plan, err := a.Plan(env, opts)
+	must(t, err)
+	_, err = a.Apply(env, plan)
+	must(t, err)
+	got := read(t, settings)
+	if !strings.Contains(got, `"mine"`) || strings.Contains(got, "gabitotl context checkpoint") {
+		t.Fatalf("a user's own PreCompact hook must be kept untouched:\n%s", got)
 	}
 }

@@ -165,6 +165,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
+| `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
 | `version`, `help` | |
 
 ## 🛡️ Authorship: no AI branding
@@ -303,6 +304,12 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 
 ### Chat modes
+
+The 75% context rule is automatic where the runtime supports hooks: on Claude Code, `runtime apply` adds a
+`PreCompact` hook (runs `gabitotl context checkpoint`) and a `UserPromptSubmit` hook (runs `gabitotl context hook`,
+which reads the real token usage from the transcript and, past the threshold, asks the agent to checkpoint). A hook
+you already defined for the same event is kept and ours is skipped. OpenCode and Kiro keep the prose rule
+(`gabitotl context check` shows where you stand). Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
 
 To save tokens you can ask for shorter replies: `gabitotl persona mode lite` or `full` (back with `normal`,
 the default). With no argument it prints the active mode and its rules. The setting is personal: it is stored
