@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/winnstorm/gabitotl/internal/budget"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 func runPersona(env Env, args []string) int {
@@ -25,7 +25,7 @@ func runPersonaPrint(env Env, args []string) int {
 	text := persona.DefaultText()
 	fmt.Fprint(env.Stdout, text)
 	if *stats {
-		fmt.Fprintf(env.Stderr, "persona: %d characters, ~%d tokens (chars/4 estimate)\n", len([]rune(text)), budget.EstimateTokens(text))
+		fmt.Fprintf(env.Stderr, "persona: %d characters, ~%d tokens (chars/4 estimate)\n", len([]rune(text)), tokens.EstimateLegacy(text))
 	}
 	return ExitOK
 }

@@ -2,11 +2,10 @@ package memory
 
 import (
 	"fmt"
-	"math"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 // Bundle limits, in estimated tokens (estimateTokens).
@@ -16,11 +15,7 @@ const (
 	charsPerToken         = 3.6
 )
 
-// estimateTokens mirrors budget.EstimateTextTokens (ceil(runes/3.6)); budget imports
-// this package, so the formula is repeated here instead of imported.
-func estimateTokens(s string) int {
-	return int(math.Ceil(float64(utf8.RuneCountInString(s)) / charsPerToken))
-}
+func estimateTokens(s string) int { return tokens.Estimate(s) }
 
 // BundleItem is one packed entry: a header line and a capped body.
 type BundleItem struct {

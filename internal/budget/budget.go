@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"unicode/utf8"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 // Defaults.
@@ -26,25 +26,8 @@ const (
 // Token sources.
 const (
 	SourceReported  = "reported"  // real count supplied by the runtime
-	SourceEstimated = "estimated" // chars/4 heuristic
+	SourceEstimated = "estimated" // tokens.Estimate heuristic
 )
-
-// EstimateTokens estimates tokens as ceil(characters / 4), counting runes. This
-// is the usual rule of thumb for English prose and code; Spanish and non-ASCII
-// text tokenize a bit worse, so the estimate leans slightly low. It is only
-// used when the runtime does not report real token counts.
-func EstimateTokens(s string) int {
-	return (utf8.RuneCountInString(s) + 3) / 4
-}
-
-// EstimateTextTokens estimates tokens as ceil(characters / 3.6), counting runes.
-// It is the estimate for live conversation text and transcripts (the context
-// budget): Spanish and non-ASCII text tokenize worse than the chars/4 rule, so
-// this leans higher and the checkpoint fires earlier rather than late.
-// EstimateTokens (chars/4) stays as the persona-size yardstick.
-func EstimateTextTokens(s string) int {
-	return (utf8.RuneCountInString(s)*5 + 17) / 18
-}
 
 // Config sets the context budget.
 type Config struct {
@@ -87,6 +70,7 @@ type sessionState struct {
 	TokenSource string `yaml:"token_source"`
 	Notified    bool   `yaml:"budget_notified"` // the checkpoint already fired this session
 	Checkpoint  string `yaml:"checkpoint_at,omitempty"`
+	Checkpoints int    `yaml:"checkpoints,omitempty"` // checkpoints saved this session
 }
 
 // Decision is the outcome of Check.
@@ -168,7 +152,7 @@ func (m *Monitor) AddText(text string) error {
 	if m.state.TokenSource == SourceReported {
 		return nil
 	}
-	m.state.UsedTokens += EstimateTextTokens(text)
+	m.state.UsedTokens += tokens.Estimate(text)
 	m.state.TokenSource = SourceEstimated
 	return m.save()
 }
@@ -206,6 +190,9 @@ func (m *Monitor) Used() (int, string) {
 	}
 	return m.state.UsedTokens, src
 }
+
+// Checkpoints returns how many checkpoints were saved in this session.
+func (m *Monitor) Checkpoints() int { return m.state.Checkpoints }
 
 // Peek reports the current usage without consuming the one-shot checkpoint
 // signal: ShouldSave is true when usage is at or over the threshold.
@@ -290,6 +277,7 @@ func (m *Monitor) Checkpoint(ctx context.Context, rec memory.Recorder, st State)
 	if !recorded {
 		return res, nil
 	}
+	m.state.Checkpoints++
 	m.state.Checkpoint = m.now().UTC().Format(time.RFC3339)
 	if err := m.save(); err != nil {
 		return res, err

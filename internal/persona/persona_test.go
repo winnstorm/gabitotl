@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 func TestClassify(t *testing.T) {
@@ -185,7 +186,7 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		t.Fatal("unresolved placeholder in persona text")
 	}
 	const maxTokens = 1500
-	if n := approxTokens(text); n > maxTokens {
+	if n := tokens.EstimateLegacy(text); n > maxTokens {
 		t.Fatalf("persona is ~%d tokens, budget is %d", n, maxTokens)
 	} else {
 		t.Logf("persona estimated at ~%d tokens", n)
@@ -206,8 +207,3 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		}
 	}
 }
-
-// approxTokens mirrors budget.EstimateTokens (ceil(runes/4)); persona cannot
-// import budget (budget imports persona), and budget has its own test of this
-// same budget against the same text.
-func approxTokens(s string) int { return (utf8.RuneCountInString(s) + 3) / 4 }

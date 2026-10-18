@@ -198,6 +198,11 @@ func runMemoryContext(env Env, args []string) int {
 		return ExitError
 	}
 	b := memory.PackBundle(entries, *maxTokens, *perEntry)
+	full := 0
+	for _, e := range entries {
+		full += len(e.Title) + len(e.Content)
+	}
+	recordSavings(env, *root, "memory", full, len(b.Render()))
 	if *asJSON {
 		if b.Items == nil {
 			b.Items = []memory.BundleItem{}

@@ -10,16 +10,8 @@ import (
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
-
-func TestEstimateTokens(t *testing.T) {
-	cases := map[string]int{"": 0, "a": 1, "abcd": 1, "abcde": 2, strings.Repeat("x", 400): 100, "ñññññññ": 2}
-	for in, want := range cases {
-		if got := EstimateTokens(in); got != want {
-			t.Errorf("EstimateTokens(%q) = %d, want %d", in, got, want)
-		}
-	}
-}
 
 func TestConfigValidate(t *testing.T) {
 	for _, c := range []Config{{0, 0.75}, {100, 0}, {100, 1.5}} {
@@ -213,16 +205,7 @@ func TestCheckpointFailureRearms(t *testing.T) {
 }
 
 func TestPersonaFitsTokenBudget(t *testing.T) {
-	if n := EstimateTokens(persona.DefaultText()); n > 1500 {
+	if n := tokens.EstimateLegacy(persona.DefaultText()); n > 1500 {
 		t.Fatalf("persona is ~%d tokens, budget is 1500", n)
-	}
-}
-
-func TestEstimateTextTokensLeansHigherThanChars4(t *testing.T) {
-	if got := EstimateTextTokens(strings.Repeat("a", 36)); got != 10 {
-		t.Fatalf("36 chars = %d, want 10", got)
-	}
-	if EstimateTextTokens("") != 0 || EstimateTextTokens("ñ") != 1 {
-		t.Fatal("edge cases")
 	}
 }

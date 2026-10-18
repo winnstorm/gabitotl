@@ -168,6 +168,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
+| `stats [--json] [--since 7d]` | Per person: context use and checkpoints, bytes and estimated tokens kept out of the context by `run` and `memory context`, the always-on cost per chat and the code index status. Missing data counts as zero; it never fails. |
 | `run [--max-lines N] [--tail N] [--json] -- <cmd> [args...]` | Run a noisy command (tests, build, lint) without a shell and print only a digest: failure lines with context, the tail and the exit code (the command's own; 127 if not found). The full output is saved to `.gabitotl/tmp/run-<time>.log`. |
 | `version`, `help` | |
 
@@ -313,6 +314,14 @@ Test, build and lint output is the biggest token sink in large projects. Ask the
 full log stays in `.gabitotl/tmp/` and the agent searches it only when the digest is not enough. Bytes kept out of the
 context are appended to `.gabitotl/local/users/<id>/savings.log` (`<unix> run <full_bytes> <printed_bytes>`, never
 committed) for the stats command.
+
+#### Measuring savings
+
+Nothing here is a promised percentage: measure your own. `gabitotl stats` (`--json`, `--since 7d`) prints, for you
+only, the current context use and checkpoints, the bytes the agent did not have to read (`run` digests and `memory
+context` bundles against the raw entries) with an estimated token count, and the fixed per-chat cost of the persona
+and the skill descriptions. Token figures are estimates (about 3.6 characters per token; the always-on cost uses
+chars/4), not billing data. Real counts appear only when the runtime reports them (`context report`).
 
 ### Chat modes
 

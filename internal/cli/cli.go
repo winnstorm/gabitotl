@@ -85,6 +85,7 @@ func commands() map[string]Command {
 		{"import", "Import knowledge from other harnesses (detect, run)", runImport},
 		{"persona", "Show the installed persona (print, mode)", runPersona},
 		{"context", "Context budget (add, report, check, checkpoint; hook is for the host)", runContext},
+		{"stats", "Context use, token savings and always-on cost (stats [--json] [--since 7d])", runStats},
 		{"run", "Run a noisy command, print only a digest (run -- <cmd>); full log in .gabitotl/tmp", runRun},
 		{"version", "Print the version", runVersion},
 	}
