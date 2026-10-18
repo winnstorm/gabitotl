@@ -13,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/memory/store"
 	"github.com/winnstorm/gabitotl/internal/memory/store/memstore"
@@ -390,5 +391,70 @@ func TestServerInstanceFlagUsesOwnNamesAndCredentials(t *testing.T) {
 	}
 	if r := f.run("", "memory", "server", "install", "--instance", "Bad Name"); r.code == 0 {
 		t.Fatal("invalid instance")
+	}
+}
+
+func compactProject(t *testing.T, f *sfix) string {
+	t.Helper()
+	root := t.TempDir()
+	r := runIn(t, "", false, t.TempDir(), "init", "--root", root, "--name", "Shop", "--kind", "new",
+		"--user-id", "gabi", "--user-name", "Gabi", "--mode", "team", "--provider", "memory-mcp", "--yes")
+	if r.code != 0 {
+		t.Fatalf("init: %s", r.err)
+	}
+	f.envv["GABITOTL_MEMORY_DATABASE_URL"] = "postgres://fake"
+	cfg, err := gabitotl.LoadMemory(gabitotl.NewLayout(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().AddDate(0, -3, 0)
+	f.st.Now = func() time.Time { return old }
+	for _, e := range []memory.Entry{
+		{Type: memory.TypeProgress, Title: "a", Content: "one"},
+		{Type: memory.TypeProgress, Title: "b", Content: "two"},
+		{Type: memory.TypeDecision, Title: "d", Content: "keep"},
+	} {
+		e.Project, e.Actor = cfg.ProjectKey, "gabi"
+		if _, err := f.st.Save(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.st.Now = nil
+	return root
+}
+
+func TestMemoryCompactDryRunThenApply(t *testing.T) {
+	f := newSfix(t)
+	root := compactProject(t, f)
+	r := runIn(t, "", false, root, "memory", "compact")
+	if r.code != 0 || !strings.Contains(r.out, "2 would be folded") || !strings.Contains(r.out, "Dry run") {
+		t.Fatalf("%+v", r)
+	}
+	if st, _ := f.st.Stats(context.Background()); st.Observations != 3 || st.Deleted != 0 {
+		t.Fatalf("dry run changed the store: %+v", st)
+	}
+	if r := runIn(t, "", false, root, "memory", "compact", "--apply"); r.code != ExitError {
+		t.Fatalf("apply without a terminal or --yes must refuse: %+v", r)
+	}
+	r = runIn(t, "", false, root, "memory", "compact", "--apply", "--yes")
+	if r.code != 0 || !strings.Contains(r.out, "1 digests written, 2 entries soft-deleted") || !strings.Contains(r.out, "backup: ") {
+		t.Fatalf("%+v", r)
+	}
+	if st, _ := f.st.Stats(context.Background()); st.Observations != 2 || st.Deleted != 2 {
+		t.Fatalf("stats %+v", st)
+	}
+	if m, _ := filepath.Glob(filepath.Join(root, ".gabitotl", ".bak", "memory-compact-*.json")); len(m) != 1 {
+		t.Fatalf("backup files: %v", m)
+	}
+}
+
+func TestMemoryCompactRefusesEngramAndBadAge(t *testing.T) {
+	f := newSfix(t)
+	root := initProject(t)
+	if r := runIn(t, "", false, root, "memory", "compact", "--apply", "--yes"); r.code != ExitError || !strings.Contains(r.err, "cannot delete entries") {
+		t.Fatalf("%+v", r)
+	}
+	if r := runIn(t, "", false, compactProject(t, f), "memory", "compact", "--older-than", "3x"); r.code != ExitUsage {
+		t.Fatalf("%+v", r)
 	}
 }

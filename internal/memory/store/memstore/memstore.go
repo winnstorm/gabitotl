@@ -250,7 +250,8 @@ func (s *Store) Active(_ context.Context, q store.ActiveQuery) ([]store.Record, 
 	for _, r := range s.rows {
 		if r.deleted || (q.Project != "" && r.rec.Project != q.Project) ||
 			(q.Actor != "" && r.rec.Actor != q.Actor) || (q.Task != "" && r.rec.Task != q.Task) ||
-			(!q.Since.IsZero() && r.rec.UpdatedAt.Before(q.Since)) {
+			(!q.Since.IsZero() && r.rec.UpdatedAt.Before(q.Since)) ||
+			(!q.Before.IsZero() && !r.rec.UpdatedAt.Before(q.Before)) {
 			continue
 		}
 		out = append(out, clone(r.rec))

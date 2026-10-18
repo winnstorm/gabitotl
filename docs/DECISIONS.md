@@ -640,3 +640,15 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   less context than ~30. polycodegraph was rejected as a third, overlapping graph.
 - **Consequences:** nothing requires an index and GabitoTL never installs one. The setup argv does not depend on the
   runtime, so core has no runtime branching (D3).
+
+## D46. Memory compaction folds only operational entries
+
+- **Decision:** `gabitotl memory compact` (dry run by default) folds only `progress` entries without a topic key that
+  are older than `--older-than` (default 30d) into one "Progress digest YYYY-MM" per project and month, and drops exact
+  duplicates (same title and content, newest kept). Knowledge types and topic-keyed entries are never touched. `--apply`
+  confirms (or `--yes`), writes a JSON backup under `.gabitotl/.bak/`, saves the digests, then soft-deletes the originals.
+- **Why:** old progress notes add noise to searches, but decisions and fixes are the history worth keeping. Soft delete
+  plus the backup means nothing is silently lost (D10).
+- **Consequences:** only the team server store lists and deletes, so the Engram provider is refused instead of
+  half-applied. Digests carry the topic key `digest/progress/YYYY-MM`, so a re-run is idempotent. Session summaries
+  kept in their own table are not touched.

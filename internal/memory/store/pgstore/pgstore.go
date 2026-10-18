@@ -291,10 +291,14 @@ func (s *Store) Active(ctx context.Context, q store.ActiveQuery) ([]store.Record
 	if !q.Since.IsZero() {
 		since = q.Since
 	}
+	var before any
+	if !q.Before.IsZero() {
+		before = q.Before
+	}
 	rows, err := s.pool.Query(ctx, `SELECT `+cols+`, 0::float8 FROM observations
 		WHERE deleted_at IS NULL AND ($1 = '' OR project = $1) AND ($2 = '' OR actor = $2) AND ($3 = '' OR task = $3)
-		  AND ($4::timestamptz IS NULL OR updated_at >= $4)
-		ORDER BY updated_at DESC, id LIMIT $5`, q.Project, q.Actor, q.Task, since, store.ClampLimit(q.Limit))
+		  AND ($4::timestamptz IS NULL OR updated_at >= $4) AND ($6::timestamptz IS NULL OR updated_at < $6)
+		ORDER BY updated_at DESC, id LIMIT $5`, q.Project, q.Actor, q.Task, since, store.ClampLimit(q.Limit), before)
 	if err != nil {
 		return nil, wrap("active", err)
 	}
