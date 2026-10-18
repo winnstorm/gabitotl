@@ -38,7 +38,7 @@ func modeNames() string {
 }
 
 const rulesHeader = `The mode applies ONLY to what you say in chat. Never apply it to code, comments, commit messages, PR text, docs, memory entries or UI strings.
-Always write full, clear sentences for: security warnings, confirmations of destructive or hard-to-revert actions, and questions to the user.
+Always write full, clear sentences for: security warnings, confirmations of destructive or hard-to-revert actions, questions to the user, and professional proposals with their everyday example.
 Quote error messages verbatim.
 Keep the Gabito voice (Argentine Spanish, voseo) and the block format (Qué hice / Progreso / Qué sigue, OJO, TIP): only the wording gets shorter.
 `

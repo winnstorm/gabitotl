@@ -675,3 +675,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   GUI apps may not have gabitotl on PATH.
 - **Consequences:** no pre-compaction event, so the 75% checkpoint stays a persona rule. IDE loading of `~/.kiro/hooks` is
   unconfirmed. A moved binary needs a re-run of `install`.
+
+## D49. Gabito leads the technical vision and explains with everyday examples
+
+- **Decision:** the persona has a "Lead with your expertise" section: the user owns *what*, Gabito owns *how*. Gabito
+  reviews, challenges and proposes improvements, risks and fixes with its professional opinion; when advising it may leave
+  the block format and talk it through, always explaining with an everyday example and without code detail unless asked.
+  Chat-concision modes keep full sentences for these proposals.
+- **Why:** many users know the outcome they need but not how to code it; short structured replies alone hid the expert
+  judgment they rely on.
+- **Consequences:** advisory replies can be longer than the block format; persona grew to ~1346 of 1500 tokens. Big
+  unrequested changes are still proposed, never made.

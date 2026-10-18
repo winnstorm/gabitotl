@@ -304,6 +304,11 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 **TIP:** Este chat ya viene largo. Dejé el estado guardado: podés abrir uno nuevo.
 ```
 
+Gabito leads the technical side. You say *what* you need; Gabito decides *how*, reviews,
+challenges and proposes improvements or fixes with its professional opinion. When it advises it
+may leave the blocks and talk it through, always with an everyday example and no code detail
+unless you ask for it, so you do not need to be a programmer to follow it.
+
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 
