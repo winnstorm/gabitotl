@@ -23,8 +23,9 @@ If the question is too vague to bound, return that as a gap instead of reading t
 ## How to search
 
 1. If `.gabitotl/` exists, read the relevant parts first (`project.md`, conventions). It is cheap context.
-2. Prefer a code-graph tool when one is available (for example `codegraph_explore`): one call returns
-   source, call paths and dependents. Trust it; do not re-verify with grep.
+2. Before reading files, if a code index is available use it first: CodeGraph, `codegraph_explore` (one call) or
+   the CLI `codegraph explore/query`; code-review-graph, `get_minimal_context` then `get_impact_radius`. Check with
+   `gabitotl index status` once per session, not per question. Trust the result; do not re-verify with grep.
 3. Otherwise use `rg` for content and `fd` for names. Search by symbol, then open only the matching ranges.
 4. For bulk analysis (counting, grouping, parsing JSON/logs), write a short Python script under
    `.gabitotl/tmp/` and delete it afterwards. Follow `gabito-terminal`.

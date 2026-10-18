@@ -234,7 +234,7 @@ func TestMigrateGentleAIEndToEndOrderDoctorRestoreUninstall(t *testing.T) {
 	// 3. doctor is read-only and healthy.
 	snap := chash(t, f.home, f.root)
 	r = f.run("", false, "doctor")
-	if r.code != 0 || !strings.Contains(r.out, "Core") || !strings.Contains(r.out, "Legacy") || !strings.Contains(r.out, "✓") {
+	if r.code != 0 || !strings.Contains(r.out, "Core") || !strings.Contains(r.out, "Legacy") || !strings.Contains(r.out, "code index (optional)") || !strings.Contains(r.out, "✓") {
 		t.Fatalf("%+v", r)
 	}
 	if chash(t, f.home, f.root) != snap {

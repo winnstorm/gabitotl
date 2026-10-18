@@ -628,3 +628,15 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** the map is an aggregate, so a changed HEAD or untracked set means a full rebuild (cheap with
   `ls-files`), not a per-file patch. Uncommitted edits to tracked files do not invalidate the cache. No cache is written
   before `init` or without an active identity.
+
+## D45. Code index is optional, CodeGraph first
+
+- **Decision:** `internal/codeindex` detects two backends, CodeGraph (default) and code-review-graph, by an executable
+  on PATH plus an index directory in the project (`.codegraph/`, `.code-review-graph/`). `gabitotl index status`
+  reports them, `index setup` prints (or with `--yes` runs, as an argument list, no shell) the tool's own
+  `codegraph init --yes <root>` / `code-review-graph build`. `doctor` adds one informational line. The recolector skill
+  tells the agent to use an available index before reading files and to check `index status` once per session.
+- **Why:** an index answers structure questions in one call instead of many reads. One MCP tool (CodeGraph) costs far
+  less context than ~30. polycodegraph was rejected as a third, overlapping graph.
+- **Consequences:** nothing requires an index and GabitoTL never installs one. The setup argv does not depend on the
+  runtime, so core has no runtime branching (D3).
