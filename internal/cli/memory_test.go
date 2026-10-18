@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -84,5 +85,52 @@ func TestMemoryWithoutInit(t *testing.T) {
 	r := runIn(t, "", false, t.TempDir(), "memory", "doctor")
 	if r.code != ExitError {
 		t.Fatalf("uninitialized project must fail, got %+v", r)
+	}
+}
+
+func TestMemorySearchJSONAndLimit(t *testing.T) {
+	root := initProject(t)
+	withProvider(t, &stubProvider{hits: []memory.Entry{{ID: "7", Type: memory.TypeDecision, Title: "Use JWT", Content: "x"}}})
+	r := runIn(t, "", false, root, "memory", "search", "--json", "jwt")
+	var got []memory.Entry
+	if r.code != 0 || json.Unmarshal([]byte(r.out), &got) != nil || len(got) != 1 || got[0].ID != "7" {
+		t.Fatalf("%+v", r)
+	}
+	for _, l := range []string{"0", "21", "-1"} {
+		if r := runIn(t, "", false, root, "memory", "search", "--limit", l, "jwt"); r.code != ExitUsage {
+			t.Fatalf("--limit %s must be usage error, got %d", l, r.code)
+		}
+	}
+}
+
+func TestMemoryContext(t *testing.T) {
+	root := initProject(t)
+	long := strings.Repeat("A fairly long sentence about tokens. ", 100)
+	sp := &stubProvider{hits: []memory.Entry{
+		{ID: "7", Type: memory.TypeDecision, Title: "Use JWT", Content: long},
+		{ID: "8", Type: memory.TypeBugfix, Title: "Fix race", Content: "short"},
+	}}
+	withProvider(t, sp)
+	r := runIn(t, "", false, root, "memory", "context", "--task", "auth jwt tokens", "--per-entry-tokens", "60")
+	if r.code != 0 || !strings.Contains(r.out, "decision · Use JWT · #7") || !strings.Contains(r.out, "memory: 2 entries, ~") {
+		t.Fatalf("%+v", r)
+	}
+	if len(r.out) > 2000 {
+		t.Fatalf("bundle not capped: %d bytes", len(r.out))
+	}
+	r = runIn(t, "", false, root, "memory", "context", "--task", "auth", "--max-tokens", "40", "--json")
+	var b memory.Bundle
+	if r.code != 0 || json.Unmarshal([]byte(r.out), &b) != nil || b.Tokens > 40 || b.Omitted == 0 {
+		t.Fatalf("%+v %+v", r, b)
+	}
+	if r := runIn(t, "", false, root, "memory", "context"); r.code != ExitUsage {
+		t.Fatalf("missing --task must be usage error, got %d", r.code)
+	}
+}
+
+func TestMemoryContextNoProvider(t *testing.T) {
+	r := runIn(t, "", false, t.TempDir(), "memory", "context", "--task", "x")
+	if r.code != 0 || !strings.Contains(r.out, "no provider") {
+		t.Fatalf("%+v", r)
 	}
 }

@@ -566,3 +566,15 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   user hook for the same event is preserved and ours is skipped. OpenCode and Kiro have no equivalent, so they keep
   the prose rule. The check is re-armed when usage drops under the threshold (after compaction). Hook failures never
   block the host: every error exits 0 silently.
+
+## D40. Memory reaches the agent as a capped bundle
+
+- **Decision:** `gabitotl memory context --task "..."` runs `BuildQueries` + `Retrieve` and packs the entries into a
+  compact bundle: one header line each (type, title, id) plus a body cut at a sentence or word boundary to
+  `--per-entry-tokens` (250), stopping at `--max-tokens` (1500), then a `memory: N entries, ~T tokens (K omitted)` line.
+  `memory search` gains `--json` and rejects an out-of-range `--limit` (exit 2) instead of silently resetting it.
+- **Why:** retrieval capped the entry count but never the bytes, and nothing outside tests called it, so the agent
+  pulled whole entries by hand. The persona points at the command (same size); the memory skill carries the detail.
+- **Consequences:** packing lives in `internal/memory` and repeats the chars/3.6 estimate because `budget` imports
+  `memory`. With no provider the command prints one notice and exits 0. Omitted entries are counted, not listed;
+  `memory search` still reads one in full.
