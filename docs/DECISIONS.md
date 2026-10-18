@@ -604,3 +604,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   OpenCode and Kiro keep the fallback ("if no persona-mode rules were injected, run `gabitotl persona mode`"). The
   installer does not edit `.gitignore`; Claude Code ignores `settings.local.json` itself. Fixing a JSON splice bug in
   `ownership.Set` was needed to add a second key after a pretty-printed one.
+
+## D43. Noisy commands reach the agent as a digest
+
+- **Decision:** `gabitotl run -- <cmd>` runs the command without a shell, saves the full combined output to
+  `.gabitotl/tmp/run-<time>.log` (OS temp dir outside a project) and prints a header plus failure lines with two lines of
+  context, deduplicated and capped, and the last lines. The exit code is the command's (127 if not found). The logic
+  lives in the pure `internal/digest` package. Bytes saved go to the append-only `local/users/<id>/savings.log`.
+- **Why:** test, build and lint output dominates context use; the agent needs failures and the verdict, not the stream.
+- **Consequences:** failure detection is heuristic (keywords and `file:line:col:` positions), so the log is always
+  kept and the `gabito-terminal` skill tells the agent to search it, not read it whole. Statistics are best-effort and
+  never fail a run. A separate log file was chosen over `session.md` to avoid read-modify-write races.
