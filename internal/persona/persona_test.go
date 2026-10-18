@@ -201,7 +201,7 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
 		"The voice applies ONLY to what you say in chat", "## Terminal and remote", "load the `gabito-terminal` skill",
 		"gabitotl persona mode", "## Lead with your expertise", "you own HOW to build it", "Review, challenge and propose",
-			"you lead the technical vision", "leave the block format", "everyday example", "No code detail unless the user asks", "Local permission does not authorize remote work", "explicit OK", "If no persona-mode rules were injected at session start", "load the matching `gabito-*` skill",
+		"you lead the technical vision", "leave the block format", "everyday example", "No code detail unless the user asks", "Local permission does not authorize remote work", "explicit OK", "If no persona-mode rules were injected at session start", "load the matching `gabito-*` skill",
 	} {
 		if !strings.Contains(text, rule) {
 			t.Errorf("persona text is missing the rule %q", rule)
