@@ -589,6 +589,11 @@ questions from `gabitotl vcs setup --questions` and saves with `gabitotl vcs set
 **Delivery.** `gabitotl vcs ship` commits, pushes the task branch, opens the PR and merges when the settings allow
 and the checks pass. Above the PR budget it cuts **stacked PRs** at commit boundaries on its own.
 
+**Saving CI minutes.** On GitHub and GitLab, where each push can spend Actions or CI/CD minutes, the agent works with
+local commits and publishes only at an important milestone, asking you first even when automation is `all`. It runs
+the checks locally instead of pushing to see if CI passes, and pushes fixes in one batch. Bitbucket and other hosts
+follow the saved settings.
+
 **Example**
 
 ```text

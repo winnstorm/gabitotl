@@ -697,3 +697,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   work.
 - **Consequences:** persona at ~1408 of 1500 tokens; little room is left for new always-on rules, so future rules should
   live in skills.
+
+## D51. Push by milestone on GitHub and GitLab
+
+- **Decision:** on GitHub and GitLab the `gabito-entrega` skill works with local commits and publishes only at an
+  important milestone, asking the user first even when the saved automation is `all`. Checks run locally instead of
+  pushing to see if CI passes, and fixes are pushed in one batch. Bitbucket and other hosts follow the saved settings.
+  CI tuning (`concurrency`/`cancel-in-progress`, `paths-ignore`, light draft PRs) is proposed, never applied unasked.
+- **Why:** every push, PR update and merge can spend paid Actions or CI/CD minutes; local commits already give the
+  rollback point.
+- **Consequences:** the rule lives in the skill, not the persona (no budget left there), and is behavioral: the CLI
+  still pushes when told to, so `vcs ship` keeps its no-prompt contract.

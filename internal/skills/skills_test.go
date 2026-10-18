@@ -102,6 +102,25 @@ func TestAllIsSortedAndNamesMatch(t *testing.T) {
 	}
 }
 
+// TestDeliverySkillSavesCIMinutes guards the push-by-milestone rule (D51).
+func TestDeliverySkillSavesCIMinutes(t *testing.T) {
+	var content string
+	for _, s := range All() {
+		if s.Name == "gabito-entrega" {
+			content = s.Content
+		}
+	}
+	for _, rule := range []string{
+		"## Save CI minutes: push by milestone (GitHub and GitLab)", "Do not push after every commit",
+		"Ask the user first", "even when the saved automation is `all`", "Never push to \"see if CI passes\"",
+		"On Bitbucket and other hosts the saved settings decide", "never apply unasked",
+	} {
+		if !strings.Contains(content, rule) {
+			t.Errorf("gabito-entrega is missing %q", rule)
+		}
+	}
+}
+
 // TestTerminalSkillCarriesTheMovedPersonaRules guards the rules that left the
 // always-on persona for the on-demand skill (D42): nothing may be lost.
 func TestTerminalSkillCarriesTheMovedPersonaRules(t *testing.T) {
