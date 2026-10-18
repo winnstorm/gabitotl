@@ -327,13 +327,15 @@ chars/4), not billing data. Real counts appear only when the runtime reports the
 
 Kiro gets the steering file, the skills, the MCP entry and, per person, a hook file
 `~/.kiro/hooks/gabitotl.json` (or `$KIRO_HOME/hooks/`) for both CLI and IDE, at any scope, never in the shared
-project `.kiro/`. `SessionStart` injects the active chat mode (`gabitotl persona mode --hook --format text`) and
-`PromptSubmit` runs `gabitotl context hook --format text --event prompt`, which prints a short checkpoint request
-only when usage crosses the threshold and is silent otherwise. Limits: Kiro has no pre-compaction event, so the 75%
-checkpoint stays a persona rule, and it documents no token usage, so the hook only acts if the payload carries an
-obvious usage field. Kiro documents `~/.kiro/hooks` for CLI V3; the IDE loading it is unconfirmed. To check, add `--dump`
-to the `PromptSubmit` command and look in `.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept) for what Kiro sends. If hooks
-do not load, the persona fallback line has the agent run `gabitotl persona mode` itself.
+project `.kiro/`. Two `SessionStart` hooks: one injects the active chat mode (`persona mode --hook --format text`),
+the other (`context hook --format text --event session --dump`) is silent and records the payload Kiro sends in
+`.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept). No `PromptSubmit` hook is installed yet: a failing one can block the
+prompt in the IDE, and Kiro documents no token usage. Once a dump shows usage fields it will be added. Limits: Kiro has no
+pre-compaction event, so the 75% checkpoint stays a persona rule; the IDE loading `~/.kiro/hooks` is unconfirmed (documented
+for CLI V3), so check the dump file after a new session. If hooks do not load, the persona fallback line has the agent run
+`gabitotl persona mode` itself. Hook commands (Kiro and Claude Code) call gabitotl by the absolute path of the binary that
+ran `install` (plain `gabitotl` when run via `go run`), because GUI apps may not inherit your shell PATH; re-run `install`
+after moving the binary and the hooks are updated.
 
 ### Chat modes
 

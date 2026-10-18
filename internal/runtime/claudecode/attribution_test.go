@@ -152,7 +152,7 @@ func TestProjectHooksMigrateOutOfSharedSettings(t *testing.T) {
 	must(t, os.MkdirAll(filepath.Dir(shared), 0o755))
 	must(t, os.WriteFile(shared, []byte("{\n  \"theme\": \"dark\"\n}\n"), 0o644))
 	var old []rt.Action
-	for _, k := range HookKeys() {
+	for _, k := range HookKeys(env) {
 		old = append(old, engine.PlanKey(Name, shared, k.Path, k.Value, false))
 	}
 	_, err := a.Apply(env, old)
@@ -234,5 +234,42 @@ func TestPersonaHookKeepsAUsersOwnSessionStart(t *testing.T) {
 	must(t, err)
 	if got := read(t, settings); !strings.Contains(got, `"mine"`) || strings.Contains(got, "persona mode --hook") {
 		t.Fatalf("a user's own SessionStart hook must be kept untouched:\n%s", got)
+	}
+}
+
+func TestHookCommandsUseAbsolutePathAndFollowMoves(t *testing.T) {
+	env, _ := fixture(t, true)
+	a := New()
+	local := a.hooksPath(env, rt.ScopeGlobal)
+	env.Exe = `C:\Program Files\gabitotl\gabitotl.exe`
+	plan, _ := a.Plan(env, opts)
+	_, err := a.Apply(env, plan)
+	must(t, err)
+	if got := read(t, local); !strings.Contains(got, `\"C:\\Program Files\\gabitotl\\gabitotl.exe\" context hook`) {
+		t.Fatalf("quoted absolute path expected:\n%s", got)
+	}
+	env.Exe = "/usr/local/bin/gabitotl"
+	plan, _ = a.Plan(env, opts)
+	_, err = a.Apply(env, plan)
+	must(t, err)
+	got := read(t, local)
+	if strings.Contains(got, "Program Files") || strings.Count(got, "/usr/local/bin/gabitotl ") != 3 {
+		t.Fatalf("hooks not updated:\n%s", got)
+	}
+	again, _ := a.Plan(env, opts)
+	for _, ac := range again {
+		if strings.HasPrefix(ac.Target, "key hooks.") && ac.Kind != rt.NoAction {
+			t.Fatalf("not idempotent: %v", ac)
+		}
+	}
+	// A hook the user wrote is still never replaced.
+	must(t, os.WriteFile(local, []byte(`{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`), 0o644))
+	env2, _ := fixture(t, true)
+	env2.Exe = "/x/gabitotl"
+	plan, _ = a.Plan(env2, opts)
+	for _, ac := range plan {
+		if ac.Path == a.hooksPath(env2, rt.ScopeGlobal) && ac.Target == "key hooks.SessionStart" && ac.Kind == rt.Modify {
+			t.Fatalf("user hook must be kept: %v", ac)
+		}
 	}
 }

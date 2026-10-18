@@ -290,18 +290,19 @@ func TestHooksFileContentSharedAndRemoved(t *testing.T) {
 	if err := json.Unmarshal([]byte(read(t, path)), &f); err != nil || f.Version != "v1" || len(f.Hooks) != 2 {
 		t.Fatalf("invalid hook file: %v %+v", err, f)
 	}
-	wantCmd := map[string]string{
-		"SessionStart": "gabitotl persona mode --hook --format text",
-		"PromptSubmit": "gabitotl context hook --format text --event prompt",
+	wantCmd := map[string]bool{
+		"gabitotl persona mode --hook --format text":                 true,
+		"gabitotl context hook --format text --event session --dump": true,
 	}
 	for _, h := range f.Hooks {
-		if h.Action.Type != "command" || h.Action.Command != wantCmd[h.Trigger] || h.Timeout != 10 || h.Name == "" {
+		// PromptSubmit can block a prompt in the IDE: it must not be installed.
+		if h.Trigger != "SessionStart" || h.Action.Type != "command" || !wantCmd[h.Action.Command] || h.Timeout != 10 || h.Name == "" {
 			t.Fatalf("unexpected hook: %+v", h)
 		}
-		delete(wantCmd, h.Trigger)
+		delete(wantCmd, h.Action.Command)
 	}
 	if len(wantCmd) != 0 {
-		t.Fatalf("missing triggers: %v", wantCmd)
+		t.Fatalf("missing hooks: %v", wantCmd)
 	}
 	// A fresh plan finds the file in place for either variant.
 	again, _ := ide.Plan(env, opts)
@@ -337,6 +338,35 @@ func TestHooksFileUserEditIsKept(t *testing.T) {
 	for _, a := range p {
 		if a.Path == path && a.Kind != rt.Preserve {
 			t.Fatalf("a user file must be preserved: %v", a)
+		}
+	}
+}
+
+func TestHooksUseAbsoluteBinaryPathAndFollowMoves(t *testing.T) {
+	env, kh := setup(t)
+	path := filepath.Join(kh, "hooks", "gabitotl.json")
+	cli := NewCLI()
+	env.Exe = `/opt/my tools/gabitotl`
+	p, _ := cli.Plan(env, opts)
+	if _, err := cli.Apply(env, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, path); !strings.Contains(got, `\"/opt/my tools/gabitotl\" persona mode --hook --format text`) {
+		t.Fatalf("path with spaces must be quoted:\n%s", got)
+	}
+	env.Exe = "/usr/local/bin/gabitotl" // the binary moved: re-running install updates our file
+	p, _ = cli.Plan(env, opts)
+	if _, err := cli.Apply(env, p); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, path)
+	if strings.Contains(got, "my tools") || !strings.Contains(got, "/usr/local/bin/gabitotl context hook --format text --event session --dump") {
+		t.Fatalf("hook file not updated:\n%s", got)
+	}
+	again, _ := cli.Plan(env, opts)
+	for _, a := range again {
+		if a.Path == path && a.Kind != rt.NoAction {
+			t.Fatalf("not idempotent: %v", a)
 		}
 	}
 }

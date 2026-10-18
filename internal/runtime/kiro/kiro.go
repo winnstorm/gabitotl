@@ -101,7 +101,7 @@ func (Core) hooksPath(env rt.Env) string {
 // hooksJSON is the Kiro IDE 1.0 / CLI V3 unified hook file (kiro.dev/docs/hooks).
 // Command hooks add STDOUT to the agent context on exit 0, so both commands
 // print nothing unless they have something to say.
-func hooksJSON() string {
+func hooksJSON(env rt.Env) string {
 	type action struct {
 		Type    string `json:"type"`
 		Command string `json:"command"`
@@ -115,9 +115,9 @@ func hooksJSON() string {
 	}
 	b, _ := json.MarshalIndent(map[string]any{"version": "v1", "hooks": []hook{
 		{"gabitotl-persona-mode", "Tell the agent the active GabitoTL chat mode", "SessionStart",
-			action{"command", "gabitotl persona mode --hook --format text"}, 10},
-		{"gabitotl-context-budget", "Ask the agent to checkpoint when the context budget is nearly used", "PromptSubmit",
-			action{"command", "gabitotl context hook --format text --event prompt"}, 10},
+			action{"command", env.Command("persona mode --hook --format text")}, 10},
+		{"gabitotl-capture-hook-input", "Record the hook payload Kiro sends (silent) so context hooks can be enabled", "SessionStart",
+			action{"command", env.Command("context hook --format text --event session --dump")}, 10},
 	}}, "", "  ")
 	return string(b) + "\n"
 }
@@ -204,7 +204,7 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, c.name, c.skillsDir(env, opts.Scope), opts.Skills)...)
-	plan = append(plan, engine.PlanFile(env, c.name, c.hooksPath(env), hooksJSON()))
+	plan = append(plan, engine.PlanFile(env, c.name, c.hooksPath(env), hooksJSON(env)))
 	return plan, nil
 }
 

@@ -50,6 +50,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/ownership"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
@@ -131,15 +132,38 @@ func AttributionKeys() []Key {
 // the person's chat mode so no tool call is needed (D42). Stop is not used:
 // its output cannot add context. If the user already defines hooks for the same
 // event the entry is kept as theirs (PRESERVE) and the prose rule remains.
-func HookKeys() []Key {
-	hook := func(cmd string) json.RawMessage {
-		return json.RawMessage(`[{"hooks":[{"type":"command","command":"` + cmd + `"}]}]`)
+func HookKeys(env rt.Env) []Key {
+	hook := func(args string) json.RawMessage {
+		v, _ := json.Marshal([]any{map[string]any{"hooks": []any{map[string]any{"type": "command", "command": env.Command(args)}}}})
+		return v
 	}
 	return []Key{
-		{[]string{"hooks", "PreCompact"}, hook("gabitotl context checkpoint")},
-		{[]string{"hooks", "UserPromptSubmit"}, hook("gabitotl context hook")},
-		{[]string{"hooks", "SessionStart"}, hook("gabitotl persona mode --hook")},
+		{[]string{"hooks", "PreCompact"}, hook(hookArgs[0])},
+		{[]string{"hooks", "UserPromptSubmit"}, hook(hookArgs[1])},
+		{[]string{"hooks", "SessionStart"}, hook(hookArgs[2])},
 	}
+}
+
+var hookArgs = [3]string{"context checkpoint", "context hook", "persona mode --hook"}
+
+// ownHook reports whether cur is a hook entry GabitoTL wrote earlier: one
+// command that is "gabitotl <args>" or "<some path to the binary> <args>".
+func ownHook(cur json.RawMessage) bool {
+	var v []struct {
+		Hooks []struct {
+			Command string `json:"command"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(cur, &v) != nil || len(v) != 1 || len(v[0].Hooks) != 1 {
+		return false
+	}
+	c := v[0].Hooks[0].Command
+	for _, a := range hookArgs {
+		if strings.HasSuffix(c, " "+a) {
+			return true
+		}
+	}
+	return false
 }
 
 // Attribution implements runtime.AttributionReporter: it reads settings.json
@@ -248,8 +272,8 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	hp := a.hooksPath(env, opts.Scope)
 	var hookPaths [][]string
-	for _, k := range HookKeys() {
-		plan = append(plan, engine.PlanKey(Name, hp, k.Path, k.Value, false))
+	for _, k := range HookKeys(env) {
+		plan = append(plan, engine.PlanOwnedKey(env, Name, hp, k.Path, k.Value, ownHook))
 		hookPaths = append(hookPaths, k.Path)
 	}
 	if sp := a.settingsPath(env, opts.Scope); sp != hp { // migrate hooks an earlier version put in the shared file
