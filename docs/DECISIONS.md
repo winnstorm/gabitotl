@@ -615,3 +615,16 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** failure detection is heuristic (keywords and `file:line:col:` positions), so the log is always
   kept and the `gabito-terminal` skill tells the agent to search it, not read it whole. Statistics are best-effort and
   never fail a run. A separate log file was chosen over `session.md` to avoid read-modify-write races.
+
+## D44. The project map follows git
+
+- **Decision:** inside a Git work tree the scanner lists files with `git ls-files -z --cached --others --exclude-standard`
+  (so `.gitignore` is honoured and a monorepo needs no directory walk); without git it falls back to the old walk and
+  skip list. Past the file cap (5000) the rest is only counted per top-level directory and type, and the map says it
+  was truncated. `gabitotl scan` keeps the map in `.gabitotl/local/users/<id>/scan-cache.json` with the HEAD it was
+  built from and a hash of the untracked-file list; it is reused while both match, `--refresh` rebuilds. The rendered
+  map is cut to about 800 tokens by shortening lists and says so. `DetectSignals` uses the same listing.
+- **Why:** the walk ignored `.gitignore`, stopped silently at 5000 files and re-read everything on every call.
+- **Consequences:** the map is an aggregate, so a changed HEAD or untracked set means a full rebuild (cheap with
+  `ls-files`), not a per-file patch. Uncommitted edits to tracked files do not invalidate the cache. No cache is written
+  before `init` or without an active identity.

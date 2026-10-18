@@ -46,6 +46,62 @@ func DetectSignals(root string) (Signals, error) {
 	if st, err := os.Stat(root); err != nil || !st.IsDir() {
 		return s, fmt.Errorf("%s is not a directory", root)
 	}
+	if files, ok := gitListing(root); ok {
+		for _, rel := range files {
+			if observe(&s, rel) {
+				break
+			}
+		}
+	} else if err := walkSignals(root, &s); err != nil {
+		return s, err
+	}
+	s.GitHistory = hasGitHistory(root)
+	return s, nil
+}
+
+// gitListing lists tracked plus untracked-not-ignored files (honouring
+// .gitignore without walking directories); ok is false outside a repository.
+func gitListing(root string) ([]string, bool) {
+	out, err := exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
+	if err != nil {
+		return nil, false
+	}
+	var files []string
+	for _, p := range strings.Split(string(out), "\x00") {
+		if p != "" {
+			files = append(files, p)
+		}
+	}
+	return files, true
+}
+
+// observe records what the repo-relative file rel says about the project and
+// reports whether both a manifest and code were found (nothing more to learn).
+// Files under skipped or hidden directories are ignored.
+func observe(s *Signals, rel string) bool {
+	parts := strings.Split(rel, "/")
+	for _, d := range parts[:len(parts)-1] {
+		if skipDirs[d] || strings.HasPrefix(d, ".") {
+			return false
+		}
+	}
+	name := parts[len(parts)-1]
+	if len(parts) == 1 {
+		if manifests[name] {
+			s.Manifest = true
+		}
+		if strings.HasPrefix(strings.ToLower(name), "readme") {
+			s.Readme = true
+		}
+	}
+	if codeExts[strings.ToLower(filepath.Ext(name))] {
+		s.CodeFiles = true
+	}
+	return s.CodeFiles && s.Manifest
+}
+
+// walkSignals is the fallback without Git: a bounded directory walk.
+func walkSignals(root string, s *Signals) error {
 	seen := 0
 	errStop := errors.New("stop")
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -61,26 +117,19 @@ func DetectSignals(root string) (Signals, error) {
 		if seen++; seen > maxWalkEntries {
 			return errStop
 		}
-		name := d.Name()
-		if manifests[name] && filepath.Dir(path) == root {
-			s.Manifest = true
+		rel, rerr := filepath.Rel(root, path)
+		if rerr != nil {
+			return nil
 		}
-		if filepath.Dir(path) == root && strings.HasPrefix(strings.ToLower(name), "readme") {
-			s.Readme = true
-		}
-		if codeExts[strings.ToLower(filepath.Ext(name))] {
-			s.CodeFiles = true
-		}
-		if s.CodeFiles && s.Manifest {
+		if observe(s, filepath.ToSlash(rel)) {
 			return errStop
 		}
 		return nil
 	})
 	if err != nil && !errors.Is(err, errStop) {
-		return s, err
+		return err
 	}
-	s.GitHistory = hasGitHistory(root)
-	return s, nil
+	return nil
 }
 
 func hasGitHistory(root string) bool {
