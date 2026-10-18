@@ -578,3 +578,13 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** packing lives in `internal/memory` and repeats the chars/3.6 estimate because `budget` imports
   `memory`. With no provider the command prints one notice and exits 0. Omitted entries are counted, not listed;
   `memory search` still reads one in full.
+
+## D41. History scan is incremental
+
+- **Decision:** `guard scan --history` remembers, per person, the ref tips whose history it scanned with no findings
+  (`.gabitotl/local/users/<id>/guard-history.txt`) and next time runs `git log --all --not <those tips>`. Tips are
+  recorded only after a clean scan; `--full` forces the old full read.
+- **Why:** the scan read the full body of every commit on every ref each time, which grows with history.
+- **Consequences:** a stored tip whose object is gone is ignored; one that exists but is unreachable is still valid
+  (its ancestry was scanned when recorded). A lost or corrupt file only costs a full scan. `guard fix` and `doctor`
+  still scan fully.

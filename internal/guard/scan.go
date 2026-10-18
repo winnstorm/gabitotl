@@ -2,6 +2,8 @@ package guard
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -157,23 +159,56 @@ type HistoryFinding struct {
 // ScanHistory reads every commit reachable from any ref (read-only) and reports
 // attribution in messages and AI identities as author or committer.
 func ScanHistory(ctx context.Context, run vcs.Runner, dir string, s Settings) ([]HistoryFinding, error) {
+	res, err := ScanHistoryIncremental(ctx, run, dir, s, "", true)
+	return res.Findings, err
+}
+
+// HistoryResult is a history scan outcome plus how many commits it read.
+type HistoryResult struct {
+	Findings []HistoryFinding
+	Scanned  int
+}
+
+// ScanHistoryIncremental is ScanHistory limited to commits not yet scanned
+// clean. store is a file of ref tips whose whole ancestry was scanned without
+// findings; "" disables remembering. full ignores it and rescans everything.
+// Tips are recorded only after a scan with no findings, so findings are
+// reported again until fixed. A stored tip whose object no longer exists is
+// ignored; one that still exists but is no longer reachable is still valid,
+// because its ancestry was scanned when it was recorded.
+func ScanHistoryIncremental(ctx context.Context, run vcs.Runner, dir string, s Settings, store string, full bool) (HistoryResult, error) {
 	const rs, us = "\x1e", "\x1f"
-	out, err := run.Run(ctx, dir, "git", "log", "--all", "--format=%H"+"%x1f"+"%an"+"%x1f"+"%ae"+"%x1f"+"%cn"+"%x1f"+"%ce"+"%x1f"+"%B"+"%x1e")
+	tips := currentTips(ctx, run, dir)
+	args := []string{"log", "--all", "--format=%H" + "%x1f" + "%an" + "%x1f" + "%ae" + "%x1f" + "%cn" + "%x1f" + "%ce" + "%x1f" + "%B" + "%x1e"}
+	if store != "" && !full {
+		var known []string
+		for _, t := range readTips(store) {
+			if _, err := run.Run(ctx, dir, "git", "rev-parse", "--verify", "-q", t+"^{commit}"); err == nil {
+				known = append(known, t)
+			}
+		}
+		if len(known) > 0 {
+			args = append(args, "--not")
+			args = append(args, known...)
+		}
+	}
+	out, err := run.Run(ctx, dir, "git", args...)
 	if err != nil {
-		return nil, err
+		return HistoryResult{}, err
 	}
 	d := s.Detector()
-	var res []HistoryFinding
+	var res HistoryResult
 	for _, rec := range strings.Split(out, rs) {
 		rec = strings.TrimLeft(rec, "\n")
 		f := strings.SplitN(rec, us, 6)
 		if len(f) < 6 {
 			continue
 		}
+		res.Scanned++
 		sha, an, ae, cn, ce, msg := f[0], f[1], f[2], f[3], f[4], f[5]
 		subject, _, _ := strings.Cut(strings.TrimSpace(msg), "\n")
 		add := func(where string, c branding.Class, text string) {
-			res = append(res, HistoryFinding{Commit: sha, Subject: subject, Where: where, Class: c, Text: text})
+			res.Findings = append(res.Findings, HistoryFinding{Commit: sha, Subject: subject, Where: where, Class: c, Text: text})
 		}
 		if d.IsAIIdentity(an + " <" + ae + ">") {
 			add("author", branding.ClassTrailer, an+" <"+ae+">")
@@ -185,5 +220,49 @@ func ScanHistory(ctx context.Context, run vcs.Runner, dir string, s Settings) ([
 			add("message", fd.Class, fd.Text)
 		}
 	}
+	if store != "" && len(res.Findings) == 0 && len(tips) > 0 {
+		_ = writeTips(store, tips) // best effort: a lost cache only costs a full scan
+	}
 	return res, nil
+}
+
+// currentTips lists the objects every ref (and HEAD) points at.
+func currentTips(ctx context.Context, run vcs.Runner, dir string) []string {
+	out, err := run.Run(ctx, dir, "git", "for-each-ref", "--format=%(objectname)")
+	if err != nil {
+		return nil
+	}
+	if h, err := run.Run(ctx, dir, "git", "rev-parse", "-q", "--verify", "HEAD"); err == nil {
+		out += "\n" + h
+	}
+	seen := map[string]bool{}
+	var tips []string
+	for _, t := range strings.Fields(out) {
+		if !seen[t] {
+			seen[t] = true
+			tips = append(tips, t)
+		}
+	}
+	return tips
+}
+
+func readTips(store string) []string {
+	b, err := os.ReadFile(store)
+	if err != nil {
+		return nil
+	}
+	var tips []string
+	for _, t := range strings.Fields(string(b)) {
+		if len(t) >= 40 && len(t) <= 64 && strings.Trim(t, "0123456789abcdef") == "" {
+			tips = append(tips, t)
+		}
+	}
+	return tips
+}
+
+func writeTips(store string, tips []string) error {
+	if err := os.MkdirAll(filepath.Dir(store), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(store, []byte(strings.Join(tips, "\n")+"\n"), 0o644)
 }

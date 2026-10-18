@@ -335,3 +335,47 @@ func slicesHas(l []string, s string) bool {
 	}
 	return false
 }
+
+func TestScanHistoryIncremental(t *testing.T) {
+	ctx := context.Background()
+	dir := newRepo(t)
+	store := filepath.Join(t.TempDir(), "u", "guard-history.txt")
+	commit := func(name, msg string) {
+		put(t, dir, name, name+"\n")
+		git(t, dir, "add", name)
+		git(t, dir, "commit", "-q", "-m", msg)
+	}
+	scan := func(full bool) HistoryResult {
+		t.Helper()
+		r, err := ScanHistoryIncremental(ctx, runner(), dir, Settings{}, store, full)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	commit("a.txt", "feat: a")
+	commit("b.txt", "feat: b")
+	if r := scan(false); r.Scanned != 2 || len(r.Findings) != 0 {
+		t.Fatalf("first scan = %+v", r)
+	}
+	if r := scan(false); r.Scanned != 0 {
+		t.Fatalf("no new commits must scan 0, got %+v", r)
+	}
+	commit("c.txt", "feat: c\n\n"+trailer)
+	if r := scan(false); r.Scanned != 1 || len(r.Findings) != 1 {
+		t.Fatalf("new bad commit = %+v", r)
+	}
+	if r := scan(false); r.Scanned != 1 || len(r.Findings) != 1 {
+		t.Fatalf("finding must be re-reported: %+v", r)
+	}
+	if r := scan(true); r.Scanned != 3 {
+		t.Fatalf("--full = %+v", r)
+	}
+	// An unreachable (garbage) stored tip is ignored, not an error.
+	if err := os.WriteFile(store, []byte(strings.Repeat("ab", 20)+"\nnot-a-sha\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := scan(false); r.Scanned != 3 {
+		t.Fatalf("unknown stored tip must fall back to full: %+v", r)
+	}
+}
