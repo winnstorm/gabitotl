@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ func runRun(env Env, args []string) int {
 	fs.SetOutput(env.Stderr)
 	maxLines := fs.Int("max-lines", digest.DefaultMaxLines, "cap on failure lines printed")
 	tail := fs.Int("tail", digest.DefaultTail, "trailing output lines printed")
+	keep := fs.Int("keep", defaultKeepLogs, "run logs to keep (0 = keep all)")
 	asJSON := fs.Bool("json", false, "print JSON")
 	root := fs.String("root", "", "project root (default: Git top-level of the current directory)")
 	if err := fs.Parse(args); err != nil {
@@ -67,6 +69,14 @@ func runRun(env Env, args []string) int {
 	full := buf.String()
 	logDir, layout, haveProject := runLogDir(env, *root)
 	logPath := writeRunLog(logDir, start, buf.Bytes())
+	if logPath != "-" {
+		pruneRunLogs(logDir, *keep)
+		if haveProject {
+			if rel, err := filepath.Rel(layout.Root, logPath); err == nil && !strings.HasPrefix(rel, "..") {
+				logPath = filepath.ToSlash(rel)
+			}
+		}
+	}
 
 	res := digest.Digest(full, digest.Options{MaxLines: *maxLines, Tail: *tail, OK: exit == 0})
 	header := fmt.Sprintf("run: %s → exit %d in %.1fs, %d lines (log: %s)", name, exit, secs, res.Lines, logPath)
@@ -103,6 +113,24 @@ func runLogDir(env Env, flagRoot string) (string, gabitotl.Layout, bool) {
 	}
 	layout := gabitotl.NewLayout(root)
 	return filepath.Join(layout.Dir(), "tmp"), layout, true
+}
+
+const defaultKeepLogs = 20
+
+// pruneRunLogs deletes all but the newest keep files named run-*.log (best-effort).
+// Names embed a sortable timestamp, so name order is age order.
+func pruneRunLogs(dir string, keep int) {
+	if keep <= 0 {
+		return
+	}
+	logs, err := filepath.Glob(filepath.Join(dir, "run-*.log"))
+	if err != nil || len(logs) <= keep {
+		return
+	}
+	sort.Strings(logs)
+	for _, p := range logs[:len(logs)-keep] {
+		_ = os.Remove(p)
+	}
 }
 
 // writeRunLog saves the full output and returns its path ("-" if it cannot be saved).

@@ -47,3 +47,35 @@ func TestRunNotFoundAndUsage(t *testing.T) {
 		t.Fatalf("exit = %d", code)
 	}
 }
+
+func TestRunKeepsNewestLogsAndShortPath(t *testing.T) {
+	root := t.TempDir()
+	tmp := filepath.Join(root, ".gabitotl", "tmp")
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"run-20200101-000000.001.log", "run-20200102-000000.001.log", "run-20200103-000000.001.log", "notes.log"} {
+		if err := os.WriteFile(filepath.Join(tmp, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env, out, _ := runEnv(root)
+	if code := Run([]string{"run", "--root", root, "--keep", "2", "--", "echo", "hi"}, env); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	logs, _ := filepath.Glob(filepath.Join(tmp, "run-*.log"))
+	if len(logs) != 2 {
+		t.Fatalf("logs = %v, want 2 newest", logs)
+	}
+	if _, err := os.Stat(filepath.Join(tmp, "notes.log")); err != nil {
+		t.Fatal("non-matching file must survive")
+	}
+	if !strings.Contains(out.String(), "(log: .gabitotl/tmp/run-") {
+		t.Fatalf("path not relative: %q", out.String())
+	}
+	env, _, _ = runEnv(root)
+	Run([]string{"run", "--root", root, "--keep", "0", "--", "echo", "hi"}, env)
+	if logs, _ = filepath.Glob(filepath.Join(tmp, "run-*.log")); len(logs) != 3 {
+		t.Fatalf("keep 0 must keep all: %v", logs)
+	}
+}
