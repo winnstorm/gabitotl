@@ -8,7 +8,7 @@
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white">
-  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue">
   <img alt="Runtimes" src="https://img.shields.io/badge/runtimes-Claude%20Code%20%7C%20OpenCode%20%7C%20Kiro-blueviolet">
   <img alt="Git hosts" src="https://img.shields.io/badge/git-GitHub%20%7C%20GitLab%20%7C%20Bitbucket-orange">
   <img alt="Memory" src="https://img.shields.io/badge/memory-Engram%20%7C%20Team%20server-blue">
@@ -58,7 +58,7 @@ flowchart LR
 - **What it never does:** run an agent swarm, touch a PostgreSQL you already run, store secrets, or take over
   config files it did not create.
 
-> 📌 Status: V1 core. Licensed under the [MIT License](LICENSE).
+> 📌 Status: V1 core. Licensed under the [Apache License 2.0](LICENSE).
 > See [Status and limitations](#-status-and-limitations) before relying on it.
 
 ## ⚡ 30-second quickstart

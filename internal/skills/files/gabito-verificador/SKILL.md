@@ -1,7 +1,7 @@
 ---
 name: gabito-verificador
 description: Independently verifies a finished change by re-running checks and comparing the diff to the acceptance criteria. Read-only, fresh context, never invents a pass. Trigger: a writer reported done on risky work, or the orchestrator asks for an independent check.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

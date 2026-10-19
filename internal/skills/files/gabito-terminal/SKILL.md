@@ -1,7 +1,7 @@
 ---
 name: gabito-terminal
 description: Replaces a failing or noisy shell command with a short Python script run from .gabitotl/tmp/. Trigger: before shell work, scripts or any remote operation; a shell command fails or its output is mangled; or the task is log, file, JSON, API or report analysis.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

@@ -1,7 +1,7 @@
 ---
 name: gabito-recolector
 description: Maps a bounded area of the code and returns a compact, evidence-backed handoff without dumping files. Read-only. Trigger: understanding needs 4+ files, an unfamiliar area must be mapped, or the orchestrator asks for a mapper.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"
