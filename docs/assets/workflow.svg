@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 220" width="1000" height="220" role="img" aria-labelledby="t d" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">GabitoTL workflow</title>
+<desc id="d">Understand, remember, investigate, act, verify, deliver. Memory is saved along the way.</desc>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+<rect width="1000" height="220" rx="20" fill="#f8fafc" stroke="#cbd5e1"/>
+<rect x="24" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#0ea5e9" stroke-width="2.5"/>
+<circle cx="92" cy="68" r="15" fill="#0ea5e9"/><text x="92" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">1</text>
+<text x="92" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Understand</text>
+<text x="92" y="132" text-anchor="middle" font-size="12.5" fill="#475569">scan, who</text>
+<path d="M162 95H182" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<rect x="184" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#8b5cf6" stroke-width="2.5"/>
+<circle cx="252" cy="68" r="15" fill="#8b5cf6"/><text x="252" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">2</text>
+<text x="252" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Remember</text>
+<text x="252" y="132" text-anchor="middle" font-size="12.5" fill="#475569">memory context</text>
+<path d="M322 95H342" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<rect x="344" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#14b8a6" stroke-width="2.5"/>
+<circle cx="412" cy="68" r="15" fill="#14b8a6"/><text x="412" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">3</text>
+<text x="412" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Investigate</text>
+<text x="412" y="132" text-anchor="middle" font-size="12.5" fill="#475569">recolector skill</text>
+<path d="M482 95H502" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<rect x="504" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#f59e0b" stroke-width="2.5"/>
+<circle cx="572" cy="68" r="15" fill="#f59e0b"/><text x="572" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">4</text>
+<text x="572" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Act</text>
+<text x="572" y="132" text-anchor="middle" font-size="12.5" fill="#475569">escritor skill</text>
+<path d="M642 95H662" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<rect x="664" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#ef4444" stroke-width="2.5"/>
+<circle cx="732" cy="68" r="15" fill="#ef4444"/><text x="732" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">5</text>
+<text x="732" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Verify</text>
+<text x="732" y="132" text-anchor="middle" font-size="12.5" fill="#475569">verificador skill</text>
+<path d="M802 95H822" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+<rect x="824" y="40" width="136" height="110" rx="14" fill="#ffffff" stroke="#22c55e" stroke-width="2.5"/>
+<circle cx="892" cy="68" r="15" fill="#22c55e"/><text x="892" y="74" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">6</text>
+<text x="892" y="108" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">Deliver</text>
+<text x="892" y="132" text-anchor="middle" font-size="12.5" fill="#475569">vcs ship</text>
+<rect x="24" y="170" width="952" height="32" rx="16" fill="#ede9fe" stroke="#8b5cf6"/>
+<text x="500" y="191" text-anchor="middle" font-size="14" fill="#0f172a">Memory is queried first and saved at every decision, so the work survives a closed chat.</text>
+</svg>

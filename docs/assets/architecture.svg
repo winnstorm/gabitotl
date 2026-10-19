@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" role="img" aria-labelledby="t d" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">GabitoTL architecture</title>
+  <desc id="d">One Core with adapters for Claude Code, OpenCode, Kiro IDE and Kiro CLI, memory providers Engram and Memory MCP over PostgreSQL, and Git hosts.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker>
+  </defs>
+  <rect width="1000" height="540" rx="20" fill="#f8fafc" stroke="#cbd5e1"/>
+  <g font-size="14" fill="#0f172a">
+    <text x="500" y="34" text-anchor="middle" font-size="18" font-weight="700">One Core, many adapters</text>
+
+    <text x="40" y="70" font-weight="700" fill="#475569">AGENT RUNTIMES (adapters)</text>
+    <rect x="40" y="82" width="190" height="46" rx="10" fill="#e0f2fe" stroke="#38bdf8"/><text x="135" y="111" text-anchor="middle" font-weight="600">Claude Code</text>
+    <rect x="250" y="82" width="190" height="46" rx="10" fill="#e0f2fe" stroke="#38bdf8"/><text x="345" y="111" text-anchor="middle" font-weight="600">OpenCode</text>
+    <rect x="460" y="82" width="190" height="46" rx="10" fill="#e0f2fe" stroke="#38bdf8"/><text x="555" y="111" text-anchor="middle" font-weight="600">Kiro IDE</text>
+    <rect x="670" y="82" width="190" height="46" rx="10" fill="#e0f2fe" stroke="#38bdf8"/><text x="765" y="111" text-anchor="middle" font-weight="600">Kiro CLI</text>
+
+    <path d="M135 130V200M345 130V200M555 130V200M765 130V200" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+    <text x="880" y="170" font-size="12" fill="#475569">persona, skills,</text>
+    <text x="880" y="186" font-size="12" fill="#475569">hooks, MCP entry</text>
+
+    <rect x="40" y="204" width="820" height="130" rx="16" fill="#1e3a8a"/>
+    <text x="450" y="236" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">GabitoTL Core (single Go binary)</text>
+    <g font-size="13" fill="#e0f2fe" text-anchor="middle">
+      <rect x="64" y="252" width="150" height="62" rx="10" fill="#ffffff" fill-opacity="0.14"/><text x="139" y="279">Persona and</text><text x="139" y="297">chat modes</text>
+      <rect x="230" y="252" width="150" height="62" rx="10" fill="#ffffff" fill-opacity="0.14"/><text x="305" y="279">Context budget</text><text x="305" y="297">and savings</text>
+      <rect x="396" y="252" width="150" height="62" rx="10" fill="#ffffff" fill-opacity="0.14"/><text x="471" y="279">Authorship</text><text x="471" y="297">guard</text>
+      <rect x="562" y="252" width="150" height="62" rx="10" fill="#ffffff" fill-opacity="0.14"/><text x="637" y="279">Team presence</text><text x="637" y="297">who, work</text>
+      <rect x="728" y="252" width="116" height="62" rx="10" fill="#ffffff" fill-opacity="0.14"/><text x="786" y="279">Backups</text><text x="786" y="297">and doctor</text>
+    </g>
+
+    <path d="M200 336V398M450 336V398M700 336V398" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+    <text x="40" y="386" font-weight="700" fill="#475569">PROVIDERS</text>
+    <rect x="40" y="402" width="330" height="100" rx="14" fill="#ede9fe" stroke="#8b5cf6"/>
+    <text x="205" y="430" text-anchor="middle" font-weight="700">Memory</text>
+    <text x="205" y="454" text-anchor="middle" font-size="13">Engram (one person)</text>
+    <text x="205" y="476" text-anchor="middle" font-size="13">Memory MCP + PostgreSQL (team)</text>
+    <rect x="395" y="402" width="230" height="100" rx="14" fill="#dcfce7" stroke="#22c55e"/>
+    <text x="510" y="430" text-anchor="middle" font-weight="700">.gabitotl/</text>
+    <text x="510" y="454" text-anchor="middle" font-size="13">reviewable config and</text>
+    <text x="510" y="476" text-anchor="middle" font-size="13">working state, in Git</text>
+    <rect x="650" y="402" width="310" height="100" rx="14" fill="#ffedd5" stroke="#f97316"/>
+    <text x="805" y="430" text-anchor="middle" font-weight="700">Git delivery</text>
+    <text x="805" y="454" text-anchor="middle" font-size="13">commit, push, PR, merge</text>
+    <text x="805" y="476" text-anchor="middle" font-size="13">GitHub, GitLab, Bitbucket Cloud</text>
+  </g>
+</svg>
