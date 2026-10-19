@@ -244,7 +244,8 @@ func (s scanner) insert(open int, key, rawValue string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	closeIndent, _ := s.lineIndent(closeIdx)
+	closeSeg, _ := s.lineIndent(closeIdx)
+	closeIndent := closeSeg[:len(closeSeg)-len(strings.TrimLeft(closeSeg, " \t"))] // the close may follow text on its line
 	multiline := bytes.IndexByte(s.d[open:closeIdx], '\n') >= 0
 	memIndent := closeIndent + "  "
 	if len(ms) > 0 {

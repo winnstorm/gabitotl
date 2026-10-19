@@ -174,3 +174,17 @@ func TestStateRoundTripAndMerge(t *testing.T) {
 		t.Fatal("ForRuntime")
 	}
 }
+
+func TestSetInsertsAfterAMemberThatEndsMidLine(t *testing.T) {
+	data := []byte(`{"hooks":{"A":[{"x":1}]}}`)
+	for _, k := range []string{"B", "C"} {
+		out, _, err := Set(data, []string{"hooks", k}, json.RawMessage(`[{"y":2}]`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = out
+		if !json.Valid(data) {
+			t.Fatalf("invalid JSON after adding %s:\n%s", k, data)
+		}
+	}
+}

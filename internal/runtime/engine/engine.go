@@ -178,6 +178,38 @@ func PlanRetireServers(env rt.Env, runtime, path string, container []string, kee
 	return out
 }
 
+// PlanRetireKeys plans the removal of exact JSON keys that an earlier run of
+// GabitoTL created in path (the ownership state says so for this runtime and
+// key) and that are still present. A key the user created, or that GabitoTL
+// merely adopted, is never planned.
+func PlanRetireKeys(env rt.Env, runtime, path string, keys [][]string) []rt.Action {
+	st, err := env.Store().Load()
+	if err != nil {
+		return nil
+	}
+	i, ok := st.Find(path)
+	if !ok || !containsStr(st.Entries[i].Runtimes, runtime) {
+		return nil
+	}
+	data, exists, err := readFile(path)
+	if err != nil || !exists {
+		return nil
+	}
+	var out []rt.Action
+	for _, key := range keys {
+		if !hasKey(st.Entries[i], key, "") {
+			continue
+		}
+		if _, present, err := ownership.Get(data, key); err != nil || !present {
+			continue
+		}
+		out = append(out, rt.Action{Kind: rt.RemoveAfterVerify, Runtime: runtime, Path: path, Target: "key " + strings.Join(key, "."),
+			Detail: "moved to a per-person file; only the key GabitoTL created is removed",
+			Edit:   rt.Edit{Op: rt.OpRemoveKey, Key: key}})
+	}
+	return out
+}
+
 // PlanItem plans a managed string item in a JSON array.
 func PlanItem(runtime, path string, key []string, item string) rt.Action {
 	target := fmt.Sprintf("item %s[%s]", strings.Join(key, "."), item)

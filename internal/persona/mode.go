@@ -69,3 +69,13 @@ func Rules(m Mode) string {
 	}
 	return rulesHeader + r
 }
+
+// HookContext is what a session-start hook injects for m: the full rules for
+// lite and full, and a one-line confirmation for normal (so the agent does not
+// fall back to asking for the mode with a tool call).
+func HookContext(m Mode) string {
+	if m == ModeLite || m == ModeFull {
+		return "Persona " + strings.TrimSpace(Rules(m)) + "\n"
+	}
+	return "Persona mode normal: no change, follow the persona defaults.\n"
+}

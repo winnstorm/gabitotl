@@ -192,15 +192,14 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 	}
 	for _, rule := range []string{
 		"Argentine Spanish", "ALWAYS query memory", "Current code > `.gabitotl/` > Git > memory > imported docs",
-		"at most one optional helper", "Never several agents in parallel", "Never rewrite shared history",
+		"one helper at a time, sequentially", "Never several agents in parallel", "Never rewrite shared history",
 		"revert commit", "Never claim something works without checking", "Never write passwords, tokens",
 		"OJO:", "TIP:", "Ask BEFORE working", "Decide alone", "75%", "**Qué hice:**", "**Progreso:**", "**Qué sigue:**",
 		"Este chat ya viene bastante largo", "one or two sentences", "Back up existing files",
 		"Authorship (highest priority)", "Never add AI/LLM branding or attribution anywhere",
 		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
-		"## Noisy terminal", "do not retry the same command", "short Python script in `.gabitotl/tmp/`",
-		"The voice applies ONLY to what you say in chat", "## Terminal and scripts", "Python is the default scripting language",
-		"gabitotl persona mode", "## Remote operations", "explicit OK for the destination", "load the matching `gabito-*` skill",
+		"The voice applies ONLY to what you say in chat", "## Terminal and remote", "load the `gabito-terminal` skill",
+		"gabitotl persona mode", "Local permission does not authorize remote work", "explicit OK", "If no persona-mode rules were injected at session start", "load the matching `gabito-*` skill",
 	} {
 		if !strings.Contains(text, rule) {
 			t.Errorf("persona text is missing the rule %q", rule)

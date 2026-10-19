@@ -34,7 +34,8 @@
 //     adapter does not read CLAUDE_CONFIG_DIR, like the rest of this package).
 //     Each is a whole file GabitoTL owns (engine.PlanFile).
 //
-//   - Hooks: settings.json "hooks" maps an event (PreCompact, UserPromptSubmit) to
+//   - Hooks: settings.json "hooks" (project scope: .claude/settings.local.json,
+//     per person) maps an event (PreCompact, UserPromptSubmit, SessionStart) to
 //     [{"hooks":[{"type":"command","command":"..."}]}]; the command receives the
 //     event JSON on stdin (including transcript_path) and a UserPromptSubmit
 //     command may print {"hookSpecificOutput":{"hookEventName":...,
@@ -102,6 +103,16 @@ func (a *Adapter) settingsPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(a.dir(env), "settings.json")
 }
 
+// hooksPath is where the hooks live. They run `gabitotl`, which a teammate may
+// not have, so at project scope they go in the per-person, normally git-ignored
+// .claude/settings.local.json instead of the shared settings.json (D42).
+func (a *Adapter) hooksPath(env rt.Env, s rt.Scope) string {
+	if s == rt.ScopeProject && env.ProjectRoot != "" {
+		return filepath.Join(env.ProjectRoot, ".claude", "settings.local.json")
+	}
+	return a.settingsPath(env, s)
+}
+
 // AttributionKeys are the managed settings that stop Claude Code from adding
 // its own authorship line to commits and pull requests: authorship belongs to
 // the person who asked for the work.
@@ -116,7 +127,8 @@ func AttributionKeys() []Key {
 // HookKeys are the managed settings.json hook entries that enforce the context
 // budget (D39): PreCompact saves a checkpoint to memory before the host
 // compacts, and UserPromptSubmit measures the transcript and, past the
-// threshold, injects a one-line instruction to checkpoint. Stop is not used:
+// threshold, injects a one-line instruction to checkpoint; SessionStart injects
+// the person's chat mode so no tool call is needed (D42). Stop is not used:
 // its output cannot add context. If the user already defines hooks for the same
 // event the entry is kept as theirs (PRESERVE) and the prose rule remains.
 func HookKeys() []Key {
@@ -126,6 +138,7 @@ func HookKeys() []Key {
 	return []Key{
 		{[]string{"hooks", "PreCompact"}, hook("gabitotl context checkpoint")},
 		{[]string{"hooks", "UserPromptSubmit"}, hook("gabitotl context hook")},
+		{[]string{"hooks", "SessionStart"}, hook("gabitotl persona mode --hook")},
 	}
 }
 
@@ -183,7 +196,11 @@ func (a *Adapter) Detect(env rt.Env) rt.Detection {
 }
 
 func (a *Adapter) Inspect(env rt.Env, opts rt.Options) (rt.Inspection, error) {
-	return engine.Inspect(env, Name, a.personaPath(env, opts.Scope), a.mcpPath(env, opts.Scope), a.settingsPath(env, opts.Scope)), nil
+	paths := []string{a.personaPath(env, opts.Scope), a.mcpPath(env, opts.Scope), a.settingsPath(env, opts.Scope)}
+	if hp := a.hooksPath(env, opts.Scope); hp != paths[2] {
+		paths = append(paths, hp)
+	}
+	return engine.Inspect(env, Name, paths...), nil
 }
 
 func (a *Adapter) Backup(env rt.Env, snap *rt.Snapshot, plan []rt.Action) error {
@@ -229,8 +246,14 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	for _, k := range AttributionKeys() {
 		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
 	}
+	hp := a.hooksPath(env, opts.Scope)
+	var hookPaths [][]string
 	for _, k := range HookKeys() {
-		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
+		plan = append(plan, engine.PlanKey(Name, hp, k.Path, k.Value, false))
+		hookPaths = append(hookPaths, k.Path)
+	}
+	if sp := a.settingsPath(env, opts.Scope); sp != hp { // migrate hooks an earlier version put in the shared file
+		plan = append(plan, engine.PlanRetireKeys(env, Name, sp, hookPaths)...)
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, Name, a.skillsDir(env, opts.Scope), opts.Skills)...)

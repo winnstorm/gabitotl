@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -34,8 +35,12 @@ func runPersonaMode(env Env, args []string) int {
 	fs := flag.NewFlagSet("persona mode", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
 	rootFlag := fs.String("root", "", "project root (default: search upward from the current directory)")
+	hook := fs.Bool("hook", false, "print the active mode as SessionStart hook additionalContext JSON (never fails)")
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
+	}
+	if *hook {
+		return runPersonaModeHook(env, *rootFlag)
 	}
 	if fs.NArg() > 1 {
 		fmt.Fprintln(env.Stderr, "Usage: gabitotl persona mode [normal|lite|full] [--root DIR]")
@@ -71,5 +76,20 @@ func runPersonaMode(env Env, args []string) int {
 		return ExitError
 	}
 	fmt.Fprintf(env.Stdout, "mode: %s\nsaved in %s\n", want, path)
+	return ExitOK
+}
+
+// runPersonaModeHook backs the Claude Code SessionStart hook: it injects the
+// active mode so the agent needs no tool call. Like every hook it exits 0.
+func runPersonaModeHook(env Env, rootFlag string) int {
+	root, err := resolveRoot(env, rootFlag)
+	if err != nil {
+		root = ""
+	}
+	home, _ := os.UserHomeDir()
+	m := gabitotl.LoadPersonaMode(gabitotl.NewLayout(root), gabitotl.ActiveUserID(), home)
+	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
+		"hookEventName": "SessionStart", "additionalContext": persona.HookContext(m)}})
+	fmt.Fprintln(env.Stdout, string(b))
 	return ExitOK
 }
