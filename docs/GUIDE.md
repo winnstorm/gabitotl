@@ -63,9 +63,22 @@ per-project indexing are project-level and live in the Manager.
 - A Start menu entry, an optional desktop shortcut, and an entry in Settings > Apps.
 - GabitoTL's own data stays where the CLI keeps it (`~/.gabitotl`, per-project `.gabitotl/`).
 
-**The Manager.** After setup the same app opens as the Manager: doctor with one-click fixes, integrations
-(Claude Code, OpenCode, Kiro, guard hooks), settings (persona, memory, delivery), backups and restore, and
-uninstall. Every change is shown as a plan first and nothing runs until you accept it.
+**The Manager.** After setup the same app opens as the Manager, in two levels. Every change is shown as a plan
+first and nothing runs until you accept it.
+
+- **Global** (applies to every project): Overview, Delivery & credentials (your defaults for automation, merge
+  method, draft PRs and branch cleanup, plus one access token per platform), CodeGraph (status, install, repair or
+  upgrade, and which agents have its server), Integrations (Claude Code, OpenCode, Kiro), Persona, Doctor, Windows
+  integration, Backups and Uninstall.
+- **Projects**: a searchable list of the folders GabitoTL knows (`.gabitotl/`) plus the projects your agents
+  already know from Claude Code, OpenCode and Kiro, with a badge per source and "Not set up" for folders without
+  `.gabitotl`. Use "Add folder..." for anything else, "Forget" to drop a row (nothing on disk changes). Opening a
+  project shows its tabs: Overview (git, platform detected from the remote, and "Set up GabitoTL in this project"
+  when it is missing), Delivery (the effective values and where they come from: this project, your global defaults
+  or the built-in ones; override them for this project or go back to the global defaults; shows whether the token of
+  the project's host is stored), Code index (index or re-index with CodeGraph; the run can be cancelled), Guard
+  hooks, Memory, Doctor, Integrations (project scope) and Backups. Tabs that need `.gabitotl` explain that and offer
+  the setup first.
 
 **CodeGraph (required).** The setup installs CodeGraph 1.6.2 for your user (`%LOCALAPPDATA%\codegraph\current`,
 added to your user PATH; no Node or npm needed) after checking the download against a pinned SHA-256, and

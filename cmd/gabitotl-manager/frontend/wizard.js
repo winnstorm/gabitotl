@@ -136,21 +136,27 @@ var CRED_PLATFORMS = [['github', 'gui.delivery.platform.github'], ['gitlab', 'gu
 var CRED_STATUS = { saved: 'gui.delivery.cred.saved', rejected: 'gui.delivery.cred.rejected', unreachable: 'gui.delivery.cred.unreachable', invalid: 'gui.delivery.cred.invalid' };
 
 function stepDelivery() {
-  var dl = S.a.delivery;
-  var all = dl.automation === 'all';
   return '<div><h1>' + esc(t('gui.delivery.title')) + '</h1><p class="lead">' + esc(t('gui.delivery.lead')) + '</p></div>' +
-    '<div class="field">' + esc(t('gui.delivery.automation')) + '<div class="grid3">' +
-    radio('a.delivery.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc')) +
-    radio('a.delivery.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc')) +
-    radio('a.delivery.automation', 'ask', t('gui.delivery.auto.ask'), t('gui.delivery.auto.ask.desc')) + '</div></div>' +
+    deliveryForm('a.delivery') + credentialsBlock();
+}
+
+// deliveryForm is the automation, merge method, draft and branch cleanup fields
+// bound to the state object at path (the wizard, the Manager's global defaults
+// and a project's override share it).
+function deliveryForm(base) {
+  var dl = get(base);
+  var all = dl.automation === 'all';
+  return '<div class="field">' + esc(t('gui.delivery.automation')) + '<div class="grid3">' +
+    radio(base + '.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc')) +
+    radio(base + '.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc')) +
+    radio(base + '.automation', 'ask', t('gui.delivery.auto.ask'), t('gui.delivery.auto.ask.desc')) + '</div></div>' +
     '<div class="grid2" style="align-items:end"><label class="field' + (all ? '' : ' off') + '" style="' + (all ? '' : 'color:var(--muted)') + '">' + esc(t('gui.delivery.merge')) +
-    '<select data-bind="a.delivery.mergeMethod" data-k="a.delivery.mergeMethod"' + attr('disabled', true, !all) + '>' +
+    '<select data-bind="' + base + '.mergeMethod" data-k="' + base + '.mergeMethod"' + attr('disabled', true, !all) + '>' +
     [['squash', 'gui.delivery.merge.squash'], ['merge', 'gui.delivery.merge.merge'], ['rebase', 'gui.delivery.merge.rebase']].map(function (o) {
       return '<option value="' + o[0] + '"' + attr('selected', true, dl.mergeMethod === o[0]) + '>' + esc(t(o[1])) + '</option>';
     }).join('') + '</select><span class="hint">' + esc(t('gui.delivery.merge.hint')) + '</span></label>' +
-    '<div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">' + check('a.delivery.draft', t('gui.delivery.draft')) +
-    check('a.delivery.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>' +
-    credentialsBlock();
+    '<div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">' + check(base + '.draft', t('gui.delivery.draft')) +
+    check(base + '.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>';
 }
 
 // credentialsBlock is one row per platform: stored or not, a write-only token

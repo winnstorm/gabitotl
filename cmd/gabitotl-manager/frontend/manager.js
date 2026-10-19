@@ -3,33 +3,57 @@
 // Memory, Delivery, Guard & code index, Backups, Uninstall). Every change goes
 // through planAndRun: the plan is shown in a modal before anything is applied.
 
-var NAV = [
+// Two levels. Global: what applies to every project (delivery defaults and
+// credentials, CodeGraph, agents, persona, Windows, backups, uninstall). Projects:
+// the folders GabitoTL or your agents know, each with its own page (overview,
+// delivery override, code index, guard hooks, memory, doctor, agents, backups).
+// The install is always global; a project is only a folder you open.
+
+var GLOBAL_NAV = [
   ['overview', 'gui.mgr.nav.overview'],
-  ['doctor', 'gui.mgr.nav.doctor'],
-  ['#', 'gui.mgr.nav.settings'],
+  ['delivery', 'gui.mgr.nav.delivery-global'],
+  ['codegraph', 'gui.mgr.nav.codegraph'],
   ['integrations', 'gui.mgr.nav.integrations'],
   ['persona', 'gui.mgr.nav.persona'],
-  ['memory', 'gui.mgr.nav.memory'],
-  ['delivery', 'gui.mgr.nav.delivery'],
-  ['guard', 'gui.mgr.nav.guard'],
-  ['#', 'gui.mgr.nav.maintenance'],
+  ['doctor', 'gui.mgr.nav.doctor'],
+  ['windows', 'gui.mgr.nav.windows'],
   ['backups', 'gui.mgr.nav.backups'],
   ['uninstall', 'gui.mgr.nav.uninstall'],
 ];
 
+// Project tabs; needs: the tab only works once GabitoTL is set up in the folder.
+var PROJECT_TABS = [
+  ['overview', 'gui.mgr.nav.overview', false],
+  ['delivery', 'gui.mgr.nav.delivery', true],
+  ['index', 'gui.proj.tab.index', false],
+  ['guard', 'gui.proj.tab.guard', true],
+  ['memory', 'gui.mgr.nav.memory', true],
+  ['doctor', 'gui.mgr.nav.doctor', true],
+  ['integrations', 'gui.mgr.nav.integrations', true],
+  ['backups', 'gui.mgr.nav.backups', true],
+];
+
+var SRC_KEYS = { gabitotl: 'gui.projects.src.gabitotl', 'claude-code': 'gui.projects.src.claude-code', opencode: 'gui.projects.src.opencode', kiro: 'gui.projects.src.kiro' };
+
 S.m = {
-  screen: 'overview', busy: false, doctor: null, integrations: null, settings: null, snaps: null,
-  scope: {}, toast: '', modal: null, loadErr: '',
+  screen: 'overview', tab: 'overview', proj: '', busy: false,
+  doctor: null, integrations: null, settings: null, snaps: null,
+  gd: null, cg: null, projects: null, pd: null,
+  toast: '', modal: null, loadErr: '', focusTitle: false,
+  pf: '', psrc: 'all',
   f: {
     lang: 'es', mode: 'normal',
     mem: { mode: 'solo', role: 'host', engine: 'auto', port: '', instance: '', url: '', tokenEnv: '', importEngram: false },
-    del: { provider: 'none', automation: 'until-pr', mergeMethod: 'squash', deleteBranch: true, draft: true, tokenEnv: '' },
+    gdel: { automation: 'until-pr', mergeMethod: 'squash', deleteBranch: true, draft: true },
+    pdel: { automation: 'until-pr', mergeMethod: 'squash', deleteBranch: true, draft: true },
   },
   un: { runtimes: {}, guard: true, program: true, server: false },
   purge: '',
 };
 
-var NEEDS_PROJECT = { memory: true, delivery: true, guard: true };
+// PR is the project folder the current screen works on: the open project on a
+// project page, "" (global) everywhere else.
+function PR() { return S.m.screen === 'project' ? S.m.proj : ''; }
 
 async function managerBoot() {
   try { S.root = (await api().Root()) || ''; } catch (e) { S.root = ''; }
@@ -40,11 +64,22 @@ async function managerBoot() {
 async function managerReload() { await loadScreen(); }
 
 function projectName() {
-  if (!S.root) return t('gui.mgr.project.none');
-  return S.root;
+  if (!S.m.proj) return t('gui.mgr.project.none');
+  return baseName(S.m.proj);
+}
+
+function baseName(p) {
+  var parts = String(p).replace(/[\\/]+$/, '').split(/[\\/]/);
+  return parts[parts.length - 1] || p;
 }
 
 // ---- data loading -------------------------------------------------------------
+
+// soft runs one read; a failure leaves the fallback so one broken source never
+// blanks a whole screen.
+async function soft(fn, fallback) {
+  try { return await fn(); } catch (e) { return fallback; }
+}
 
 async function loadScreen() {
   S.m.loadErr = '';
@@ -52,19 +87,82 @@ async function loadScreen() {
   render();
   try {
     var sc = S.m.screen;
-    if (sc === 'overview' || sc === 'doctor') S.m.doctor = await api().Doctor(S.root);
-    if (sc === 'overview' || sc === 'integrations' || sc === 'uninstall') S.m.integrations = await api().Integrations(S.root);
-    if (sc !== 'doctor' && sc !== 'integrations' && sc !== 'backups') {
-      S.m.settings = await api().Settings(S.root);
+    var r = PR();
+    if (sc === 'overview') {
+      S.m.doctor = await soft(function () { return api().Doctor(''); }, null);
+      S.m.integrations = await soft(function () { return api().Integrations(''); }, []);
+      S.m.settings = await soft(function () { return api().Settings(''); }, null);
+      S.m.cg = await soft(function () { return api().CodeGraph(); }, null);
+      S.m.gd = await soft(function () { return api().GlobalDelivery(); }, null);
+      S.m.projects = await soft(function () { return api().Projects(); }, []);
+      await loadCredsQuiet();
+    } else if (sc === 'delivery') {
+      S.m.gd = await api().GlobalDelivery();
+      seedGlobalDelivery(S.m.gd);
+      await loadCredsQuiet();
+    } else if (sc === 'codegraph') {
+      S.m.cg = await api().CodeGraph();
+    } else if (sc === 'integrations') {
+      S.m.integrations = await api().Integrations('');
+    } else if (sc === 'persona') {
+      S.m.settings = await api().Settings('');
       seedForms(S.m.settings);
+    } else if (sc === 'doctor') {
+      S.m.doctor = await api().Doctor('');
+    } else if (sc === 'windows') {
+      S.m.settings = await api().Settings('');
+    } else if (sc === 'backups') {
+      S.m.snaps = await api().Snapshots('');
+    } else if (sc === 'uninstall') {
+      S.m.integrations = await api().Integrations('');
+      S.m.settings = await api().Settings('');
+      seedForms(S.m.settings);
+    } else if (sc === 'projects') {
+      S.m.projects = await api().Projects();
+    } else if (sc === 'project') {
+      await loadProject(r);
     }
-    if (sc === 'backups') S.m.snaps = await api().Snapshots(S.root);
   } catch (e) {
     S.m.loadErr = t('gui.error.generic', { detail: errText(e) });
   }
   S.m.busy = false;
   render();
 }
+
+async function loadCredsQuiet() {
+  try { S.cred.list = await api().Credentials(); S.cred.err = ''; } catch (e) { S.cred.err = t('gui.delivery.cred.unavailable'); }
+}
+
+async function loadProject(root) {
+  S.m.projects = await soft(function () { return api().Projects(); }, S.m.projects || []);
+  S.m.pd = await api().Project(root);
+  var tab = S.m.tab;
+  if (tab === 'delivery') {
+    seedDelivery(S.m.f.pdel, S.m.pd.delivery);
+    await loadCredsQuiet();
+  } else if (tab === 'index') {
+    S.m.cg = await soft(function () { return api().CodeGraph(); }, null);
+  } else if (tab === 'memory' && S.m.pd.hasGabitotl) {
+    S.m.settings = await api().Settings(root);
+    seedForms(S.m.settings);
+  } else if (tab === 'doctor' && S.m.pd.hasGabitotl) {
+    S.m.doctor = await api().Doctor(root);
+  } else if (tab === 'integrations' && S.m.pd.hasGabitotl) {
+    S.m.integrations = await api().Integrations(root);
+  } else if (tab === 'backups' && S.m.pd.hasGabitotl) {
+    S.m.snaps = await api().Snapshots(root);
+  }
+}
+
+function seedDelivery(dst, d) {
+  if (!d) return;
+  dst.automation = d.automation === 'custom' || !d.automation ? 'until-pr' : d.automation;
+  dst.mergeMethod = d.mergeMethod || 'squash';
+  dst.deleteBranch = !!d.deleteBranch;
+  dst.draft = !!d.draft;
+}
+
+function seedGlobalDelivery(g) { seedDelivery(S.m.f.gdel, g); }
 
 // seedForms copies the saved settings into the editable forms once per load.
 function seedForms(st) {
@@ -79,15 +177,6 @@ function seedForms(st) {
     f.mem.tokenEnv = mm.tokenEnv || '';
     f.mem.instance = mm.instance || '';
   }
-  var d = st.delivery;
-  if (d && d.configured) {
-    f.del.provider = ['github', 'gitlab', 'bitbucket'].indexOf(d.provider) >= 0 ? d.provider : 'none';
-    f.del.automation = d.automation || 'until-pr';
-    f.del.mergeMethod = d.mergeMethod || 'squash';
-    f.del.deleteBranch = !!d.deleteBranch;
-    f.del.draft = !!d.draft;
-    f.del.tokenEnv = (d.auth && d.auth.indexOf('env:') === 0) ? d.auth.slice(4) : '';
-  }
   (S.m.integrations || []).forEach(function (it) {
     if (S.m.un.runtimes[it.name] === undefined) S.m.un.runtimes[it.name] = true;
   });
@@ -101,18 +190,73 @@ function goTo(screen) {
 
 actions.go = function (el) { goTo(el.getAttribute('data-val')); };
 
-actions.chroot = async function () {
+// openProject makes a folder the open project and remembers it.
+async function openProject(path, tab) {
+  S.m.proj = path;
+  S.m.tab = tab || 'overview';
+  S.m.screen = 'project';
+  S.m.pd = null;
+  S.m.focusTitle = true;
+  S.root = path;
+  S.error = '';
+  try { await api().SetRoot(path); await api().AddProject(path); } catch (e) { /* remembering is a convenience */ }
+  await loadScreen();
+}
+
+actions.popen = function (el) { openProject(el.getAttribute('data-path')); };
+
+actions.tab = function (el) {
+  S.m.tab = el.getAttribute('data-val');
+  loadScreen();
+};
+
+// Arrow keys move between the tabs (roving tabindex).
+document.addEventListener('keydown', function (ev) {
+  var cur = ev.target && ev.target.getAttribute && ev.target.getAttribute('role') === 'tab' ? ev.target : null;
+  if (!cur || S.m.modal) return;
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var i = tabs.indexOf(cur), n = -1;
+  if (ev.key === 'ArrowRight') n = (i + 1) % tabs.length;
+  else if (ev.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+  else if (ev.key === 'Home') n = 0;
+  else if (ev.key === 'End') n = tabs.length - 1;
+  if (n < 0) return;
+  ev.preventDefault();
+  tabs[n].focus();
+  actions.tab(tabs[n]);
+});
+
+actions.padd = async function () {
   try {
     var dir = await api().ChooseFolder(t('gui.detect.project'), S.root);
-    if (dir) {
-      S.root = dir;
-      await api().SetRoot(dir);
-      await loadScreen();
-    }
+    if (!dir) return;
+    await api().AddProject(dir);
+    await openProject(dir);
   } catch (e) {
     toast(t('gui.error.generic', { detail: errText(e) }));
   }
 };
+
+actions.pforget = function (el) {
+  var path = el.getAttribute('data-path');
+  planAndRun({
+    title: t('gui.projects.forget.title'), confirmLabel: t('gui.projects.forget'),
+    plan: summaryPlan(t('gui.projects.forget.title'), [t('gui.projects.forget.plan', { path: path })]),
+    run: async function () { await api().ForgetProject(path); return { message: t('gui.modal.done') }; },
+    after: function () { if (S.m.proj === path) S.m.proj = ''; goTo('projects'); },
+  });
+};
+
+// The project filter re-renders on every keystroke and keeps the caret.
+document.addEventListener('input', function (ev) {
+  var el = ev.target;
+  if (!el || !el.hasAttribute || !el.hasAttribute('data-live') || ev.isComposing) return;
+  set(el.getAttribute('data-bind'), el.value);
+  var pos = el.selectionStart;
+  render();
+  var n = document.querySelector('[data-k="' + el.getAttribute('data-k') + '"]');
+  if (n && n.setSelectionRange) { try { n.setSelectionRange(pos, pos); } catch (e) { /* not a text field */ } }
+});
 
 function toast(msg) {
   S.m.toast = msg;
@@ -141,16 +285,16 @@ function closeModal() {
 
 actions.mact = function (el) {
   var m = S.m.modal;
-  if (!m || m.busy) return;
+  if (!m) return;
   var a = m.actions[parseInt(el.getAttribute('data-i'), 10)];
-  if (a && a.fn) a.fn();
+  if (a && a.fn && (!m.busy || a.always)) a.fn();
 };
 
 function modalHTML() {
   var m = S.m.modal;
   if (!m) return '';
   var acts = (m.actions || []).map(function (a, i) {
-    return '<button type="button" class="btn' + (a.primary ? ' pri' : '') + (a.danger ? ' dng fill' : '') + '" data-act="mact" data-i="' + i + '" data-k="modal-' + i + '"' + attr('disabled', true, !!m.busy) + '>' + esc(a.label) + '</button>';
+    return '<button type="button" class="btn' + (a.primary ? ' pri' : '') + (a.danger ? ' dng fill' : '') + '" data-act="mact" data-i="' + i + '" data-k="modal-' + i + '"' + attr('disabled', true, !!m.busy && !a.always) + '>' + esc(a.label) + '</button>';
   }).join('');
   return '<div class="back"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">' +
     '<h2 id="mtitle">' + esc(m.title) + '</h2><div class="mbody" tabindex="-1" id="mbody">' + m.body + '</div>' +
@@ -170,6 +314,11 @@ function managerAfterRender() {
     }
   } else {
     main.removeAttribute('inert');
+    if (S.m.focusTitle && !S.m.busy) {
+      S.m.focusTitle = false;
+      var h = document.getElementById('ptitle');
+      if (h) h.focus();
+    }
   }
 }
 
@@ -255,7 +404,8 @@ function resultHTML(r) {
 
 // planAndRun shows the plan, waits for the person to confirm, runs it with a
 // progress log and shows the result. o: title, plan(), run(planId), after(),
-// confirmLabel, danger, extra (html), check() (returns an error text or '').
+// confirmLabel, danger, extra (html), check() (returns an error text or ''),
+// cancel() (stops a running operation; shows a Cancel button while it runs).
 async function planAndRun(o) {
   openModal({ title: o.title, body: '<p>' + esc(t('gui.modal.planning')) + '</p>', actions: [], busy: true, pct: 0, log: [] });
   var plan;
@@ -286,7 +436,7 @@ async function planAndRun(o) {
     var mm = S.m.modal;
     mm.busy = true; mm.pct = 0; mm.log = []; mm.msg = '';
     mm.body = runningHTML();
-    mm.actions = [];
+    mm.actions = o.cancel ? [{ label: t('gui.btn.cancel'), always: true, fn: o.cancel }] : [];
     render();
     var html;
     try {
@@ -324,14 +474,19 @@ function summaryPlan(label, lines) {
 
 // ---- shell --------------------------------------------------------------------
 
+function navBtn(id, key, current) {
+  return '<button type="button" class="nav" data-act="go" data-val="' + id + '" data-k="nav-' + id + '"' + (current ? ' aria-current="page"' : '') + '>' + esc(t(key)) + '</button>';
+}
+
 function renderManager() {
-  var nav = NAV.map(function (n) {
-    if (n[0] === '#') return '<div class="grp">' + esc(t(n[1])) + '</div>';
-    return '<button type="button" class="nav" data-act="go" data-val="' + n[0] + '" data-k="nav-' + n[0] + '"' + (S.m.screen === n[0] ? ' aria-current="page"' : '') + '>' + esc(t(n[1])) + '</button>';
-  }).join('');
+  var sc = S.m.screen;
+  var nav = '<div class="grp">' + esc(t('gui.mgr.nav.global')) + '</div>' + GLOBAL_NAV.map(function (n) { return navBtn(n[0], n[1], sc === n[0]); }).join('') +
+    '<div class="grp">' + esc(t('gui.mgr.nav.projects-group')) + '</div>' + navBtn('projects', 'gui.mgr.nav.projects', sc === 'projects');
+  if (S.m.proj) {
+    nav += '<button type="button" class="nav" data-act="popen" data-path="' + esc(S.m.proj) + '" data-k="nav-current" title="' + esc(S.m.proj) + '"' + (sc === 'project' ? ' aria-current="page"' : '') + '>' + esc(t('gui.mgr.nav.current')) + ': ' + esc(projectName()) + '</button>';
+  }
   var side = '<nav class="side" aria-label="' + esc(t('gui.mgr.nav.label')) + '">' + nav +
-    '<div class="foot mono"><span>v' + esc(S.info.version) + '</span><span>' + esc(projectName()) + '</span>' +
-    '<button type="button" data-act="chroot" data-k="chroot">' + esc(t('gui.btn.change')) + '</button></div></nav>';
+    '<div class="foot mono"><span>v' + esc(S.info.version) + '</span></div></nav>';
   var body = S.m.loadErr ? '<p class="lead" role="alert">' + esc(S.m.loadErr) + '</p>' : screenHTML();
   return '<div id="mgr" style="display:flex;flex-direction:column;flex:1;min-height:0">' + titlebar('gui.mgr.title') + '<div class="body">' + side +
     '<main class="pane" id="pane">' + body + '</main></div></div>' + modalHTML() +
@@ -339,43 +494,44 @@ function renderManager() {
 }
 
 function screenHTML() {
-  var sc = S.m.screen;
-  if (NEEDS_PROJECT[sc] && !S.root) return head(sc) + needsProject();
-  switch (sc) {
+  switch (S.m.screen) {
     case 'overview': return screenOverview();
-    case 'doctor': return screenDoctor();
+    case 'delivery': return screenGlobalDelivery();
+    case 'codegraph': return screenCodeGraph();
     case 'integrations': return screenIntegrations();
     case 'persona': return screenPersona();
-    case 'memory': return screenMemory();
-    case 'delivery': return screenDelivery();
-    case 'guard': return screenGuard();
+    case 'doctor': return screenDoctor();
+    case 'windows': return screenWindows();
     case 'backups': return screenBackups();
     case 'uninstall': return screenUninstall();
+    case 'projects': return screenProjects();
+    case 'project': return screenProject();
   }
   return '';
 }
 
 var TITLES = {
-  overview: ['gui.mgr.nav.overview', 'gui.ov.lead'], doctor: ['gui.doc.title', 'gui.doc.lead'],
+  overview: ['gui.mgr.nav.overview', 'gui.ov.global.lead'], doctor: ['gui.doc.title', 'gui.doc.lead'],
   integrations: ['gui.mgr.nav.integrations', 'gui.int.lead'], persona: ['gui.mgr.nav.persona', 'gui.persona.lead'],
-  memory: ['gui.mgr.nav.memory', 'gui.memory.lead'], delivery: ['gui.mgr.nav.delivery', 'gui.delivery.lead'],
+  memory: ['gui.mgr.nav.memory', 'gui.memory.lead'], delivery: ['gui.glob.delivery.title', 'gui.glob.delivery.lead'],
+  codegraph: ['gui.cg.title', 'gui.cg.lead'], windows: ['gui.ov.windows', 'gui.windows.lead'],
   guard: ['gui.mgr.nav.guard', 'gui.guard.lead'], backups: ['gui.mgr.nav.backups', 'gui.bk.lead'],
-  uninstall: ['gui.un.title', 'gui.un.lead'],
+  uninstall: ['gui.un.title', 'gui.un.lead'], projects: ['gui.projects.title', 'gui.projects.lead'],
 };
 
 function head(sc, buttons) {
   var tl = TITLES[sc];
-  return '<div class="hrow"><div class="grow"><h1>' + esc(t(tl[0])) + '</h1><p class="lead">' + esc(t(tl[1])) + '</p></div>' + (buttons || '') + '</div>';
-}
-
-function needsProject() {
-  return '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.mgr.needs-project')) + '</span></div>' +
-    '<div><button type="button" class="btn pri" data-act="chroot" data-k="needs-root">' + esc(t('gui.btn.change')) + '</button></div>';
+  if (S.m.screen === 'project') return '<div class="hrow"><div class="grow"><p class="lead">' + esc(t(tl[1])) + '</p></div>' + (buttons || '') + '</div>';
+  return '<div class="hrow"><div class="grow"><h1 id="ptitle" tabindex="-1">' + esc(t(tl[0])) + '</h1><p class="lead">' + esc(t(tl[1])) + '</p></div>' + (buttons || '') + '</div>';
 }
 
 function busyLine() { return S.m.busy ? '<p class="lead">' + esc(t('gui.loading')) + '</p>' : ''; }
 
-// ---- overview ---------------------------------------------------------------------
+function link(act, val, label, k) {
+  return '<button type="button" class="btn xs" data-act="' + act + '" data-val="' + esc(val) + '" data-k="' + k + '">' + esc(label) + '</button>';
+}
+
+// ---- global overview ------------------------------------------------------------------
 
 function counts(rep) {
   var c = { ok: 0, warn: 0, todo: 0, error: 0 };
@@ -385,35 +541,58 @@ function counts(rep) {
 
 function stat(n, key) { return '<div class="stat"><b>' + esc(n) + '</b>' + esc(t(key)) + '</div>'; }
 
+function cgSummary() {
+  var g = S.m.cg;
+  if (!g) return t('gui.windows.codegraph.checking');
+  return codegraphLines().text;
+}
+
+function deliverySummary() {
+  var g = S.m.gd;
+  if (!g) return '-';
+  var key = { all: 'gui.delivery.auto.all', 'until-pr': 'gui.delivery.auto.until-pr', ask: 'gui.delivery.auto.ask' }[g.automation];
+  return (key ? t(key) : g.automation) + (g.draft ? ' · ' + t('gui.delivery.draft') : '');
+}
+
 function screenOverview() {
   var c = counts(S.m.doctor);
   var ints = S.m.integrations || [];
   var managed = ints.filter(function (i) { return i.managed; }).length;
-  var st = S.m.settings;
-  var mem = !st || !st.memory.configured ? t('gui.ov.memory.none') : (st.memory.mode === 'team' ? t('gui.ov.memory.team') : t('gui.memory.solo'));
+  var stored = (S.cred.list || []).filter(function (x) { return x.stored; }).length;
+  var recent = (S.m.projects || []).slice(0, 5);
   var out = head('overview') + busyLine() +
     '<div class="stats">' + stat(c.ok, 'gui.doc.ok') + stat(c.warn, 'gui.doc.warn') + stat(c.todo, 'gui.doc.todo') + stat(c.error, 'gui.doc.error') + '</div>' +
     '<dl class="sum"><dt>' + esc(t('gui.ov.version')) + '</dt><dd>' + esc(S.info.version) + '</dd>' +
     '<dt>' + esc(t('gui.mgr.nav.integrations')) + '</dt><dd>' + esc(t('gui.ov.connected', { n: managed, total: ints.length })) + '</dd>' +
-    '<dt>' + esc(t('gui.mgr.nav.memory')) + '</dt><dd>' + esc(mem) + '</dd>' +
-    '<dt>' + esc(t('gui.detect.project')) + '</dt><dd class="mono">' + esc(projectName()) + '</dd></dl>' +
+    '<dt>' + esc(t('gui.ov.codegraph')) + '</dt><dd>' + esc(cgSummary()) + '</dd>' +
+    '<dt>' + esc(t('gui.ov.delivery')) + '</dt><dd>' + esc(deliverySummary()) + '</dd>' +
+    '<dt>' + esc(t('gui.ov.creds')) + '</dt><dd>' + esc(t('gui.ov.creds.n', { n: stored, total: (S.cred.list || []).length })) + '</dd></dl>' +
     '<div class="lbl">' + esc(t('gui.ov.actions')) + '</div><div class="acts">' +
     '<button type="button" class="btn" data-act="go" data-val="doctor" data-k="qa-doctor">' + esc(t('gui.ov.run-doctor')) + '</button>' +
     '<button type="button" class="btn" data-act="go" data-val="integrations" data-k="qa-int">' + esc(t('gui.ov.connect')) + '</button>' +
-    '<button type="button" class="btn" data-act="go" data-val="backups" data-k="qa-bk">' + esc(t('gui.ov.backups')) + '</button></div>';
-  return out + desktopCard();
+    '<button type="button" class="btn" data-act="go" data-val="backups" data-k="qa-bk">' + esc(t('gui.ov.backups')) + '</button></div>' +
+    '<div class="lbl">' + esc(t('gui.ov.projects')) + '</div><p class="hint">' + esc(t('gui.projects.lead')) + '</p>';
+  if (S.root && S.m.proj !== S.root) {
+    out += '<div><button type="button" class="btn pri" data-act="popen" data-path="' + esc(S.root) + '" data-k="continue">' + esc(t('gui.ov.projects.continue', { name: baseName(S.root) })) + '</button></div>';
+  }
+  if (!recent.length && !S.m.busy) out += '<p class="hint">' + esc(t('gui.ov.projects.none')) + '</p>';
+  else out += projectRows(recent, 'ov');
+  out += '<div class="acts"><button type="button" class="btn" data-act="go" data-val="projects" data-k="qa-projects">' + esc(t('gui.ov.projects.all')) + '</button></div>';
+  return out;
 }
 
 function desktopCard() {
   var d = S.m.settings && S.m.settings.desktop;
-  if (!d || !d.supported) return '';
+  if (!d || !d.supported) return '<p class="lead">' + esc(t('gui.windows.unsupported')) + '</p>';
   var rows = [['startMenu', 'gui.windows.startmenu', d.startMenu], ['desktopShortcut', 'gui.windows.desktop', d.desktopShortcut], ['addToPath', 'gui.windows.path', d.onPath]];
-  return '<div class="lbl">' + esc(t('gui.ov.windows')) + '</div><div class="box"><div class="row"><b>' + esc(t('gui.windows.dir')) + '</b><span class="mono">' + esc(d.installDir) + '</span></div>' +
+  return '<div class="box"><div class="row"><b>' + esc(t('gui.windows.dir')) + '</b><span class="mono">' + esc(d.installDir) + '</span></div>' +
     rows.map(function (r) {
       return '<div class="row"><b>' + esc(t(r[1])) + '</b>' + (r[2] ? badge('ok', t('gui.ov.in-place')) : badge('todo', t('gui.ov.missing'))) + '<span class="sp"></span>' +
         (r[2] ? '' : '<button type="button" class="btn xs" data-act="desk" data-val="' + r[0] + '" data-k="desk-' + r[0] + '">' + esc(t('gui.ov.add')) + '</button>') + '</div>';
     }).join('') + '</div>';
 }
+
+function screenWindows() { return head('windows') + busyLine() + desktopCard(); }
 
 actions.desk = function (el) {
   var d = S.m.settings.desktop;
@@ -421,6 +600,250 @@ actions.desk = function (el) {
   w[el.getAttribute('data-val')] = true;
   planAndRun({ title: t('gui.ov.windows'), plan: function () { return api().PlanDesktop(w); }, run: function (id) { return api().ApplyDesktop(w, id); } });
 };
+
+// ---- global delivery defaults and credentials ---------------------------------------------
+
+function screenGlobalDelivery() {
+  return head('delivery') + busyLine() + deliveryForm('m.f.gdel') +
+    '<div><button type="button" class="btn pri" data-act="gdsave" data-k="gd-save">' + esc(t('gui.btn.save')) + '</button></div>' +
+    credentialsBlock();
+}
+
+function deliveryAnswers(d) {
+  var all = d.automation === 'all';
+  return { automation: d.automation, mergeMethod: all ? d.mergeMethod : '', deleteBranch: all ? !!d.deleteBranch : null, draft: !!d.draft };
+}
+
+function deliveryLines(d) {
+  return [t('gui.delivery.automation') + ': ' + d.automation, t('gui.delivery.draft') + ': ' + !!d.draft];
+}
+
+actions.gdsave = function () {
+  var d = S.m.f.gdel;
+  planAndRun({
+    title: t('gui.glob.delivery.title'), confirmLabel: t('gui.btn.save'),
+    plan: summaryPlan(t('gui.glob.delivery.title'), deliveryLines(d)),
+    run: async function () { await api().SetGlobalDelivery(deliveryAnswers(d)); return { message: t('gui.modal.done') }; },
+  });
+};
+
+// ---- CodeGraph ----------------------------------------------------------------------------
+
+function screenCodeGraph() {
+  var g = S.m.cg;
+  var out = head('codegraph') + busyLine();
+  if (!g) return out;
+  var cg = codegraphLines();
+  var fix = g.supported && g.needsWork;
+  var actKey = !g.installed ? 'gui.cg.act.install' : (g.action === 'upgrade' ? 'gui.cg.act.upgrade' : 'gui.cg.act.repair');
+  out += '<div class="box"><div class="row"><b>' + esc(t('gui.cg.version')) + '</b>' + (g.installed ? '<span class="mono">' + esc(g.version) + '</span>' : badge('warn', t('gui.cg.missing'))) + '</div>' +
+    '<div class="row"><b>' + esc(t('gui.cg.pinned')) + '</b><span class="mono">' + esc(g.pinned) + '</span></div>' +
+    (g.path ? '<div class="row"><b>' + esc(t('gui.cg.path')) + '</b><span class="mono">' + esc(g.path) + '</span></div>' : '') + '</div>' +
+    '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span>' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div>';
+  out += '<div class="lbl">' + esc(t('gui.cg.agents')) + '</div>';
+  if (!(g.agents || []).length) out += '<p class="hint">' + esc(t('gui.cg.agents.none')) + '</p>';
+  else {
+    out += '<div class="box">' + g.agents.map(function (a) {
+      return '<div class="row"><b>' + esc(a.label) + '</b>' + (a.registered ? badge('ok', t('gui.cg.registered')) : badge('warn', t('gui.cg.unregistered'))) + '</div>';
+    }).join('') + '</div>';
+  }
+  if (fix) out += '<div><button type="button" class="btn pri" data-act="cgfix" data-k="cg-fix">' + esc(t(actKey)) + '</button></div>';
+  else if (g.supported) out += '<p class="hint">' + esc(t('gui.cg.uptodate')) + '</p>';
+  return out;
+}
+
+actions.cgfix = function () {
+  planAndRun({
+    title: t('gui.cg.title'), plan: function () { return api().PlanCodeGraph(); },
+    run: async function (id) { var steps = await api().ApplyCodeGraph(id); return { steps: steps }; },
+  });
+};
+
+// ---- projects -----------------------------------------------------------------------------
+
+function srcBadges(p) {
+  return (p.sources || []).map(function (s) { return badge('todo', SRC_KEYS[s] ? t(SRC_KEYS[s]) : s); }).join(' ');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString(S.lang === 'en' ? 'en-US' : 'es-AR');
+}
+
+// projectRows renders the list; the person opens, and optionally forgets, a row.
+function projectRows(list, id) {
+  return '<ul class="plist" role="list" aria-label="' + esc(t('gui.projects.list')) + '">' + list.map(function (p, i) {
+    var seen = fmtDate(p.lastSeen);
+    return '<li class="prow"><div class="pmain"><b>' + esc(p.name) + '</b><span class="mono" title="' + esc(p.path) + '">' + esc(p.path) + '</span>' +
+      '<span class="pbadges">' + srcBadges(p) + (p.hasGabitotl ? '' : ' ' + badge('warn', t('gui.projects.notset'))) + (seen ? ' <span class="hint">' + esc(t('gui.projects.lastseen', { date: seen })) + '</span>' : '') + '</span></div>' +
+      '<div class="acts"><button type="button" class="btn xs pri" data-act="popen" data-path="' + esc(p.path) + '" data-k="' + id + '-open-' + i + '" aria-label="' + esc(t('gui.projects.open') + ': ' + p.name) + '">' + esc(t('gui.projects.open')) + '</button>' +
+      (id === 'pl' ? '<button type="button" class="btn xs dng" data-act="pforget" data-path="' + esc(p.path) + '" data-k="pl-forget-' + i + '" aria-label="' + esc(t('gui.projects.forget') + ': ' + p.name) + '">' + esc(t('gui.projects.forget')) + '</button>' : '') + '</div></li>';
+  }).join('') + '</ul>';
+}
+
+function filteredProjects() {
+  var q = S.m.pf.trim().toLowerCase();
+  return (S.m.projects || []).filter(function (p) {
+    if (S.m.psrc !== 'all' && (p.sources || []).indexOf(S.m.psrc) < 0) return false;
+    return !q || p.name.toLowerCase().indexOf(q) >= 0 || p.path.toLowerCase().indexOf(q) >= 0;
+  });
+}
+
+function screenProjects() {
+  var btns = '<button type="button" class="btn" data-act="rerun" data-k="prefresh"' + attr('disabled', true, S.m.busy) + '>' + esc(t('gui.projects.refresh')) + '</button>' +
+    '<button type="button" class="btn pri" data-act="padd" data-k="padd">' + esc(t('gui.projects.add')) + '</button>';
+  var out = head('projects', btns) + busyLine();
+  var list = filteredProjects();
+  out += '<div class="hrow"><label class="field grow">' + esc(t('gui.projects.search')) +
+    '<input type="search" data-bind="m.pf" data-live data-k="m.pf" value="' + esc(S.m.pf) + '"></label>' +
+    '<label class="field">' + esc(t('gui.projects.source')) + '<select data-bind="m.psrc" data-k="m.psrc">' +
+    '<option value="all"' + attr('selected', true, S.m.psrc === 'all') + '>' + esc(t('gui.projects.source.all')) + '</option>' +
+    Object.keys(SRC_KEYS).map(function (k) { return '<option value="' + k + '"' + attr('selected', true, S.m.psrc === k) + '>' + esc(t(SRC_KEYS[k])) + '</option>'; }).join('') +
+    '</select></label></div>';
+  if (!list.length) return out + (S.m.busy ? '' : '<p class="lead" role="status">' + esc(t('gui.projects.empty')) + '</p>');
+  return out + '<p class="hint" role="status">' + esc(t('gui.projects.count', { n: list.length })) + '</p>' + projectRows(list, 'pl');
+}
+
+// ---- project page -----------------------------------------------------------------------
+
+function projectEntry() {
+  return (S.m.projects || []).filter(function (p) { return p.path === S.m.proj; })[0] || null;
+}
+
+function screenProject() {
+  var pd = S.m.pd;
+  var out = '<div class="hrow"><div class="grow"><button type="button" class="btn xs" data-act="go" data-val="projects" data-k="pback">' + esc(t('gui.proj.back')) + '</button>' +
+    '<h1 id="ptitle" tabindex="-1">' + esc(pd ? pd.name : projectName()) + '</h1><p class="lead mono">' + esc(S.m.proj) + '</p></div></div>';
+  if (!pd) return out + busyLine();
+  var tabs = '<div class="tabs" role="tablist" aria-label="' + esc(t('gui.proj.tabs')) + '">' + PROJECT_TABS.map(function (tb) {
+    var on = S.m.tab === tb[0];
+    return '<button type="button" role="tab" class="tab" id="tab-' + tb[0] + '" aria-selected="' + on + '" aria-controls="tabpanel" tabindex="' + (on ? 0 : -1) + '" data-act="tab" data-val="' + tb[0] + '" data-k="tab-' + tb[0] + '">' + esc(t(tb[1])) + '</button>';
+  }).join('') + '</div>';
+  var cur = PROJECT_TABS.filter(function (tb) { return tb[0] === S.m.tab; })[0] || PROJECT_TABS[0];
+  var panel = '';
+  if (cur[2] && !pd.hasGabitotl) panel += needsSetup();
+  else panel += projectTab(cur[0]);
+  return out + tabs + '<div id="tabpanel" role="tabpanel" aria-labelledby="tab-' + cur[0] + '" tabindex="0" class="tabpanel">' + panel + '</div>';
+}
+
+function needsSetup() {
+  return '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.needs-setup')) + '</span></div>' +
+    '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup">' + esc(t('gui.proj.setup')) + '</button></div>';
+}
+
+function projectTab(tab) {
+  switch (tab) {
+    case 'overview': return projOverview();
+    case 'delivery': return projDelivery();
+    case 'index': return projIndex();
+    case 'guard': return projGuard();
+    case 'memory': return screenMemory();
+    case 'doctor': return screenDoctor();
+    case 'integrations': return screenIntegrations();
+    case 'backups': return screenBackups();
+  }
+  return '';
+}
+
+function projOverview() {
+  var pd = S.m.pd, e = projectEntry();
+  var platform = pd.platform ? (pd.host ? pd.platform + ' · ' + pd.host : pd.platform) : t('gui.proj.platform.none');
+  var out = '<dl class="sum"><dt>' + esc(t('gui.proj.path')) + '</dt><dd class="mono">' + esc(pd.path) + '</dd>' +
+    '<dt>' + esc(t('gui.proj.git')) + '</dt><dd>' + esc(pd.isGit ? t('gui.proj.yes') : t('gui.proj.no')) + '</dd>' +
+    '<dt>' + esc(t('gui.proj.platform')) + '</dt><dd>' + esc(platform) + '</dd>' +
+    '<dt>' + esc(t('gui.proj.status')) + '</dt><dd>' + (pd.hasGabitotl ? badge('ok', t('gui.proj.status.on')) : badge('warn', t('gui.projects.notset'))) + '</dd>' +
+    (e && e.sources && e.sources.length ? '<dt>' + esc(t('gui.proj.sources')) + '</dt><dd>' + srcBadges(e) + '</dd>' : '') +
+    (e && e.lastSeen ? '<dt>' + esc(t('gui.proj.lastseen')) + '</dt><dd>' + esc(fmtDate(e.lastSeen)) + '</dd>' : '') + '</dl>';
+  if (!pd.hasGabitotl) {
+    out += '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.setup.lead')) + '</span></div>' +
+      '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup">' + esc(t('gui.proj.setup')) + '</button></div>';
+  }
+  return out;
+}
+
+actions.psetup = function () {
+  var root = S.m.proj;
+  planAndRun({
+    title: t('gui.proj.setup'), confirmLabel: t('gui.btn.apply'),
+    plan: function () { return api().PlanProjectSetup(root); },
+    run: function (id) { return api().ApplyProjectSetup(root, id); },
+  });
+};
+
+function projDelivery() {
+  var pd = S.m.pd, d = pd.delivery;
+  var srcKey = { project: 'gui.proj.delivery.source.project', global: 'gui.proj.delivery.source.global', 'default': 'gui.proj.delivery.source.default' }[d.source] || 'gui.proj.delivery.source.default';
+  var out = '<p class="lead">' + esc(t('gui.proj.delivery.lead')) + '</p>' +
+    '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span><b>' + esc(t('gui.proj.delivery.source')) + ':</b> ' + esc(t(srcKey)) + '</span></div>' +
+    deliveryForm('m.f.pdel') +
+    '<div class="acts"><button type="button" class="btn pri" data-act="pdsave" data-k="pd-save">' + esc(t('gui.proj.delivery.save')) + '</button>' +
+    '<button type="button" class="btn" data-act="pdreset" data-k="pd-reset"' + attr('disabled', true, d.source !== 'project') + '>' + esc(t('gui.proj.delivery.reset')) + '</button></div>';
+  out += '<div class="lbl">' + esc(t('gui.delivery.creds.title')) + '</div>';
+  var c = pd.credential;
+  if (!c.known) return out + '<p class="hint">' + esc(t('gui.proj.cred.none')) + '</p>';
+  out += '<div class="box"><div class="row"><b style="width:auto">' + esc(t('gui.proj.cred', { host: c.host })) + '</b><span class="sp"></span>' +
+    (c.stored ? badge('ok', t('gui.proj.cred.stored')) : badge('todo', t('gui.proj.cred.missing'))) + '</div></div>';
+  if (!c.stored) out += '<div>' + link('go', 'delivery', t('gui.proj.cred.link'), 'pd-cred-link') + '</div>';
+  return out;
+}
+
+actions.pdsave = function () {
+  var d = S.m.f.pdel, root = S.m.proj;
+  var ans = deliveryAnswers(d);
+  ans.provider = '';
+  ans.tokenEnv = '';
+  planAndRun({
+    title: t('gui.mgr.nav.delivery'), confirmLabel: t('gui.btn.save'),
+    plan: summaryPlan(t('gui.mgr.nav.delivery'), deliveryLines(d)),
+    run: function () { return api().SetDelivery(root, ans); },
+  });
+};
+
+actions.pdreset = function () {
+  var root = S.m.proj;
+  planAndRun({
+    title: t('gui.proj.delivery.reset'), confirmLabel: t('gui.proj.delivery.reset'),
+    plan: summaryPlan(t('gui.proj.delivery.reset'), [t('gui.proj.delivery.reset.plan')]),
+    run: function () { return api().ResetProjectDelivery(root); },
+  });
+};
+
+function projIndex() {
+  var pd = S.m.pd;
+  var cgOk = S.m.cg ? !!S.m.cg.installed : true;
+  var out = '<p class="lead">' + esc(t('gui.proj.index.lead')) + '</p>';
+  if (!cgOk) {
+    out += '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.index.needs')) + '</span></div><div>' + link('go', 'codegraph', t('gui.proj.index.goto'), 'pi-goto') + '</div>';
+  }
+  if (!pd.index.length) return out + '<p class="hint">' + esc(t('gui.guard.index.none')) + '</p>';
+  out += '<div class="box">';
+  pd.index.forEach(function (b, i) {
+    var state = b.indexed ? badge('ok', t('gui.guard.indexed')) : (b.installed ? badge('todo', t('gui.guard.not-indexed')) : badge('warn', t('gui.guard.not-installed')));
+    out += '<div class="row"><b>' + esc(b.name) + '</b>' + state + (!b.installed && b.installHint ? '<span class="mono">' + esc(b.installHint) + '</span>' : '') + '<span class="sp"></span>' +
+      '<button type="button" class="btn xs' + (b.indexed ? '' : ' pri') + '" data-act="pindex" data-i="' + i + '" data-k="pindex-' + i + '"' + attr('disabled', true, !b.installed) + attr('title', t('gui.guard.not-installed'), !b.installed) + '>' + esc(b.indexed ? t('gui.proj.index.rerun') : t('gui.proj.index.run')) + '</button></div>';
+  });
+  return out + '</div>';
+}
+
+actions.pindex = function (el) {
+  var root = S.m.proj;
+  var b = S.m.pd.index[+el.getAttribute('data-i')];
+  planAndRun({
+    title: t('gui.proj.index.running', { name: b.name }), confirmLabel: b.indexed ? t('gui.proj.index.rerun') : t('gui.proj.index.run'),
+    plan: summaryPlan(t('gui.windows.index'), [t('gui.proj.index.plan', { name: b.name, path: root })]),
+    run: async function () { await api().IndexProject(root, b.name); return { message: t('gui.modal.done') }; },
+    cancel: function () { api().CancelOperation(); },
+  });
+};
+
+function projGuard() {
+  var g = S.m.pd.guard;
+  return '<p class="lead">' + esc(t('gui.guard.lead')) + '</p><div class="box"><div class="row"><b>' + esc(t('gui.guard.hooks')) + '</b>' +
+    (g.hooksInstalled ? badge('ok', t('gui.guard.active')) : badge('todo', t('gui.guard.inactive'))) + '<span class="sp"></span>' +
+    '<button type="button" class="btn xs" data-act="hooks" data-val="' + (g.hooksInstalled ? 'remove' : 'install') + '" data-k="hooks">' + esc(g.hooksInstalled ? t('gui.guard.remove') : t('gui.guard.install')) + '</button></div>' +
+    '<div class="row"><b>' + esc(t('gui.guard.history')) + '</b><span class="sp"></span><button type="button" class="btn xs" data-act="scanhist" data-k="scanhist">' + esc(t('gui.guard.scan')) + '</button></div></div>';
+}
 
 // ---- doctor -------------------------------------------------------------------
 
@@ -468,7 +891,7 @@ actions.copy = async function () {
 
 actions.fix = function (el) {
   var l = S.m.doctor.sections[+el.getAttribute('data-s')].lines[+el.getAttribute('data-l')];
-  var req = { root: S.root, id: l.fix.id, args: l.fix.args || {} };
+  var req = { root: PR(), id: l.fix.id, args: l.fix.args || {} };
   planAndRun({
     title: l.fix.label, plan: function () { return api().PlanFix(req); },
     run: function (id) { return api().RunFix(req, id); }, after: loadScreen,
@@ -483,19 +906,16 @@ function initials(label) {
 }
 
 function screenIntegrations() {
-  var out = head('integrations', '<button type="button" class="btn" data-act="rerun" data-k="rescan">' + esc(t('gui.btn.scan')) + '</button>') + busyLine();
+  var inProject = S.m.screen === 'project';
+  var out = head('integrations', '<button type="button" class="btn" data-act="rerun" data-k="rescan">' + esc(t('gui.btn.scan')) + '</button>') + busyLine() +
+    '<p class="hint">' + esc(t('gui.int.scope')) + ': ' + esc(t(inProject ? 'gui.profile.scope.project' : 'gui.profile.scope.global')) + '</p>';
   (S.m.integrations || []).forEach(function (it) {
     var b = it.managed ? (it.healthy ? badge('ok', t('gui.int.connected')) : badge('warn', t('gui.int.modified'))) : (it.usable ? badge('todo', t('gui.int.unconnected')) : badge('err', t('gui.int.unavailable')));
-    var scope = S.m.scope[it.name] || 'global';
-    var canProject = !!S.root;
     var acts = '';
     if (it.managed && !it.healthy) acts += iact(it, 'apply', 'gui.int.repair', true);
     if (it.managed) acts += iact(it, 'apply', 'gui.int.reconfigure') + iact(it, 'remove', 'gui.int.remove', false, true);
     else if (it.usable) acts += iact(it, 'apply', 'gui.int.connect', true);
-    var sel = (it.usable || it.managed) ? '<label class="hint">' + esc(t('gui.int.scope')) + ' <select class="sel-sm" data-bind="m.scope.' + esc(it.name) + '" data-k="scope-' + esc(it.name) + '" data-norender>' +
-      '<option value="global"' + attr('selected', true, scope === 'global') + '>' + esc(t('gui.profile.scope.global')) + '</option>' +
-      '<option value="project"' + attr('selected', true, scope === 'project') + attr('disabled', true, !canProject) + (canProject ? '' : ' title="' + esc(t('gui.mgr.needs-project')) + '"') + '>' + esc(t('gui.profile.scope.project')) + '</option></select></label>' : '';
-    out += '<div class="card"><div class="head"><span class="av" aria-hidden="true">' + esc(initials(it.label)) + '</span><b>' + esc(it.label) + '</b>' + b + '<span class="sp"></span><div class="acts">' + sel + acts + '</div></div>' +
+    out += '<div class="card"><div class="head"><span class="av" aria-hidden="true">' + esc(initials(it.label)) + '</span><b>' + esc(it.label) + '</b>' + b + '<span class="sp"></span><div class="acts">' + acts + '</div></div>' +
       (it.problem ? '<div class="meta"><span>' + esc(it.problem) + '</span></div>' : '') + '</div>';
   });
   return out;
@@ -509,7 +929,7 @@ actions.int = function (el) {
   var name = el.getAttribute('data-name');
   var op = el.getAttribute('data-op');
   var it = S.m.integrations.filter(function (i) { return i.name === name; })[0];
-  var req = { root: S.root, runtime: name, op: op, scope: S.m.scope[name] || 'global', memory: '', migratePersona: false };
+  var req = { root: PR(), runtime: name, op: op, scope: S.m.screen === 'project' ? 'project' : 'global', memory: '', migratePersona: false };
   planAndRun({
     title: it.label, plan: function () { return api().PlanIntegration(req); }, run: function (id) { return api().ApplyIntegration(req, id); },
     danger: op === 'remove', confirmLabel: op === 'remove' ? t('gui.int.remove') : t('gui.btn.apply'), after: loadScreen,
@@ -533,7 +953,7 @@ actions.persona = function () {
     title: t('gui.mgr.nav.persona'), confirmLabel: t('gui.btn.save'),
     plan: summaryPlan(t('gui.mgr.nav.persona'), [t('gui.welcome.language') + ': ' + f.lang, t('gui.profile.mode') + ': ' + f.mode]),
     run: async function () {
-      var r = await api().SetPersona(S.root, f.lang, f.mode);
+      var r = await api().SetPersona('', f.lang, f.mode);
       if (f.lang !== S.lang) {
         S.lang = f.lang;
         I18n.set(await api().Messages(f.lang));
@@ -580,83 +1000,25 @@ actions.memory = function () {
   if (a.mode === 'team' && a.role === 'client' && !a.url) return toast(t('gui.memory.url.required'));
   if (a.tokenEnv && !ENV_NAME.test(a.tokenEnv)) return toast(t('gui.memory.token.invalid'));
   planAndRun({
-    title: t('gui.mgr.nav.memory'), plan: function () { return api().PlanMemory(S.root, a); },
-    run: async function (id) { var r = await api().ApplyMemory(S.root, a, id); return r; },
+    title: t('gui.mgr.nav.memory'), plan: function () { return api().PlanMemory(S.m.proj, a); },
+    run: async function (id) { var r = await api().ApplyMemory(S.m.proj, a, id); return r; },
   });
 };
 
-// ---- delivery -------------------------------------------------------------------
-
-function screenDelivery() {
-  var dl = S.m.f.del;
-  var all = dl.automation === 'all';
-  var out = head('delivery') + busyLine() +
-    '<div class="field">' + esc(t('gui.delivery.platform')) + seg('m.f.del.provider', [['github', 'gui.delivery.platform.github'], ['gitlab', 'gui.delivery.platform.gitlab'], ['bitbucket', 'gui.delivery.platform.bitbucket'], ['none', 'gui.delivery.platform.none']], t('gui.delivery.platform')) + '</div>' +
-    '<div class="field">' + esc(t('gui.delivery.automation')) + '<div class="grid3">' +
-    radio('m.f.del.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc')) +
-    radio('m.f.del.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc')) +
-    radio('m.f.del.automation', 'ask', t('gui.delivery.auto.ask'), t('gui.delivery.auto.ask.desc')) + '</div></div>' +
-    '<div class="grid2" style="align-items:end"><label class="field">' + esc(t('gui.delivery.merge')) + '<select data-bind="m.f.del.mergeMethod" data-k="m.f.del.mergeMethod"' + attr('disabled', true, !all) + '>' +
-    [['squash', 'gui.delivery.merge.squash'], ['merge', 'gui.delivery.merge.merge'], ['rebase', 'gui.delivery.merge.rebase']].map(function (o) { return '<option value="' + o[0] + '"' + attr('selected', true, dl.mergeMethod === o[0]) + '>' + esc(t(o[1])) + '</option>'; }).join('') +
-    '</select><span class="hint">' + esc(t('gui.delivery.merge.hint')) + '</span></label><div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">' +
-    check('m.f.del.draft', t('gui.delivery.draft')) + check('m.f.del.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>';
-  if (dl.provider !== 'none') out += field('m.f.del.tokenEnv', t('gui.delivery.token'), { mono: true, placeholder: PROVIDER_ENV[dl.provider] || '' });
-  return out + '<div><button type="button" class="btn pri" data-act="delivery" data-k="del-save">' + esc(t('gui.btn.save')) + '</button></div>';
-}
-
-actions.delivery = function () {
-  var d = S.m.f.del;
-  var all = d.automation === 'all';
-  if (d.provider !== 'none' && d.tokenEnv && !ENV_NAME.test(d.tokenEnv)) return toast(t('gui.delivery.token.invalid'));
-  var ans = { provider: d.provider === 'none' ? '' : d.provider, automation: d.automation, mergeMethod: all ? d.mergeMethod : '', deleteBranch: all ? !!d.deleteBranch : null, draft: !!d.draft, tokenEnv: d.provider === 'none' ? '' : d.tokenEnv.trim() };
-  planAndRun({
-    title: t('gui.mgr.nav.delivery'), confirmLabel: t('gui.btn.save'),
-    plan: summaryPlan(t('gui.mgr.nav.delivery'), [t('gui.delivery.platform') + ': ' + d.provider, t('gui.delivery.automation') + ': ' + d.automation, t('gui.delivery.draft') + ': ' + !!d.draft]),
-    run: function () { return api().SetDelivery(S.root, ans); },
-  });
-};
-
-// ---- guard & code index -----------------------------------------------------------
-
-function screenGuard() {
-  var st = S.m.settings;
-  if (!st) return head('guard') + busyLine();
-  var g = st.guard;
-  var out = head('guard') + busyLine() + '<div class="lbl">' + esc(t('gui.windows.guard')) + '</div><div class="box"><div class="row"><b>' + esc(t('gui.guard.hooks')) + '</b>' +
-    (g.hooksInstalled ? badge('ok', t('gui.guard.active')) : badge('todo', t('gui.guard.inactive'))) + '<span class="sp"></span>' +
-    '<button type="button" class="btn xs" data-act="hooks" data-val="' + (g.hooksInstalled ? 'remove' : 'install') + '" data-k="hooks">' + esc(g.hooksInstalled ? t('gui.guard.remove') : t('gui.guard.install')) + '</button></div>' +
-    '<div class="row"><b>' + esc(t('gui.guard.history')) + '</b><span class="sp"></span><button type="button" class="btn xs" data-act="scanhist" data-k="scanhist">' + esc(t('gui.guard.scan')) + '</button></div></div>' +
-    '<div class="lbl">' + esc(t('gui.windows.index')) + '</div><div class="box">';
-  if (!st.codeIndex.length) out += '<div class="row">' + esc(t('gui.guard.index.none')) + '</div>';
-  st.codeIndex.forEach(function (b, i) {
-    out += '<div class="row"><b>' + esc(b.name) + '</b>' + (b.indexed ? badge('ok', t('gui.guard.indexed')) : (b.installed ? badge('todo', t('gui.guard.not-indexed')) : badge('warn', t('gui.guard.not-installed')))) +
-      (!b.installed && b.installHint ? '<span class="mono">' + esc(b.installHint) + '</span>' : '') + '<span class="sp"></span>' +
-      '<button type="button" class="btn xs" data-act="index" data-i="' + i + '" data-k="index-' + i + '"' + attr('disabled', true, !b.installed) + attr('title', t('gui.guard.not-installed'), !b.installed) + '>' + esc(t('gui.guard.setup')) + '</button></div>';
-  });
-  return out + '</div>';
-}
+// ---- guard hooks (project tab) --------------------------------------------------------------
 
 actions.hooks = function (el) {
   var install = el.getAttribute('data-val') === 'install';
   planAndRun({
     title: t('gui.windows.guard'), confirmLabel: t('gui.btn.apply'),
     plan: summaryPlan(t('gui.windows.guard'), [install ? t('gui.guard.install') : t('gui.guard.remove')]),
-    run: async function () { await api().SetGuardHooks(S.root, install); return { message: t('gui.modal.done') }; },
+    run: async function () { await api().SetGuardHooks(S.m.proj, install); return { message: t('gui.modal.done') }; },
   });
 };
 
 actions.scanhist = function () {
-  var req = { root: S.root, id: 'guard.scan-history', args: {} };
+  var req = { root: S.m.proj, id: 'guard.scan-history', args: {} };
   planAndRun({ title: t('gui.guard.history'), plan: function () { return api().PlanFix(req); }, run: function (id) { return api().RunFix(req, id); }, after: function () {} });
-};
-
-actions.index = function (el) {
-  var b = S.m.settings.codeIndex[+el.getAttribute('data-i')];
-  planAndRun({
-    title: t('gui.windows.index'), confirmLabel: t('gui.btn.apply'),
-    plan: summaryPlan(t('gui.windows.index'), [t('gui.guard.setup') + ' ' + b.name]),
-    run: async function () { await api().SetCodeIndex(S.root, b.name); return { message: t('gui.modal.done') }; },
-  });
 };
 
 // ---- backups --------------------------------------------------------------------
@@ -679,15 +1041,15 @@ actions.restore = function (el) {
   var id = el.getAttribute('data-id');
   planAndRun({
     title: t('gui.bk.restore') + ': ' + id, confirmLabel: t('gui.bk.restore'), danger: true,
-    plan: function () { return api().PlanRestore(S.root, id); }, run: function (pid) { return api().Restore(S.root, id, pid); },
+    plan: function () { return api().PlanRestore(PR(), id); }, run: function (pid) { return api().Restore(PR(), id, pid); },
   });
 };
 
 actions.cleanup = function () {
   planAndRun({
     title: t('gui.bk.cleanup'), confirmLabel: t('gui.bk.cleanup'), danger: true,
-    plan: function () { return api().PlanCleanup(S.root); },
-    run: async function (pid) { return { removed: await api().ApplyCleanup(S.root, pid) }; },
+    plan: function () { return api().PlanCleanup(PR()); },
+    run: async function (pid) { return { removed: await api().ApplyCleanup(PR(), pid) }; },
   });
 };
 
@@ -726,7 +1088,7 @@ function uninstallOptions() {
   var names = [];
   if (!(all && wantGuard)) names = selected.length ? selected : ['-none-'];
   return {
-    root: S.root, runtimes: names.indexOf('-none-') >= 0 ? [] : names, removeMemoryServer: !!u.server, purgeMemoryData: !!u.server, purgeConfirm: '',
+    root: '', runtimes: names.indexOf('-none-') >= 0 ? [] : names, removeMemoryServer: !!u.server, purgeMemoryData: !!u.server, purgeConfirm: '',
     desktop: !!(u.program && d && d.supported && d.installed), installDir: d ? d.installDir : '',
     _nothing: names.indexOf('-none-') >= 0 && !wantGuard,
   };
