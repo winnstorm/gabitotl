@@ -83,6 +83,7 @@ func commands() map[string]Command {
 		{"runtime", "Runtimes and models (list, detect, plan, apply, verify, remove, set)", runRuntime},
 		{"import", "Import knowledge from other harnesses (detect, run)", runImport},
 		{"persona", "Show the installed persona (print, mode)", runPersona},
+		{"context", "Context budget (add, report, check, checkpoint; hook is for the host)", runContext},
 		{"version", "Print the version", runVersion},
 	}
 	m := make(map[string]Command, len(list)+1)

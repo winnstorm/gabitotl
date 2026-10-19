@@ -34,6 +34,12 @@
 //     adapter does not read CLAUDE_CONFIG_DIR, like the rest of this package).
 //     Each is a whole file GabitoTL owns (engine.PlanFile).
 //
+//   - Hooks: settings.json "hooks" maps an event (PreCompact, UserPromptSubmit) to
+//     [{"hooks":[{"type":"command","command":"..."}]}]; the command receives the
+//     event JSON on stdin (including transcript_path) and a UserPromptSubmit
+//     command may print {"hookSpecificOutput":{"hookEventName":...,
+//     "additionalContext":...}}. https://code.claude.com/docs/en/hooks
+//
 // The adapter never rewrites a user's file: persona text is a marked section,
 // and the memory MCP entry is a managed key spliced into the JSON.
 package claudecode
@@ -104,6 +110,22 @@ func AttributionKeys() []Key {
 		{[]string{"attribution", "commit"}, json.RawMessage(`""`)},
 		{[]string{"attribution", "pr"}, json.RawMessage(`""`)},
 		{[]string{"attribution", "sessionUrl"}, json.RawMessage(`false`)},
+	}
+}
+
+// HookKeys are the managed settings.json hook entries that enforce the context
+// budget (D39): PreCompact saves a checkpoint to memory before the host
+// compacts, and UserPromptSubmit measures the transcript and, past the
+// threshold, injects a one-line instruction to checkpoint. Stop is not used:
+// its output cannot add context. If the user already defines hooks for the same
+// event the entry is kept as theirs (PRESERVE) and the prose rule remains.
+func HookKeys() []Key {
+	hook := func(cmd string) json.RawMessage {
+		return json.RawMessage(`[{"hooks":[{"type":"command","command":"` + cmd + `"}]}]`)
+	}
+	return []Key{
+		{[]string{"hooks", "PreCompact"}, hook("gabitotl context checkpoint")},
+		{[]string{"hooks", "UserPromptSubmit"}, hook("gabitotl context hook")},
 	}
 }
 
@@ -205,6 +227,9 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 		plan = append(plan, engine.PlanServer(Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, name, val, sameServer(m)))
 	}
 	for _, k := range AttributionKeys() {
+		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
+	}
+	for _, k := range HookKeys() {
 		plan = append(plan, engine.PlanKey(Name, a.settingsPath(env, opts.Scope), k.Path, k.Value, false))
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
