@@ -41,12 +41,22 @@ func New() *Installer {
 		Env: Env{
 			ExePath:           exe,
 			DefaultInstallDir: filepath.Join(local, "Programs", "GabitoTL"),
-			StartMenuPrograms: filepath.Join(roaming, "Microsoft", "Windows", "Start Menu", "Programs"),
-			DesktopDir:        filepath.Join(home, "Desktop"),
+			StartMenuPrograms: knownFolder(windows.FOLDERID_Programs, filepath.Join(roaming, "Microsoft", "Windows", "Start Menu", "Programs")),
+			DesktopDir:        knownFolder(windows.FOLDERID_Desktop, filepath.Join(home, "Desktop")),
 			Today:             func() string { return time.Now().Format("20060102") },
 		},
 		FS: fs, Path: userPath{}, Links: wshShortcuts{}, Reg: appsRegistry{},
 	}
+}
+
+// knownFolder resolves a shell folder the way Explorer does, so a Desktop
+// redirected to OneDrive or a network share is still found. It falls back to
+// the conventional path when the shell cannot answer.
+func knownFolder(id *windows.KNOWNFOLDERID, fallback string) string {
+	if p, err := windows.KnownFolderPath(id, 0); err == nil && p != "" {
+		return p
+	}
+	return fallback
 }
 
 // winFS adds the delayed directory removal to the portable file adapter.
