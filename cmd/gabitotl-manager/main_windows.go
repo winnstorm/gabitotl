@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,6 +32,8 @@ import (
 	"github.com/winnstorm/gabitotl/internal/cli"
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gui"
+	"github.com/winnstorm/gabitotl/internal/projects"
+	"github.com/winnstorm/gabitotl/internal/projects/opencodedb"
 	"github.com/winnstorm/gabitotl/internal/version"
 )
 
@@ -55,6 +58,16 @@ func main() {
 	}
 	deps := cli.GUIDeps(func() string { return cliPath })
 	deps.Desktop = inst
+	// Projects: the CLI's dependency-free sources + OpenCode's SQLite (linked only
+	// here) + the folders this Manager remembers.
+	env := projects.OSEnv()
+	srcs := append(projects.Defaults(env), opencodedb.Source{Env: env},
+		projects.Func{Label: projects.SrcGabitoTL, List: func() []string { return route.LoadProjects(statePath()) }})
+	deps.Projects = func(ctx context.Context) ([]projects.Project, error) {
+		return projects.Scan(ctx, srcs, projects.DefaultOptions(env.Home)), nil
+	}
+	deps.RememberProject = func(p string) error { return route.AddProject(statePath(), p) }
+	deps.ForgetProject = func(p string) error { return route.ForgetProject(statePath(), p) }
 	svc := gui.New(deps)
 
 	app := &App{svc: svc, exe: exe, cliPath: cliPath}

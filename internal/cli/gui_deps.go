@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/winnstorm/gabitotl/internal/projects"
 	"io"
 
 	"github.com/winnstorm/gabitotl/internal/credstore"
@@ -33,7 +34,11 @@ func GUIDeps(cliPath func() string) gui.Deps {
 		},
 		Credentials: func(home string) credstore.Store { return credStoreFn(home) },
 		VerifyToken: guiVerifyToken,
-		Version:     version.Version,
+		Projects: func(ctx context.Context) ([]projects.Project, error) {
+			e := projects.OSEnv()
+			return projects.Scan(ctx, projects.Defaults(e), projects.DefaultOptions(e.Home)), nil
+		},
+		Version: version.Version,
 	}
 }
 

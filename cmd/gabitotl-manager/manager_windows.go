@@ -33,6 +33,16 @@ func (a *App) Root() string { return route.LoadRoot(statePath()) }
 // SetRoot remembers the project folder.
 func (a *App) SetRoot(root string) error { return route.SaveRoot(statePath(), root) }
 
+// Projects lists the projects found on this machine (Claude Code, OpenCode,
+// Kiro, GabitoTL).
+func (a *App) Projects() ([]gui.ProjectInfo, error) { return a.svc.Projects(a.ctx) }
+
+// AddProject remembers a folder in the Manager's list.
+func (a *App) AddProject(path string) error { return a.svc.AddProject(path) }
+
+// ForgetProject drops a folder from the Manager's list (nothing on disk changes).
+func (a *App) ForgetProject(path string) error { return a.svc.ForgetProject(path) }
+
 // CopyText puts text on the clipboard.
 func (a *App) CopyText(text string) error { return wr.ClipboardSetText(a.ctx, text) }
 

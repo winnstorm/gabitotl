@@ -1,6 +1,7 @@
 package route
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -45,5 +46,36 @@ func TestRootIsRemembered(t *testing.T) {
 	}
 	if got := LoadRoot(f); got != "/work/app" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestProjectListIsBackwardCompatible(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "manager.json")
+	if err := os.WriteFile(f, []byte(`{"root":"/old"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadProjects(f); len(got) != 1 || got[0] != "/old" {
+		t.Fatalf("legacy file: %v", got)
+	}
+	if err := AddProject(f, "/a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddProject(f, "/a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveRoot(f, "/b"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadProjects(f); len(got) != 2 || got[0] != "/a" || got[1] != "/b" {
+		t.Fatalf("after save: %v", got)
+	}
+	if err := ForgetProject(f, "/a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ForgetProject(f, "/b"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadProjects(f); len(got) != 0 || LoadRoot(f) != "" {
+		t.Fatalf("after forget: %v %q", got, LoadRoot(f))
 	}
 }

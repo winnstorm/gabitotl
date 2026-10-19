@@ -27,6 +27,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/persona"
+	"github.com/winnstorm/gabitotl/internal/projects"
 )
 
 // Deps are the ports of the Service. Env is required; every other field has a
@@ -54,6 +55,11 @@ type Deps struct {
 	// CodeGraph installs the required CodeGraph component; nil uses the real
 	// installer of this machine (Windows only, unsupported elsewhere).
 	CodeGraph *codegraph.Installer
+	// Projects discovers the projects on this machine (read-only); nil means none.
+	// RememberProject / ForgetProject keep the Manager's own list; nil disables them.
+	Projects        func(ctx context.Context) ([]projects.Project, error)
+	RememberProject func(path string) error
+	ForgetProject   func(path string) error
 	// Version is shown in Apps & features.
 	Version string
 }

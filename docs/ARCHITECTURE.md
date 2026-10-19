@@ -144,3 +144,7 @@ The Memory MCP server needs a PostgreSQL. GabitoTL never shares one with the use
 - **Data is kept.** `remove` deletes the container and network and keeps the volume and credentials; `--purge-data` needs the volume name typed. Installing over a kept volume reuses its password; a kept volume without its credentials file is refused rather than overwritten.
 - **Named instances.** `--instance NAME` gives a second instance its own container, volume, network and credentials file.
 - **Docker address pools.** On a machine whose default bridge pools are exhausted, the network is created with a small explicit `10.213.x.0/28` subnet (the engine rejects overlaps; no other network is inspected).
+
+## Project discovery (Manager)
+
+`internal/projects` finds projects through read-only `Source` adapters (Claude Code, OpenCode, Kiro, remembered folders, a bounded `.gabitotl/` scan) and merges them in `Scan`. The OpenCode SQLite reader is `internal/projects/opencodedb`, linked only by `cmd/gabitotl-manager` (D58); the CLI stays SQLite-free. `gui.Service` exposes the result as `Projects`.
