@@ -399,6 +399,9 @@ actions.credsave = async function (el) {
     S.cred.msg[p] = { cls: 'warn', text: t('gui.delivery.cred.invalid') };
     return render();
   }
+  // The token leaves the page state on every attempt, saved or not; a failed
+  // one is typed again.
+  S.cred.tok[p] = '';
   S.cred.busy = p;
   S.cred.msg[p] = null;
   render();
@@ -406,7 +409,6 @@ actions.credsave = async function (el) {
     var r = await api().SaveCredential(p, '', tok);
     var st = CRED_STATUS[r.status] ? r.status : 'invalid';
     S.cred.msg[p] = { cls: st === 'saved' ? 'ok' : 'warn', text: t(CRED_STATUS[st]) };
-    if (r.stored) S.cred.tok[p] = '';
   } catch (e) {
     S.cred.msg[p] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
   }

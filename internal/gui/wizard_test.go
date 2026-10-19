@@ -44,7 +44,8 @@ func TestDetectBuildsTheInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !d.Git.Found || d.Git.Provider != "github" || d.UserName != "Ada Lovelace" || d.ProjectReady || d.Gentle.Found {
+	// The wizard is global: a root passed in is ignored, so no project remote.
+	if !d.Git.Found || d.Git.Provider != "" || d.Root != "" || d.UserName != "Ada Lovelace" || d.ProjectReady || d.Gentle.Found {
 		t.Fatalf("unexpected detection: %+v", d)
 	}
 	names := map[string]bool{}
@@ -54,8 +55,15 @@ func TestDetectBuildsTheInventory(t *testing.T) {
 	if !names["claude-code"] || !names["opencode"] || names["kiro-cli"] {
 		t.Fatalf("runtimes: %+v", d.Runtimes)
 	}
-	if len(d.Sections) == 0 || len(d.CodeIndex) != 2 || d.PersonaMode != "normal" || d.Desktop.Supported {
+	if len(d.Sections) == 0 || len(d.CodeIndex) != 0 || d.PersonaMode != "normal" || d.Desktop.Supported {
 		t.Fatalf("sections/index/mode/desktop: %+v", d)
+	}
+	for _, sec := range d.Sections {
+		for _, row := range sec.Rows {
+			if strings.Contains(row, "proyecto") {
+				t.Fatalf("the global wizard shows a project row: %q", row)
+			}
+		}
 	}
 }
 

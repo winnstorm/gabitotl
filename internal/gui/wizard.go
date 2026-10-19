@@ -25,7 +25,9 @@ const (
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Detect builds the inventory of the second wizard screen. It is read-only.
-func (s *Service) Detect(ctx context.Context, root string) (DetectResult, error) {
+// The wizard is global: root is ignored, like in PlanInstall and Install.
+func (s *Service) Detect(ctx context.Context, _ string) (DetectResult, error) {
+	root := ""
 	env, err := s.env(root)
 	if err != nil {
 		return DetectResult{}, err
@@ -59,9 +61,14 @@ func (s *Service) Detect(ctx context.Context, root string) (DetectResult, error)
 			r.Gentle.GentleKiroPresent = pl.HasNote(installer.NoteGentleKiroPresent)
 		}
 	}
+	// "Not inside a project" is a CLI warning; the global wizard never has one.
+	noProject := m.Format("inv.project.none")
 	for _, sec := range ui.InventorySections(m, inv) {
 		part := InventoryPart{Title: sec.Title, Rows: []string{}}
 		for _, l := range sec.Lines {
+			if l.Text == noProject {
+				continue
+			}
 			part.Rows = append(part.Rows, strings.TrimSpace(l.Sym+" "+l.Text))
 		}
 		r.Sections = append(r.Sections, part)
