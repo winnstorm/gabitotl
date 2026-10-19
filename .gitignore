@@ -16,6 +16,7 @@ odd/
 # Go build output
 /bin/
 /dist/
+/cmd/gabitotl-manager/bundled/
 *.test
 *.out
 coverage.*

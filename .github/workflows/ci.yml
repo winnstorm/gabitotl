@@ -44,3 +44,25 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+  # Windows: only the packages expected to work there. The full `go test ./...`
+  # stays off Windows because the e2e suite needs a POSIX shell and Windows
+  # behavior is untested elsewhere in V1 (see the matrix comment above).
+  windows:
+    name: windows-latest (manager)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test (Windows-relevant packages)
+        run: go test ./internal/desktop/... ./internal/gui/... ./cmd/gabitotl-manager/...
+
+      - name: build the manager (windowsgui)
+        run: go build -tags desktop,production -ldflags "-H windowsgui" -o gabitotl-manager.exe ./cmd/gabitotl-manager
