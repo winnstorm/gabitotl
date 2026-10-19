@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 )
@@ -81,6 +82,22 @@ func TestDetectFindsGentleAI(t *testing.T) {
 	a.GentleAction = ActionReview
 	if _, err := r.svc.PlanInstall(context.Background(), a); !errors.Is(err, ErrDecisionPending) {
 		t.Fatalf("review must stay a pending decision, got %v", err)
+	}
+}
+
+// The snapshot name carries the minute: a plan reviewed at 10:00 and applied
+// at 10:02 is still the same plan.
+func TestInstallAcceptsAPlanReviewedMinutesBefore(t *testing.T) {
+	r := newRig(t)
+	a := r.answers()
+	ctx := context.Background()
+	pl, err := r.svc.PlanInstall(ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.now = r.now.Add(2 * time.Minute)
+	if _, err := r.svc.Install(ctx, a, pl.ID, nil); err != nil {
+		t.Fatalf("install after two minutes: %v", err)
 	}
 }
 

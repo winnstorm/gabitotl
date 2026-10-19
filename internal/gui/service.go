@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/winnstorm/gabitotl/internal/codegraph"
@@ -164,10 +165,22 @@ func checkPlan(given string, fresh Plan) error {
 
 // seal fills the plan id from its content.
 func seal(p Plan) Plan {
-	snap := p.Snapshot
-	p.Snapshot = "" // the snapshot name carries a timestamp
-	p.ID = planID(p)
-	p.Snapshot = snap
+	// The snapshot name carries the minute, in the field and in the plan lines
+	// that create its folder: both are left out of the fingerprint, or a plan
+	// reviewed before the minute turns would never apply.
+	h := p
+	h.Snapshot = ""
+	if p.Snapshot != "" {
+		h.Groups = make([]PlanGroup, len(p.Groups))
+		for i, g := range p.Groups {
+			g.Lines = append([]string(nil), g.Lines...)
+			for j, l := range g.Lines {
+				g.Lines[j] = strings.ReplaceAll(l, p.Snapshot, "<snapshot>")
+			}
+			h.Groups[i] = g
+		}
+	}
+	p.ID = planID(h)
 	return p
 }
 
