@@ -334,8 +334,12 @@ Kiro gets the steering file, the skills, the MCP entry and, per person, a hook f
 `~/.kiro/hooks/gabitotl.json` (or `$KIRO_HOME/hooks/`) for both CLI and IDE, at any scope, never in the shared
 project `.kiro/`. Two `SessionStart` hooks: one injects the active chat mode (`persona mode --hook --format text`),
 the other (`context hook --format text --event session --dump`) is silent and records the payload Kiro sends in
-`.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept). No `PromptSubmit` hook is installed yet: a failing one can block the
-prompt in the IDE, and Kiro documents no token usage. Once a dump shows usage fields it will be added. Limits: Kiro has no
+`.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept). A third, per-message `PromptSubmit` hook
+(`context hook --format text --source kiro --event prompt`) measures the context from Kiro's own usage percentage
+(read from `<KIRO_HOME or ~/.kiro>/sessions`, no token limit needed; `context check|report --source kiro` show it). It is
+silent under `context_threshold` (default 75%), never blocks and always exits 0; at the threshold it asks the agent once
+to save decisions and progress to memory and tells you about starting a fresh chat. Uninstall with `gabitotl uninstall`,
+which removes the file: deleting the binary first leaves a hook pointing at nothing. Limits: Kiro has no
 pre-compaction event, so the 75% checkpoint stays a persona rule; the IDE loading `~/.kiro/hooks` is unconfirmed (documented
 for CLI V3), so check the dump file after a new session. If hooks do not load, the persona fallback line has the agent run
 `gabitotl persona mode` itself. Hook commands (Kiro and Claude Code) call gabitotl by the absolute path of the binary that

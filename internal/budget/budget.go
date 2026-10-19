@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"time"
 
@@ -27,6 +28,7 @@ const (
 const (
 	SourceReported  = "reported"  // real count supplied by the runtime
 	SourceEstimated = "estimated" // tokens.Estimate heuristic
+	SourcePercent   = "percent"   // usage percentage measured by the runtime itself (Kiro)
 )
 
 // Config sets the context budget.
@@ -180,6 +182,16 @@ func (m *Monitor) SetUsed(used int, source string) error {
 		m.state.Notified = false
 	}
 	return m.save()
+}
+
+// SetPercent records a context usage percentage (0-100) that the runtime
+// measured itself. It is stored as the equivalent share of the limit, so the
+// threshold check needs no token count from the runtime.
+func (m *Monitor) SetPercent(pct float64) error {
+	if math.IsNaN(pct) || pct < 0 {
+		return errors.New("budget: percentage must not be negative")
+	}
+	return m.SetUsed(int(math.Round(pct/100*float64(m.Config.Limit))), SourcePercent)
 }
 
 // Used returns the current token count and its source.

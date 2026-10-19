@@ -118,6 +118,8 @@ func hooksJSON(env rt.Env) string {
 			action{"command", env.Command("persona mode --hook --format text")}, 10},
 		{"gabitotl-capture-hook-input", "Record the hook payload Kiro sends (silent) so context hooks can be enabled", "SessionStart",
 			action{"command", env.Command("context hook --format text --event session --dump")}, 10},
+		{"gabitotl-context-budget", "Ask the agent to save to memory when Kiro's context is nearly full (silent otherwise)", "PromptSubmit",
+			action{"command", env.Command("context hook --format text --source kiro --event prompt")}, 5},
 	}}, "", "  ")
 	return string(b) + "\n"
 }
