@@ -43,7 +43,10 @@ func gitIn(t *testing.T, dir string, args ...string) {
 func whoProject(t *testing.T) (root, other string, layout gabitotl.Layout) {
 	t.Helper()
 	t.Setenv("GABITOTL_USER", "gabi")
-	base := t.TempDir()
+	base, err := filepath.EvalSymlinks(t.TempDir()) // macOS: /var -> /private/var
+	if err != nil {
+		t.Fatal(err)
+	}
 	root = filepath.Join(base, "app")
 	if err := os.Mkdir(root, 0o755); err != nil {
 		t.Fatal(err)
