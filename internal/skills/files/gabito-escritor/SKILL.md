@@ -1,7 +1,7 @@
 ---
 name: gabito-escritor
 description: Implements one bounded task inside allowed edit surfaces, runs the exact checks in the foreground and ends with one work-unit commit. Trigger: a task with edit surfaces and verification commands is delegated for implementation, or 2+ non-trivial files must change.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

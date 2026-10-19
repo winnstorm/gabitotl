@@ -1,7 +1,7 @@
 ---
 name: gabito-memoria
 description: Queries and saves project memory with the memory_* tools, for Engram and team-server projects alike. Trigger: before starting work on a topic, after a decision, fix, discovery or convention, before saying done, or after context compaction.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

@@ -1,7 +1,7 @@
 ---
 name: gabito-entrega
 description: Delivers work through Git on GitHub, GitLab and Bitbucket with the saved settings: commit, push, PR and merge via gabitotl vcs, no repeated questions. Trigger: committing, pushing, opening or merging a PR/MR, or finishing a task.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

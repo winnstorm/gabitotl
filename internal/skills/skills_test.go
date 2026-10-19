@@ -64,8 +64,8 @@ func TestEmbeddedSkillsAreValid(t *testing.T) {
 			} else if strings.Contains(d[i+len("Trigger:"):], "Trigger:") {
 				t.Errorf("description must have exactly one Trigger: clause: %q", d)
 			}
-			if top["license"] != "MIT" {
-				t.Errorf("license = %q, want MIT", top["license"])
+			if top["license"] != "Apache-2.0" {
+				t.Errorf("license = %q, want Apache-2.0", top["license"])
 			}
 			if meta["author"] != Author {
 				t.Errorf("metadata.author = %q, want %q", meta["author"], Author)

@@ -1,7 +1,7 @@
 ---
 name: gabito-orquestador
 description: Delegates work without losing context: inline for small work, one read-only mapper, one writer, one verifier, always sequential. Trigger: before delegating to a helper, planning multi-step work, or when a task spans 4+ files.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"

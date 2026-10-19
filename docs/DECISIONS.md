@@ -724,3 +724,11 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   noise. The session format is undocumented and may change; an unreadable one just means no warning. OJO: deleting the
   gabitotl binary without `gabitotl uninstall` leaves a hook pointing at a missing file, and Kiro may then show an error
   on every prompt. Real IDE stdin and trigger behavior are unverified; the hook relies on cwd or the working directory.
+
+## D53. Apache License 2.0
+
+- **Decision:** GabitoTL moves from MIT to the Apache License 2.0, with a `NOTICE` file; every shipped skill declares
+  `license: Apache-2.0`.
+- **Why:** it stays permissive for people and companies, but adds an explicit patent grant and requires keeping the
+  copyright and notice, so authorship travels with every copy.
+- **Consequences:** redistributions must keep `LICENSE` and `NOTICE`; the skills test enforces the new license field.

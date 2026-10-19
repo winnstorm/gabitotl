@@ -1,7 +1,7 @@
 ---
 name: gabito-equipo
 description: Coordinates with other people on the same project using who, session, work and worktree commands. Advisory only: warn, never block. Trigger: starting a task, touching an area others may be editing, or when asked who is working on what.
-license: MIT
+license: Apache-2.0
 metadata:
   author: gabitotl
   version: "1.0"
