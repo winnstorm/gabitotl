@@ -17,7 +17,7 @@ var tuiRunFn = tui.Run
 // flags and the injected Env into the TUI; detection, questions-to-ask, plan and
 // apply all come from internal/installer.
 func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths ui.Paths) int {
-	m := ui.Default()
+	m := installMessages(ienv.Home, f.personaLang)
 	ctx := context.Background()
 	before := projectProvider(root)
 	opts := installer.Options{

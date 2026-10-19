@@ -20,7 +20,7 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 ## The installer screen (TUI)
 
 On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
-(Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish. It walks through:
+(Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish (or English, see [Persona language](#persona-language)). It walks through:
 
 1. what was detected (`✓` ready, `!` needs attention, `→` will be configured, `×` error);
 2. what to do (migrate Gentle-AI, install without touching it, review details, quit);
@@ -325,8 +325,12 @@ pragmatic English). It is one persona template; only the voice lines and the rep
   section, so it is replaced in place (no stale copy). `gabitotl runtime apply --runtime <name>` also uses the saved language.
 - **Where it shows.** `gabitotl doctor` prints the language and flags drift if an installed persona no longer matches it;
   `persona mode` rules, the session-start hook, the overlap OJO and the long-chat TIP follow it too.
-- The language only affects what Gabito says in chat. Code, commits, PRs, docs and memory stay in English. The CLI's own
-  screens (installer, guard, `vcs ship`) and the `gabito-*` skills are still in Spanish.
+- **Screens follow it.** The installer, the full-screen interface, `doctor`, `vcs` and the other CLI screens speak the
+  chosen language (`internal/installer/ui/messages_es-AR.txt` and `messages_en.txt`); in the interface the rest of the
+  screens switch as soon as you pick the language. The migration report in `.gabitotl/imports.md` is a shared project
+  file and stays in Spanish.
+- The language only affects what Gabito says. Code, commits, PRs, docs and memory stay in English. The guard messages
+  and the `gabito-*` skills are still Spanish-first.
 
 ## Skills
 

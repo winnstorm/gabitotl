@@ -30,7 +30,7 @@ func runVCSLogin(env Env, args []string) int {
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	m := ui.Default()
+	m := ui.Active("")
 	dir, err := resolveRoot(env, *root)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl vcs login: %v\n", err)

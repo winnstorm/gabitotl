@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/persona"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 )
 
@@ -130,6 +131,7 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 	if n.PersonaLang {
 		if i, ok := p.Choose(p.m.Format("ask.lang"), []string{p.m.Format("ask.lang.es"), p.m.Format("ask.lang.en")}, 0); ok && i == 1 {
 			opts.PersonaLang = "en"
+			p.m = For(persona.LangEN) // the next questions follow the language just chosen
 		}
 	}
 	if n.Mode {

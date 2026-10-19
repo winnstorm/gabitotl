@@ -46,7 +46,7 @@ func openDelivery(env Env, name, root string) (*delivery, int) {
 		fmt.Fprintf(env.Stderr, "gabitotl %s: %v\n", name, err)
 		return nil, ExitError
 	}
-	d := &delivery{env: env, m: ui.Default(), name: name, dir: dir, repo: repo}
+	d := &delivery{env: env, m: ui.Active(""), name: name, dir: dir, repo: repo}
 	if env.IsTTY {
 		p := ui.NewPrompter(env.Stdin, env.Stderr, d.m)
 		repo.Confirm = func(op, detail string) bool {

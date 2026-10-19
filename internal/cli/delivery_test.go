@@ -302,3 +302,20 @@ func TestInstallAsksThePersonaLanguageOnceAndEnglishWins(t *testing.T) {
 		t.Fatalf("saved = %q %v\n%s", l, ok, r.out)
 	}
 }
+
+func TestScreensSpeakEnglishWhenTheSavedPersonaLanguageIsEnglish(t *testing.T) {
+	f := engramProjectFix(t)
+	if r := f.run("", false, "install", "--yes", "--persona-lang=en"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if strings.Contains(f.run("", false, "install", "--dry-run").out, "Esto fue un ensayo") {
+		t.Fatal("the dry run must not speak Spanish with lang: en")
+	}
+	r := f.run("", false, "doctor")
+	if !strings.Contains(r.out, "GabitoTL doctor") || !strings.Contains(r.out, "Memory") || strings.Contains(r.out, "Memoria") || strings.Contains(r.out, "Proyecto") {
+		t.Fatalf("doctor must be English with lang: en:\n%s", r.out)
+	}
+	if r := f.run("", false, "install", "--dry-run", "--persona-lang=es"); !strings.Contains(r.out, "Esto fue un ensayo") {
+		t.Fatalf("--persona-lang=es must switch the screens back:\n%s", r.out)
+	}
+}

@@ -46,7 +46,7 @@ func runDoctor(env Env, args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
 	d := installer.Doctor(ctx, ienv) // read-only
-	ui.RenderDoctor(env.Stdout, ui.Default(), d)
+	ui.RenderDoctor(env.Stdout, ui.Active(ienv.Home), d)
 	if r := projectRoot(env, *root); r != "" {
 		fmt.Fprintln(env.Stdout, indexLine(r)) // informational, never a failure
 	}
@@ -84,13 +84,13 @@ func runRestore(env Env, args []string) int {
 		fmt.Fprintf(env.Stderr, "gabitotl restore: %v\n", err)
 		return ExitError
 	}
-	ui.RenderSnapshots(env.Stdout, ui.Default(), snaps)
+	ui.RenderSnapshots(env.Stdout, ui.Active(ienv.Home), snaps)
 	return ExitOK
 }
 
 func doRestore(env Env, id string, yes, dry bool) int {
-	m := ui.Default()
 	ienv, paths, err := lifecycleEnv(env, "")
+	m := ui.Active(ienv.Home)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl restore: %v\n", err)
 		return ExitError
@@ -128,8 +128,8 @@ func runUninstall(env Env, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	m := ui.Default()
 	ienv, paths, err := lifecycleEnv(env, "")
+	m := ui.Active(ienv.Home)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl uninstall: %v\n", err)
 		return ExitError
@@ -174,8 +174,8 @@ func runCleanup(env Env, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	m := ui.Default()
 	ienv, paths, err := lifecycleEnv(env, "")
+	m := ui.Active(ienv.Home)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl cleanup: %v\n", err)
 		return ExitError

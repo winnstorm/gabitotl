@@ -70,7 +70,7 @@ func doInit(env Env, f initFlags) error {
 	// --provider) answer it, and so does a project that already exists.
 	chain := false
 	if interactive && !existed && f.mode == "" && f.provider == "" {
-		chain = askWorksWithOthers(env, ui.Default())
+		chain = askWorksWithOthers(env, ui.Active(""))
 		if chain {
 			f.mode = gabitotl.ModeTeam
 		}
@@ -110,7 +110,7 @@ func doInit(env Env, f initFlags) error {
 		return chainInstall(env, root, "")
 	case interactive && existed && f.mode == "" && f.provider == "":
 		if cfg, err := gabitotl.LoadMemory(l); err == nil && cfg.Provider == gabitotl.MemoryEngram {
-			m := ui.Default()
+			m := ui.Active("")
 			if i, ok := ui.NewPrompter(env.Stdin, env.Stdout, m).Choose(m.Format("ask.change"),
 				[]string{m.Format("ask.change.no"), m.Format("ask.change.yes")}, 0); ok && i == 1 {
 				return chainInstall(env, root, gabitotl.MemoryMemoryMCP)

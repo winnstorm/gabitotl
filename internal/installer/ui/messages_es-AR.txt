@@ -244,6 +244,7 @@ ask.invalid = No entendí esa respuesta.
 restore.title = Snapshots disponibles:
 restore.none = No hay snapshots de migración.
 restore.line = {id}  [{status}]  {detail}
+restore.detail = {source}, {count} archivo(s)
 restore.hint = Restaurá uno con: gabitotl restore <id>
 restore.plan = Esto cambia:
 restore.change.restore = restaurar
@@ -434,6 +435,7 @@ tui.team.invites.desc = Cada token se muestra una sola vez al final y queda limi
 tui.team.hosturl = URL con la que tus compañeros llegan al servidor (opcional)
 tui.team.hosturl.desc = Por ejemplo https://memoria.miequipo.com/mcp. Va al repo para que se conecten sin preguntar; dejala vacía si todavía no la tenés.
 tui.team.badurl = La URL no sirve: {detail}
+tui.team.badid = {id} no es un id válido
 tui.team.badenv = Tiene que ser un nombre como GABITOTL_MEMORY_TOKEN.
 tui.engram.title = Encontré memoria previa en Engram
 tui.engram.intro = ¿Qué hacemos con ella en la memoria compartida?
@@ -474,6 +476,7 @@ tui.result.title = Resultado
 tui.quit.nothing = No cambié nada.
 
 # --- gabitotl memory migrate engram --------------------------------------------------------
+migrate.unknown_source = gabitotl migrate: sé migrar desde "{known}" (no desde "{got}")
 migrate.title = Importación de Engram a la memoria compartida
 migrate.dry = Ensayo: no importé nada y no toqué ninguna base.
 migrate.counts = {observations} observaciones en el export: {eligible} se importarían, {skipped} se saltean.

@@ -11,6 +11,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
+	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
 // deliveryPrefix marks the form kinds of the delivery questions ("vcs:<step>").
@@ -44,7 +45,7 @@ func (m *Model) startForm(kind string) tea.Cmd {
 			Validate(func(v string) error {
 				for _, id := range splitIDs(v) {
 					if !installer.ValidTeamUser(id) {
-						return errors.New(id + " no es un id válido")
+						return errors.New(m.msg.Format("tui.team.badid", "id", id))
 					}
 				}
 				return nil
@@ -159,6 +160,9 @@ func (m *Model) formDone() tea.Cmd {
 		m.modeDecided = true
 	case "lang":
 		m.opts.PersonaLang = m.langVal
+		if l, err := persona.ParseLang(m.langVal); err == nil {
+			m.msg = ui.For(l) // the rest of the screens follow the language just chosen
+		}
 	case "runtimes":
 		m.opts.Runtimes = slices.Clone(m.rtVal)
 	case "invites":

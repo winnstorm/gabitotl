@@ -19,6 +19,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/memory/migrate/engrammcp"
 	"github.com/winnstorm/gabitotl/internal/memory/server"
 	"github.com/winnstorm/gabitotl/internal/memory/store"
+	"github.com/winnstorm/gabitotl/internal/persona"
 	"github.com/winnstorm/gabitotl/internal/pgmanaged"
 	"github.com/winnstorm/gabitotl/internal/version"
 )
@@ -31,7 +32,7 @@ var (
 		if err != nil {
 			return installer.Env{}, err
 		}
-		m := ui.Default()
+		m := ui.Default() // the report is a shared project artifact: always es-AR
 		return installer.Env{
 			Home: renv.Home, ProjectRoot: root, GOOS: renv.GOOS, GOARCH: goruntime.GOARCH,
 			Getenv: renv.Getenv, Environ: os.Environ, LookPath: renv.LookPath, Runner: installerRunnerFn(), Now: renv.Now,
@@ -154,6 +155,15 @@ func runInstall(env Env, args []string) int {
 	return execute(env, f, installer.SourceInstall)
 }
 
+// installMessages is the catalogue of an install: the language given with
+// --persona-lang (or just chosen), else the one saved in home, else es-AR.
+func installMessages(home, lang string) ui.Messages {
+	if l, err := persona.ParseLang(lang); lang != "" && err == nil {
+		return ui.For(l)
+	}
+	return ui.Active(home)
+}
+
 func runMigrate(env Env, args []string) int {
 	var f installFlags
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
@@ -162,7 +172,7 @@ func runMigrate(env Env, args []string) int {
 	source := installer.SourceGentleAI // the only harness V1 knows how to migrate from
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		if args[0] != installer.SourceGentleAI {
-			fmt.Fprintf(env.Stderr, "gabitotl migrate: sé migrar desde %q (no desde %q)\n", installer.SourceGentleAI, args[0])
+			fmt.Fprintln(env.Stderr, ui.Active("").Format("migrate.unknown_source", "known", installer.SourceGentleAI, "got", args[0]))
 			return ExitUsage
 		}
 		args = args[1:]
@@ -228,7 +238,7 @@ func openQuestions(root, home string, inv installer.Inventory, opts installer.Op
 // execute is the shared install/migrate flow: detect, ask only what cannot be
 // detected, show the plan, and (unless --dry-run) apply it.
 func execute(env Env, f installFlags, source string) int {
-	m := ui.Default()
+	m := ui.Active("")
 	if !f.dryRun && !f.yes && !env.IsTTY {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("refuse.no_tty"))
 		return ExitError
@@ -243,6 +253,7 @@ func execute(env Env, f installFlags, source string) int {
 		fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
 		return ExitError
 	}
+	m = installMessages(ienv.Home, f.personaLang)
 	delivery, err := f.delivery.answers()
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl: %v\n", err)
@@ -297,6 +308,7 @@ func execute(env Env, f installFlags, source string) int {
 
 	if interactive {
 		pr.Onboard(&opts, openQuestions(root, ienv.Home, inv, opts), suggestName(ctx, ienv, root))
+		m = installMessages(ienv.Home, opts.PersonaLang) // the rest of the screens follow the language just chosen
 	}
 
 	if source == installer.SourceGentleAI {
