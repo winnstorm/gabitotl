@@ -45,6 +45,7 @@ Memory failing never blocks the work or replaces the answer.
 - Entries flagged `needs_review` (or otherwise marked pending review) are stale context: use them as a hint
   to check the code, never as fact. Revise them with `memory_update` once you verified the truth.
 - Read-only work still queries memory; it just does not save.
+- Searches full of old progress entries: suggest `gabitotl memory compact` (dry run; the user decides to `--apply`).
 
 ## Save after
 

@@ -72,7 +72,10 @@ type ActiveQuery struct {
 	Task    string
 	// Since keeps entries updated at or after it; zero means no lower bound.
 	Since time.Time
-	Limit int
+	// Before keeps entries updated strictly before it; zero means no upper bound.
+	// With Limit it pages backwards through history (used by memory compaction).
+	Before time.Time
+	Limit  int
 }
 
 // Stats are cheap counters for diagnostics.
