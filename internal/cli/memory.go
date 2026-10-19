@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,7 +29,7 @@ const memoryTimeout = 30 * time.Second
 
 func runMemory(env Env, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory <doctor|search|use|server|serve|token|mcp|migrate> [flags]")
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory <doctor|search|context|use|server|serve|token|mcp|migrate> [flags]")
 		return ExitUsage
 	}
 	switch args[0] {
@@ -36,6 +37,8 @@ func runMemory(env Env, args []string) int {
 		return runMemoryDoctor(env, args[1:])
 	case "search":
 		return runMemorySearch(env, args[1:])
+	case "context":
+		return runMemoryContext(env, args[1:])
 	case "use":
 		return runMemoryUse(env, args[1:])
 	case "server":
@@ -49,7 +52,7 @@ func runMemory(env Env, args []string) int {
 	case "migrate":
 		return runMemoryMigrate(env, args[1:])
 	}
-	fmt.Fprintf(env.Stderr, "gabitotl memory: unknown subcommand %q (want doctor, search, use, server, serve, token, mcp or migrate)\n", args[0])
+	fmt.Fprintf(env.Stderr, "gabitotl memory: unknown subcommand %q (want doctor, search, context, use, server, serve, token, mcp or migrate)\n", args[0])
 	return ExitUsage
 }
 
@@ -98,16 +101,18 @@ func runMemorySearch(env Env, args []string) int {
 	root := fs.String("root", "", "project root (default: Git top-level of the current directory)")
 	typ := fs.String("type", "", "restrict to an entry type")
 	limit := fs.Int("limit", memory.DefaultPerQuery, "maximum results")
+	asJSON := fs.Bool("json", false, "print the entries as JSON")
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
 	text := strings.TrimSpace(strings.Join(fs.Args(), " "))
 	if text == "" {
-		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory search [--root DIR] [--type T] [--limit N] <terms>")
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory search [--root DIR] [--type T] [--limit N] [--json] <terms>")
 		return ExitUsage
 	}
 	if *limit < 1 || *limit > memory.DefaultTotal {
-		*limit = memory.DefaultPerQuery
+		fmt.Fprintf(env.Stderr, "gabitotl memory search: --limit must be between 1 and %d\n", memory.DefaultTotal)
+		return ExitUsage
 	}
 	p, cfg, err := openMemory(env, *root)
 	if err != nil {
@@ -120,6 +125,15 @@ func runMemorySearch(env Env, args []string) int {
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl memory search: %v\n", err)
 		return ExitError
+	}
+	if *asJSON {
+		if entries == nil {
+			entries = []memory.Entry{}
+		}
+		enc := json.NewEncoder(env.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(entries)
+		return ExitOK
 	}
 	if len(entries) == 0 {
 		fmt.Fprintln(env.Stdout, "no matching memories")
@@ -150,4 +164,47 @@ func flagExit(err error) int {
 		return ExitOK
 	}
 	return ExitUsage
+}
+
+// runMemoryContext retrieves memory for a task and prints it as a capped bundle.
+func runMemoryContext(env Env, args []string) int {
+	fs := flag.NewFlagSet("memory context", flag.ContinueOnError)
+	fs.SetOutput(env.Stderr)
+	root := fs.String("root", "", "project root (default: Git top-level of the current directory)")
+	task := fs.String("task", "", "what you are about to work on")
+	maxTokens := fs.Int("max-tokens", memory.DefaultBundleTokens, "total token cap for the bundle")
+	perEntry := fs.Int("per-entry-tokens", memory.DefaultPerEntryTokens, "token cap per entry")
+	asJSON := fs.Bool("json", false, "print the bundle as JSON")
+	if err := fs.Parse(args); err != nil {
+		return flagExit(err)
+	}
+	if strings.TrimSpace(*task) == "" || *maxTokens < 1 || *perEntry < 1 {
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl memory context --task \"...\" [--max-tokens N] [--per-entry-tokens M] [--json] [--root DIR]")
+		return ExitUsage
+	}
+	p, cfg, err := openMemory(env, *root)
+	if err != nil {
+		fmt.Fprintf(env.Stdout, "memory: no provider available (%v)\n", err)
+		return ExitOK
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), memoryTimeout)
+	defer cancel()
+	opt := memory.QueryOptions{}
+	entries, err := memory.Retrieve(ctx, p, memory.BuildQueries(*task, cfg.ProjectKey, opt), opt)
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl memory context: %v\n", err)
+		return ExitError
+	}
+	b := memory.PackBundle(entries, *maxTokens, *perEntry)
+	if *asJSON {
+		if b.Items == nil {
+			b.Items = []memory.BundleItem{}
+		}
+		enc := json.NewEncoder(env.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(b)
+		return ExitOK
+	}
+	fmt.Fprintln(env.Stdout, b.Render())
+	return ExitOK
 }

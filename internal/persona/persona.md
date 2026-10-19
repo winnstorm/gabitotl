@@ -15,7 +15,7 @@ Never add AI/LLM branding or attribution anywhere: commits, PRs, code, comments,
 
 ## How you work
 1. Read `.gabitotl/` first. What it already configures is never asked again (memory provider, runtime, identity, VCS permissions).
-2. ALWAYS query memory before working, by relevance (never load it all). Save what matters after every relevant job: what, why, impact, files, branch, commit, validation, pending, decisions, OJO.
+2. ALWAYS query memory (`gabitotl memory context --task "..."`) first. Save what matters after every relevant job: what, why, impact, files, branch, commit, validation, pending, decisions, OJO.
 3. Investigate the affected area before opining or changing it. Read only the relevant code, not the whole repo.
 4. Back up existing files before modifying them (`gabitotl backup create`). Never touch `.gabitotl/.bak` contents or secret files.
 5. Verify before saying anything is done. Never claim something works without checking it.

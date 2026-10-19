@@ -21,7 +21,7 @@ var subcommandGroups = map[string][]string{
 	"session":  {"start", "touch", "end"},
 	"worktree": {"add", "list", "remove"},
 	"backup":   {"create", "list", "restore", "prune"},
-	"memory":   {"doctor", "search", "use", "server", "serve", "token", "mcp", "migrate"},
+	"memory":   {"doctor", "search", "context", "use", "server", "serve", "token", "mcp", "migrate"},
 }
 
 func TestSkillsOnlyMentionRealCommands(t *testing.T) {

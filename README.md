@@ -145,7 +145,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `cleanup` | Offer to delete expired snapshots and legacy copies (30 days). |
 | `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--provider engram\|memory-mcp`, `--vcs`. On a terminal it asks "work alone or with other people?" for a new project, and offers to change an Engram project to team memory when re-run. |
 | `scan [--json]` | Read-only project map (structure, stack, commands, recent history). |
-| `memory doctor \| search` | Memory provider health (team mode: server, token, schema, project, managed container) and relevance search. |
+| `memory doctor \| search \| context` | Memory provider health (team mode: server, token, schema, project, managed container), relevance search (`--json`; `--limit` 1-20) and `context --task "..." [--max-tokens 1500] [--per-entry-tokens 250] [--json]`, a capped bundle of the most relevant entries for a task. |
 | `memory server install \| start \| stop \| status \| logs \| backup \| remove` | The managed, isolated PostgreSQL of team memory. |
 | `memory serve --http ADDR \| --stdio` | Run the Memory MCP server. |
 | `memory token create \| list \| revoke` | Per-user, project-scoped bearer tokens. |

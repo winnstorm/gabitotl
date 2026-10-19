@@ -38,7 +38,9 @@ Memory failing never blocks the work or replaces the answer.
 ## Query before working
 
 - Query by relevance with 2-4 specific terms: the module, the feature, the error. Never load everything.
-- Start with `memory_search`; use `type` (`decision`, `bugfix`, `convention`, `pending`, `risk`) to narrow.
+- First step: `gabitotl memory context --task "<what you will do>"` returns a capped bundle (about 1500 tokens:
+  most relevant entries, bodies cut). Read the full entry with `memory_search` only when a cut body matters.
+- Then `memory_search`; use `type` (`decision`, `bugfix`, `convention`, `pending`, `risk`) to narrow.
 - Also search after context compaction or when resuming, then read the full entry you need.
 - Entries flagged `needs_review` (or otherwise marked pending review) are stale context: use them as a hint
   to check the code, never as fact. Revise them with `memory_update` once you verified the truth.
