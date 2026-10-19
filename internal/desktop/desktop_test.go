@@ -41,6 +41,13 @@ func (f *fake) CopyFile(src, dst string) (int64, error) {
 	f.files[dst] = true
 	return f.copied, nil
 }
+func (f *fake) WriteFile(dst string, data []byte) (int64, error) {
+	if err := f.rec("write"); err != nil {
+		return 0, err
+	}
+	f.files[dst] = true
+	return int64(len(data)), nil
+}
 func (f *fake) Exists(p string) bool { return f.files[p] }
 func (f *fake) RemoveAll(p string) error {
 	f.removed = append(f.removed, p)
@@ -502,5 +509,32 @@ func TestRemovalCommandLine(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, `"`) || strings.Count(got, `"`)%2 != 0 {
 		t.Fatalf("unbalanced quotes: %s", got)
+	}
+}
+
+func TestApplyWritesEmbeddedCLIWhenNoSibling(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.EmbeddedCLI = []byte("cli")
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !f.files[filepath.Join(in.Env.DefaultInstallDir, CLIExe)] {
+		t.Fatal("embedded CLI was not written to the install dir")
+	}
+}
+
+func TestApplyPrefersSiblingCLIOverEmbedded(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.EmbeddedCLI = []byte("cli")
+	f.files[filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe)] = true
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range f.calls {
+		if c == "write" {
+			t.Fatal("embedded CLI written although a sibling exists")
+		}
 	}
 }

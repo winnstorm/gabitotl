@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,6 +19,15 @@ func (osFS) CopyFile(src, dst string) (int64, error) {
 		return 0, err
 	}
 	defer in.Close()
+	return writeAtomic(dst, in)
+}
+
+// WriteFile writes data to dst with the same temp file + rename guarantee.
+func (osFS) WriteFile(dst string, data []byte) (int64, error) {
+	return writeAtomic(dst, bytes.NewReader(data))
+}
+
+func writeAtomic(dst string, r io.Reader) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return 0, err
 	}
@@ -25,7 +35,7 @@ func (osFS) CopyFile(src, dst string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	n, err := io.Copy(tmp, in)
+	n, err := io.Copy(tmp, r)
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}

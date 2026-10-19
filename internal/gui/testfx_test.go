@@ -132,7 +132,10 @@ type memDesktop struct {
 }
 
 func (m *memDesktop) CopyFile(_, dst string) (int64, error) { m.files[dst] = true; return 10, nil }
-func (m *memDesktop) Exists(p string) bool                  { return m.files[p] || m.links[p] }
+func (m *memDesktop) WriteFile(_ string, d []byte) (int64, error) {
+	return int64(len(d)), nil
+}
+func (m *memDesktop) Exists(p string) bool { return m.files[p] || m.links[p] }
 func (m *memDesktop) RemoveAll(p string) error {
 	delete(m.files, p)
 	m.calls = append(m.calls, "rmall")

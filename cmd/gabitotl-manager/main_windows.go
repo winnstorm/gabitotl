@@ -47,8 +47,14 @@ func main() {
 	if _, err := os.Stat(cliPath); err != nil {
 		cliPath = ""
 	}
+	inst := desktop.New()
+	inst.EmbeddedCLI = bundledCLI
+	if cliPath == "" && len(bundledCLI) > 0 {
+		// The setup installs the bundled CLI here, so hooks may point at it.
+		cliPath = filepath.Join(inst.Env.DefaultInstallDir, desktop.CLIExe)
+	}
 	deps := cli.GUIDeps(cliPath)
-	deps.Desktop = desktop.New()
+	deps.Desktop = inst
 	svc := gui.New(deps)
 
 	app := &App{svc: svc, exe: exe, cliPath: cliPath}

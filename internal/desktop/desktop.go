@@ -98,6 +98,8 @@ type FileSystem interface {
 	// CopyFile copies src to dst atomically (temp file + rename) and returns
 	// the number of bytes written.
 	CopyFile(src, dst string) (int64, error)
+	// WriteFile writes data to dst atomically, like CopyFile.
+	WriteFile(dst string, data []byte) (int64, error)
 	Exists(path string) bool
 	RemoveAll(path string) error
 	// ScheduleRemoval deletes files after this process has exited (a running
@@ -149,6 +151,10 @@ type Installer struct {
 	Path  PathEnv
 	Links Shortcuts
 	Reg   Registry
+	// EmbeddedCLI is the gabitotl.exe bundled inside the setup executable. It
+	// is written to the install dir when no gabitotl.exe sits next to the
+	// running manager. Nil means nothing is bundled.
+	EmbeddedCLI []byte
 }
 
 // validate refuses to run with unresolved locations: an empty
@@ -266,19 +272,15 @@ func (in *Installer) installActions(o Options) []action {
 		Step: Step{StepCopy, "Copy the app to " + dir},
 		do: func() error {
 			existed = in.FS.Exists(dir)
-			srcs := []string{in.Env.ExePath}
-			if cli := filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe); in.FS.Exists(cli) {
-				srcs = append(srcs, cli)
+			if err := in.copyOne(in.Env.ExePath, manager, &size); err != nil {
+				return err
 			}
-			for i, src := range srcs {
-				dst := manager
-				if i == 1 {
-					dst = filepath.Join(dir, CLIExe)
-				}
-				if filepath.Clean(src) == filepath.Clean(dst) {
-					continue // already running from the install dir
-				}
-				n, err := in.FS.CopyFile(src, dst)
+			cliDst := filepath.Join(dir, CLIExe)
+			if cli := filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe); in.FS.Exists(cli) {
+				return in.copyOne(cli, cliDst, &size)
+			}
+			if len(in.EmbeddedCLI) > 0 {
+				n, err := in.FS.WriteFile(cliDst, in.EmbeddedCLI)
 				if err != nil {
 					return err
 				}
@@ -362,6 +364,20 @@ func (in *Installer) installActions(o Options) []action {
 		undo: func() { _ = in.Reg.Unregister() },
 	})
 	return as
+}
+
+// copyOne copies src to dst unless it already is dst (running from the
+// install dir), adding the bytes written to size.
+func (in *Installer) copyOne(src, dst string, size *int64) error {
+	if filepath.Clean(src) == filepath.Clean(dst) {
+		return nil
+	}
+	n, err := in.FS.CopyFile(src, dst)
+	if err != nil {
+		return err
+	}
+	*size += n
+	return nil
 }
 
 // UninstallPlan lists what Uninstall will do.
