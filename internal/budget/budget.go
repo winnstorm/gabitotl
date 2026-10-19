@@ -108,7 +108,7 @@ func New(layout gabitotl.Layout, user string, cfg Config) (*Monitor, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Monitor{Layout: layout, User: user, Config: cfg, Msgs: persona.DefaultMessages()}
+	m := &Monitor{Layout: layout, User: user, Config: cfg, Msgs: persona.MessagesFor(gabitotl.ActivePersonaLang(""))}
 	d, err := gabitotl.ReadDoc(path)
 	switch {
 	case err == nil:

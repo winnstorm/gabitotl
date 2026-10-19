@@ -34,6 +34,10 @@ func (m *Model) startForm(kind string) tea.Cmd {
 		field = huh.NewSelect[string]().Title(f(question)).Description(f("tui.mode.limit")).
 			Options(huh.NewOption(f(solo), gabitotl.ModeSolo), huh.NewOption(f(team), gabitotl.ModeTeam)).
 			Value(&m.modeVal)
+	case "lang":
+		m.langVal = "es"
+		field = huh.NewSelect[string]().Title(f("ask.lang")).
+			Options(huh.NewOption(f("ask.lang.es"), "es"), huh.NewOption(f("ask.lang.en"), "en")).Value(&m.langVal)
 	case "invites":
 		m.invitesVal = ""
 		field = huh.NewInput().Title(f("tui.team.invites")).Description(f("tui.team.invites.desc")).Value(&m.invitesVal).
@@ -153,6 +157,8 @@ func (m *Model) formDone() tea.Cmd {
 	case "mode":
 		m.opts.Mode = m.modeVal
 		m.modeDecided = true
+	case "lang":
+		m.opts.PersonaLang = m.langVal
 	case "runtimes":
 		m.opts.Runtimes = slices.Clone(m.rtVal)
 	case "invites":

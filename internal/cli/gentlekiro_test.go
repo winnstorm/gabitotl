@@ -76,7 +76,10 @@ func (f *cfix) gentleGone(t *testing.T) {
 // unconfigured project is asked once: platform, automation (up to the PR) and draft PRs.
 const acceptDelivery = "\n\n\n"
 
-const keepGentleAI = "2\n" + acceptDelivery
+// acceptLang answers the persona language question with its default (Spanish).
+const acceptLang = "\n"
+
+const keepGentleAI = "2\n" + acceptLang + acceptDelivery
 
 const kiroQuestion = "las dos están siempre activas"
 

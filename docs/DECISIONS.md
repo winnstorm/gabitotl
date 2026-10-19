@@ -732,3 +732,19 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Why:** it stays permissive for people and companies, but adds an explicit patent grant and requires keeping the
   copyright and notice, so authorship travels with every copy.
 - **Consequences:** redistributions must keep `LICENSE` and `NOTICE`; the skills test enforces the new license field.
+
+## D54. The persona language is chosen at install (es | en)
+
+- **Decision:** Gabito's chat voice has two languages, `es` (Argentine Spanish, the default and the exact previous
+  behavior) and `en` (plain English). There is still one persona template: the voice lines (`voice.reply`,
+  `voice.example`), the block labels, the name of the heads-up concept (`term.ojo`) and the other replaceable messages
+  come from a per-language messages file selected by `persona.Lang`. English labels: *What I did / Progress / Next /
+  Heads-up / TIP*. The installer asks the language once (TUI form and plain prompt) and `install --persona-lang es|en`
+  answers it without a terminal. The choice is saved as `lang` in `~/.gabitotl/persona.md` after a successful run.
+- **Why:** English speakers could not use the harness comfortably, and a parallel English persona would have forked every
+  rule (D50 asks for one persona text). The language belongs to the person and to the global persona file the
+  runtimes load, so it lives in the personal home file, not in the committed project files.
+- **Consequences:** changing the language is a reinstall with the flag, and the owned-section engine replaces the persona
+  in every runtime. Both texts stay under the 1500-token budget and are tested for the same required rules. Reinstall and
+  upgrade keep the saved choice; `doctor` shows it and verifies the installed persona against it. The CLI's own screens,
+  the guard messages and the `gabito-*` skills remain Spanish (OJO).

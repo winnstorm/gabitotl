@@ -99,6 +99,7 @@ type installFlags struct {
 	migratePersona, removeGentle, preserveE bool
 	retireGentleKiro                        bool
 	noGuardHooks                            bool
+	personaLang                             string
 	delivery                                deliveryFlags
 
 	// Team memory (flags of the plain flow; the TUI asks the same things).
@@ -128,6 +129,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.IntVar(&f.memoryPort, "memory-port", 0, "host: loopback port of the managed PostgreSQL (default: automatic)")
 	fs.StringVar(&f.memoryInstance, "memory-instance", "", "host: named instance of the managed server")
 	fs.BoolVar(&f.importEngram, "import-engram", false, "host: import the Engram memory into the team memory (safety export first; Engram stays intact)")
+	fs.StringVar(&f.personaLang, "persona-lang", "", "language of Gabito's chat voice: es (Argentine Spanish, default) or en (English); kept for later runs")
 	fs.BoolVar(&f.noGuardHooks, "no-guard-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
 	f.delivery.bind(fs)
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
@@ -187,8 +189,12 @@ func suggestName(ctx context.Context, ienv installer.Env, root string) string {
 // new project. A project that already uses Engram is asked once whether it now
 // works with other people, to move it to team memory. The identity comes from the
 // OS user, so nobody is asked who they are.
-func openQuestions(root string, inv installer.Inventory, opts installer.Options) ui.Need {
+func openQuestions(root, home string, inv installer.Inventory, opts installer.Options) ui.Need {
 	need := ui.Need{}
+	// The persona language is asked once: a flag or a saved choice answers it.
+	if _, saved := gabitotl.LoadPersonaLang(home); opts.PersonaLang == "" && !saved {
+		need.PersonaLang = true
+	}
 	// The delivery questions (commit, push, PR, merge) are asked until they are
 	// answered once: a new project, or an existing one whose vcs.md is not configured.
 	// A project the team already configured is never asked again. The automation
@@ -280,7 +286,7 @@ func execute(env Env, f installFlags, source string) int {
 
 	opts := installer.Options{
 		Source: source, Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
-		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks,
+		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, DryRun: f.dryRun, NoGuardHooks: f.noGuardHooks, PersonaLang: f.personaLang,
 		MemoryRole: f.memoryRole, MemoryURL: f.memoryURL, MemoryTokenEnv: f.memoryTokenEnv, StoreToken: f.memoryStoreToken,
 		Invites: f.memoryInvites, ServerEngine: f.memoryEngine, ServerPort: f.memoryPort, ServerInstance: f.memoryInstance,
 		ImportEngram: f.importEngram, Delivery: delivery,
@@ -290,7 +296,7 @@ func execute(env Env, f installFlags, source string) int {
 	}
 
 	if interactive {
-		pr.Onboard(&opts, openQuestions(root, inv, opts), suggestName(ctx, ienv, root))
+		pr.Onboard(&opts, openQuestions(root, ienv.Home, inv, opts), suggestName(ctx, ienv, root))
 	}
 
 	if source == installer.SourceGentleAI {

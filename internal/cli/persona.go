@@ -20,10 +20,19 @@ func runPersonaPrint(env Env, args []string) int {
 	fs := flag.NewFlagSet("persona print", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
 	stats := fs.Bool("stats", false, "also print the estimated token size to stderr")
+	lang := fs.String("lang", "", "persona language: es or en (default: the one chosen at install, else es)")
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	text := persona.DefaultText()
+	pl := gabitotl.ActivePersonaLang("")
+	if *lang != "" {
+		var err error
+		if pl, err = persona.ParseLang(*lang); err != nil {
+			fmt.Fprintf(env.Stderr, "gabitotl persona print: %v\n", err)
+			return ExitUsage
+		}
+	}
+	text := persona.TextFor(pl)
 	fmt.Fprint(env.Stdout, text)
 	if *stats {
 		fmt.Fprintf(env.Stderr, "persona: %d characters, ~%d tokens (chars/4 estimate)\n", len([]rune(text)), tokens.EstimateLegacy(text))
@@ -86,7 +95,7 @@ func runPersonaMode(env Env, args []string) int {
 	user := gabitotl.ActiveUserID()
 	if want == "" {
 		m := gabitotl.LoadPersonaMode(gabitotl.NewLayout(root), user, home)
-		fmt.Fprintf(env.Stdout, "mode: %s\n%s", m, persona.Rules(m))
+		fmt.Fprintf(env.Stdout, "mode: %s\n%s", m, persona.RulesFor(m, gabitotl.ActivePersonaLang(home)))
 		return ExitOK
 	}
 	path, err := gabitotl.SavePersonaMode(root, user, home, want)
@@ -107,6 +116,6 @@ func runPersonaModeHook(env Env, rootFlag, format string) int {
 	}
 	home, _ := os.UserHomeDir()
 	m := gabitotl.LoadPersonaMode(gabitotl.NewLayout(root), gabitotl.ActiveUserID(), home)
-	emitHook(env, format, "SessionStart", persona.HookContext(m))
+	emitHook(env, format, "SessionStart", persona.HookContextFor(m, gabitotl.ActivePersonaLang(home)))
 	return ExitOK
 }

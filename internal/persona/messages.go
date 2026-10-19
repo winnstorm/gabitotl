@@ -11,6 +11,9 @@ import (
 //go:embed messages_es-AR.txt
 var defaultMessages string
 
+//go:embed messages_en.txt
+var englishMessages string
+
 // Message keys.
 const (
 	KeyBlockDid      = "block.did"
@@ -21,11 +24,15 @@ const (
 	KeySmallDone     = "small.done"
 	KeyOjoOverlap    = "ojo.overlap"
 	KeyTipLongChat   = "tip.long_chat"
+	KeyVoiceReply    = "voice.reply"
+	KeyVoiceExample  = "voice.example"
+	KeyTermOjo       = "term.ojo"
+	KeyTermAnOjo     = "term.an_ojo"
 )
 
 var requiredKeys = []string{
 	KeyBlockDid, KeyBlockProgress, KeyBlockNext, KeyBlockOjo, KeyBlockTip,
-	KeySmallDone, KeyOjoOverlap, KeyTipLongChat,
+	KeySmallDone, KeyOjoOverlap, KeyTipLongChat, KeyVoiceReply, KeyVoiceExample, KeyTermOjo, KeyTermAnOjo,
 }
 
 // Messages holds the replaceable user-facing templates.
@@ -61,10 +68,17 @@ func ParseMessages(src string) (Messages, error) {
 }
 
 // DefaultMessages returns the embedded es-AR templates.
-func DefaultMessages() Messages {
-	m, err := ParseMessages(defaultMessages)
+func DefaultMessages() Messages { return MessagesFor(LangES) }
+
+// MessagesFor returns the embedded templates of lang (es-AR for an unknown one).
+func MessagesFor(lang Lang) Messages {
+	src := defaultMessages
+	if lang == LangEN {
+		src = englishMessages
+	}
+	m, err := ParseMessages(src)
 	if err != nil {
-		panic(err) // embedded file is covered by tests
+		panic(err) // embedded files are covered by tests
 	}
 	return m
 }

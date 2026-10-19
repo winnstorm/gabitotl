@@ -116,7 +116,7 @@ func TestInteractiveInstallOffersTheChangeOnceAndKeepsEngramByDefault(t *testing
 	f := engramProjectFix(t)
 	before := f.provider()
 	// Answer: keep local memory, then do not apply.
-	r := f.run("1\n"+acceptDelivery+"n\n", true, "install", "--no-tui")
+	r := f.run(acceptLang+"1\n"+acceptDelivery+"n\n", true, "install", "--no-tui")
 	if r.code != 0 {
 		t.Fatalf("%+v", r)
 	}
@@ -136,12 +136,12 @@ func TestInteractiveInstallOffersTheChangeOnceAndKeepsEngramByDefault(t *testing
 func TestInteractiveChangeAsksTheTeamSetupAndStaysWhenDeclined(t *testing.T) {
 	f := engramProjectFix(t)
 	// yes, I work with others -> not yet (stay with Engram) -> apply no.
-	r := f.run("2\n3\n"+acceptDelivery+"n\n", true, "install", "--no-tui")
+	r := f.run(acceptLang+"2\n3\n"+acceptDelivery+"n\n", true, "install", "--no-tui")
 	if r.code != 0 || !strings.Contains(r.out, "¿Cómo te conectás a la memoria compartida?") || f.provider() != "engram" {
 		t.Fatalf("%+v", r)
 	}
 	// yes -> connect to an existing server -> URL -> default token variable -> apply yes.
-	r = f.run("2\n1\nhttps://memoria.example.com/mcp\n\n"+acceptDelivery+"s\n", true, "install", "--no-tui")
+	r = f.run(acceptLang+"2\n1\nhttps://memoria.example.com/mcp\n\n"+acceptDelivery+"s\n", true, "install", "--no-tui")
 	if r.code != 0 || f.provider() != "memory-mcp" {
 		t.Fatalf("%+v", r)
 	}
@@ -154,7 +154,7 @@ func TestInitAsksAloneOrWithOthersAndChainsTheTeamSetup(t *testing.T) {
 	f := newCfix(t)
 	noGentle(t, f)
 	// with other people -> connect to an existing server -> URL -> default variable -> apply yes.
-	r := f.run("2\n1\nhttps://memoria.example.com/mcp\n\n"+acceptDelivery+"s\n", true, "init")
+	r := f.run("2\n"+acceptLang+"1\nhttps://memoria.example.com/mcp\n\n"+acceptDelivery+"s\n", true, "init")
 	if r.code != 0 {
 		t.Fatalf("%+v", r)
 	}
@@ -194,7 +194,7 @@ func TestInstallAsksATeammateOnlyForTheTokenVariable(t *testing.T) {
 	cwrite(t, f.root+"/.gabitotl/memory.md", "---\nmode: team\nprovider: memory-mcp\nbackend: postgresql\nproject_key: "+cfg.ProjectKey+"\nurl: https://memoria.example.com/mcp\n---\n\n# Memory\n")
 
 	// token variable -> apply yes
-	r := f.run("MI_TOKEN\n"+acceptDelivery+"s\n", true, "install", "--no-tui")
+	r := f.run(acceptLang+"MI_TOKEN\n"+acceptDelivery+"s\n", true, "install", "--no-tui")
 	if r.code != 0 {
 		t.Fatalf("%+v", r)
 	}

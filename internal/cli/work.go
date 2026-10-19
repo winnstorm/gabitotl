@@ -134,7 +134,7 @@ func runWorkOverlap(env Env, args []string) int {
 // persona messages) for each finding. It is advisory only: callers never fail
 // because of it.
 func printOverlap(env Env, findings []coordination.Finding) {
-	msgs := persona.DefaultMessages()
+	msgs := persona.MessagesFor(gabitotl.ActivePersonaLang(""))
 	for _, f := range findings {
 		fmt.Fprintf(env.Stdout, "overlap with %s (task %s, branch %s, via %s): %s\n",
 			f.Who, dash(f.Task), dash(f.Branch), f.Source, strings.Join(f.SharedAreas, ", "))

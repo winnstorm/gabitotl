@@ -66,6 +66,7 @@ const (
 	stMemory stage = iota
 	stName
 	stMode
+	stLang
 	stTeam
 	stEngram
 	stDelivery
@@ -113,7 +114,7 @@ type Model struct {
 	teamAsked2                             []string
 	form                                   *huh.Form
 	formKind                               string
-	nameVal, modeVal                       string
+	nameVal, modeVal, langVal              string
 	urlVal, tokenEnvVal, storeVal          string
 	secretVal, invitesVal                  string
 	vcsVal                                 string
@@ -473,6 +474,10 @@ func (m *Model) advance() tea.Cmd {
 		case stMode:
 			if m.need.Mode && !m.modeDecided {
 				return m.startForm("mode")
+			}
+		case stLang:
+			if m.need.PersonaLang && m.opts.PersonaLang == "" {
+				return m.startForm("lang")
 			}
 		case stTeam:
 			if m.wantsTeam() && !m.teamAsked && m.opts.MemoryRole == "" {

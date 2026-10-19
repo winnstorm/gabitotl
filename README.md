@@ -87,6 +87,7 @@ Truth priority: current code > `.gabitotl/` > Git > memory > imported docs. Code
 go install github.com/winnstorm/gabitotl/cmd/gabitotl@latest   # or: make build
 
 gabitotl install --dry-run   # see exactly what would change; nothing is written
+gabitotl install --persona-lang en   # optional: Gabito chats in English (default: es)
 gabitotl                     # in a project: onboard it (or show its status)
 gabitotl doctor              # read-only health check
 ```
@@ -132,8 +133,10 @@ Every flag and subcommand: [User guide, Commands](docs/GUIDE.md#commands) or `ga
 
 ## 🎭 Persona and chat modes
 
-Gabito answers in short, natural Argentine Spanish and builds in English. Long work ends with *Qué hice /
-Progreso / Qué sigue*; `OJO` and `TIP` appear only when they apply. Ask for shorter chat replies with
+Gabito answers in short, natural Argentine Spanish by default and builds in English. Prefer English chat? Install
+with `--persona-lang en` (or pick it when the installer asks): same rules, plain English voice. Long work ends with
+*Qué hice / Progreso / Qué sigue* (English: *What I did / Progress / Next*); `OJO` and `TIP` (English: *Heads-up* and
+`TIP`) appear only when they apply. Ask for shorter chat replies with
 `gabitotl persona mode lite|full` (back with `normal`); code, commits, PRs and memory are never touched.
 More: [persona](docs/GUIDE.md#the-gabito-persona), [chat modes](docs/GUIDE.md#chat-modes).
 

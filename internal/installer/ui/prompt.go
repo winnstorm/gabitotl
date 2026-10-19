@@ -92,6 +92,9 @@ func (p *Prompter) Confirm(question string) bool {
 // detected is ever asked (never runtime, Engram or Git itself).
 type Need struct {
 	Name, Mode bool
+	// PersonaLang asks the language of Gabito's chat voice (never asked again once
+	// chosen or given with --persona-lang).
+	PersonaLang bool
 	// Delivery means the delivery settings (commit, push, PR, merge) were never
 	// answered for this project. DeliveryFull asks the whole short sequence; without
 	// it only the person's automation is asked (the team already answered the rest).
@@ -122,6 +125,11 @@ func (p *Prompter) Onboard(opts *installer.Options, n Need, suggestedName string
 		name := p.Ask(p.m.Format("ask.name"), suggestedName)
 		if name != "" {
 			opts.UserName = name
+		}
+	}
+	if n.PersonaLang {
+		if i, ok := p.Choose(p.m.Format("ask.lang"), []string{p.m.Format("ask.lang.es"), p.m.Format("ask.lang.en")}, 0); ok && i == 1 {
+			opts.PersonaLang = "en"
 		}
 	}
 	if n.Mode {

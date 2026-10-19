@@ -208,3 +208,89 @@ func TestPersonaTextBudgetAndRules(t *testing.T) {
 		}
 	}
 }
+
+func TestEnglishPersonaTextBudgetAndRules(t *testing.T) {
+	text := persona.TextFor(persona.LangEN)
+	if strings.Contains(text, "{{") {
+		t.Fatal("unresolved placeholder in the English persona text")
+	}
+	if n := tokens.EstimateLegacy(text); n > 1500 {
+		t.Fatalf("English persona is ~%d tokens, budget is 1500", n)
+	} else {
+		t.Logf("English persona estimated at ~%d tokens", n)
+	}
+	for _, rule := range []string{
+		"Reply in natural English", "ALWAYS query memory", "Current code > `.gabitotl/` > Git > memory > imported docs",
+		"one helper at a time, sequentially", "Never several agents in parallel", "Never rewrite shared history",
+		"revert commit", "Never claim something works without checking", "Never write passwords, tokens",
+		"HEADS-UP:", "TIP:", "Ask BEFORE working", "Decide alone", "75%", "**What I did:**", "**Progress:**", "**Next:**", "**Heads-up:**",
+		"This chat is getting long", "one or two sentences", "Reuse before you create", "Never leave two versions of the same thing coexisting", "make a rollback point", "commit or stash first",
+		"Authorship (highest priority)", "Never add AI/LLM branding or attribution anywhere",
+		"Authorship belongs to the person who requested the work", "If you see such branding, remove it",
+		"The voice applies ONLY to what you say in chat", "## Terminal and remote", "load the `gabito-terminal` skill",
+		"gabitotl persona mode", "## Lead with your expertise", "you own HOW to build it", "Review, challenge and propose",
+		"you lead the technical vision", "leave the block format", "everyday example", "No code detail unless the user asks", "Local permission does not authorize remote work", "explicit OK", "If no persona-mode rules were injected at session start", "load the matching `gabito-*` skill",
+		"raise a HEADS-UP",
+	} {
+		if !strings.Contains(text, rule) {
+			t.Errorf("English persona text is missing the rule %q", rule)
+		}
+	}
+	for _, spanish := range []string{"Argentine Spanish", "Qué hice", "Progreso", "Qué sigue", "OJO", "Este chat"} {
+		if strings.Contains(text, spanish) {
+			t.Errorf("English persona text still has %q", spanish)
+		}
+	}
+	// Both languages carry the same rules: every section heading is shared.
+	for _, line := range strings.Split(persona.DefaultText(), "\n") {
+		if strings.HasPrefix(line, "## ") && !strings.Contains(strings.ReplaceAll(text, "HEADS-UP", "OJO"), line) {
+			t.Errorf("section %q missing from the English persona", line)
+		}
+	}
+}
+
+func TestEnglishRenderer(t *testing.T) {
+	r := persona.NewRendererFor(persona.LangEN)
+	out, err := r.Long(persona.Long{Did: "Finished login.", Progress: "Auth done; logout pending.", Next: "Starting logout.", Ojo: "Tokens never expire.", Tip: "Add password recovery."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "**What I did:** Finished login.\n**Progress:** Auth done; logout pending.\n**Next:** Starting logout.\n**Heads-up:** Tokens never expire.\n**TIP:** Add password recovery."
+	if out != want {
+		t.Fatalf("out =\n%s", out)
+	}
+	if err := r.ValidateLong(out); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ValidateLong("**Qué hice:** a\n**Progreso:** b\n**Qué sigue:** c"); !errors.Is(err, persona.ErrBadFormat) {
+		t.Fatalf("Spanish labels must not validate as English, got %v", err)
+	}
+	if s, _ := r.Small("", ""); s != "Done." {
+		t.Fatalf("small default = %q", s)
+	}
+	m := persona.MessagesFor(persona.LangEN)
+	if !strings.HasPrefix(m.OverlapOjo("Sam", "the users module"), "Sam is working on the users module right now.") || !strings.Contains(m.ContextTip(), "open a new session") {
+		t.Fatalf("English messages: %q / %q", m.OverlapOjo("Sam", "x"), m.ContextTip())
+	}
+}
+
+func TestParseLangAndModeRules(t *testing.T) {
+	for in, want := range map[string]persona.Lang{"es": persona.LangES, " EN ": persona.LangEN, "es-AR": persona.LangES, "en-US": persona.LangEN} {
+		if got, err := persona.ParseLang(in); err != nil || got != want {
+			t.Errorf("ParseLang(%q) = %q, %v", in, got, err)
+		}
+	}
+	if _, err := persona.ParseLang("fr"); err == nil {
+		t.Fatal("unknown language must fail")
+	}
+	if got := persona.Rules(persona.ModeLite); got != persona.RulesFor(persona.ModeLite, persona.LangES) || !strings.Contains(got, "Argentine Spanish, voseo") {
+		t.Fatalf("Spanish rules must stay the default:\n%s", got)
+	}
+	en := persona.RulesFor(persona.ModeLite, persona.LangEN)
+	if !strings.Contains(en, "What I did / Progress / Next, Heads-up, TIP") || strings.Contains(en, "voseo") {
+		t.Fatalf("English rules:\n%s", en)
+	}
+	if h := persona.HookContextFor(persona.ModeFull, persona.LangEN); !strings.Contains(h, "Heads-up") {
+		t.Fatalf("hook context:\n%s", h)
+	}
+}

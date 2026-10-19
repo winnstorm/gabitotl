@@ -10,6 +10,12 @@ block.tip = TIP
 
 small.done = Listo.
 
+# Persona voice and the name of the heads-up block, used by persona.md.
+voice.reply = Reply in natural Argentine Spanish (es-AR): simple, pragmatic, close. No exaggerated slang, no jargon, never wordy.
+voice.example = Prefer "Listo. Dejé guardado el cambio y comprobé que funcione." over formal phrasing.
+term.ojo = OJO
+term.an_ojo = an OJO
+
 ojo.overlap = {who} está trabajando ahora sobre {area}. Conviene coordinar antes de que los dos cambiemos la misma parte.
 
 tip.long_chat = Este chat ya viene bastante largo. Dejé el estado y lo pendiente guardados en memoria, así que podés abrir una sesión nueva y seguimos desde ahí sin arrancar de cero.

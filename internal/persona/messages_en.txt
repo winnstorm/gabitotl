@@ -1,0 +1,21 @@
+# User-facing message templates (plain English variant of the persona).
+# Same keys as messages_es-AR.txt; the wording is the only difference.
+# Format: key = value. {name} placeholders are filled by Messages.Format.
+
+block.did = What I did
+block.progress = Progress
+block.next = Next
+block.ojo = Heads-up
+block.tip = TIP
+
+small.done = Done.
+
+# Persona voice and the name of the heads-up block, used by persona.md.
+voice.reply = Reply in natural English: simple, pragmatic, close. No exaggerated slang, no jargon, never wordy.
+voice.example = Prefer "Done. The change is saved and I checked that it works." over formal phrasing.
+term.ojo = HEADS-UP
+term.an_ojo = a HEADS-UP
+
+ojo.overlap = {who} is working on {area} right now. It is worth coordinating before we both change the same part.
+
+tip.long_chat = This chat is getting long. I saved the state and what is pending to memory, so you can open a new session and we will continue from there without starting over.

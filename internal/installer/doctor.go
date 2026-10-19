@@ -22,56 +22,57 @@ const (
 
 // Doctor line codes; presenters own the wording.
 const (
-	DocCoreVersion       = "doctor.core.version"
-	DocCorePlatform      = "doctor.core.platform"
-	DocCoreGit           = "doctor.core.git"
-	DocCoreGitMissing    = "doctor.core.git-missing"
-	DocProjectNone       = "doctor.project.none"
-	DocProjectMissing    = "doctor.project.missing"
-	DocProjectOK         = "doctor.project.ok"
-	DocProjectInvalid    = "doctor.project.invalid"
-	DocMemEngram         = "doctor.memory.engram"
-	DocMemEngramMissing  = "doctor.memory.engram-missing"
-	DocMemEngramNoBin    = "doctor.memory.engram-binary-missing"
-	DocMemEngramOptional = "doctor.memory.engram-optional"
-	DocMemDoctorOK       = "doctor.memory.doctor-ok"
-	DocMemDoctorBad      = "doctor.memory.doctor-bad"
-	DocMemProject        = "doctor.memory.project"
-	DocMemProjectUnknown = "doctor.memory.project-unknown"
-	DocMemMCP            = "doctor.memory.mcp"
-	DocMemMCPNone        = "doctor.memory.mcp-none"
-	DocMemMCPPending     = "doctor.memory.mcp-server-pending"
-	DocMemTeamOK         = "doctor.memory.team-ok"
-	DocMemTeamWarn       = "doctor.memory.team-warn"
-	DocMemTeamBad        = "doctor.memory.team-bad"
-	DocMemTeamContainer  = "doctor.memory.team-container"
-	DocMemTeamNone       = "doctor.memory.team-none"
-	DocMemChosen         = "doctor.memory.chosen"
-	DocMemMismatch       = "doctor.memory.mismatch"
-	DocMemSharedLoopback = "doctor.memory.shared-loopback"
-	DocMemLegacyFields   = "doctor.memory.legacy-fields"
-	DocMemTeammate       = "doctor.memory.teammate"
-	DocRuntimeOK         = "doctor.runtime.ok"
-	DocRuntimeDrift      = "doctor.runtime.drift"
-	DocRuntimeTodo       = "doctor.runtime.todo"
-	DocRuntimeHistory    = "doctor.runtime.history"
-	DocRuntimeConflict   = "doctor.runtime.persona-conflict"
-	DocRuntimeGentleKiro = "doctor.runtime.gentle-kiro"
-	DocGitRepo           = "doctor.git.repo"
-	DocGitNoRepo         = "doctor.git.no-repo"
-	DocGitProvider       = "doctor.git.provider"
-	DocGitDelivery       = "doctor.git.delivery"
-	DocGitDeliveryTodo   = "doctor.git.delivery-todo"
-	DocGitProviderDiffer = "doctor.git.provider-differs"
-	DocGitAuth           = "doctor.git.auth"
-	DocGitAuthTodo       = "doctor.git.auth-todo"
-	DocGitAuthTool       = "doctor.git.auth-tool"
-	DocGitIdentity       = "doctor.git.identity"
-	DocGitNoIdentity     = "doctor.git.no-identity"
-	DocLegacyGentle      = "doctor.legacy.gentle"
-	DocLegacyBackups     = "doctor.legacy.gentle-backups"
-	DocLegacySnapshots   = "doctor.legacy.snapshots"
-	DocLegacyNone        = "doctor.legacy.none"
+	DocCoreVersion        = "doctor.core.version"
+	DocCorePlatform       = "doctor.core.platform"
+	DocCoreGit            = "doctor.core.git"
+	DocCoreGitMissing     = "doctor.core.git-missing"
+	DocProjectNone        = "doctor.project.none"
+	DocProjectMissing     = "doctor.project.missing"
+	DocProjectOK          = "doctor.project.ok"
+	DocProjectInvalid     = "doctor.project.invalid"
+	DocMemEngram          = "doctor.memory.engram"
+	DocMemEngramMissing   = "doctor.memory.engram-missing"
+	DocMemEngramNoBin     = "doctor.memory.engram-binary-missing"
+	DocMemEngramOptional  = "doctor.memory.engram-optional"
+	DocMemDoctorOK        = "doctor.memory.doctor-ok"
+	DocMemDoctorBad       = "doctor.memory.doctor-bad"
+	DocMemProject         = "doctor.memory.project"
+	DocMemProjectUnknown  = "doctor.memory.project-unknown"
+	DocMemMCP             = "doctor.memory.mcp"
+	DocMemMCPNone         = "doctor.memory.mcp-none"
+	DocMemMCPPending      = "doctor.memory.mcp-server-pending"
+	DocMemTeamOK          = "doctor.memory.team-ok"
+	DocMemTeamWarn        = "doctor.memory.team-warn"
+	DocMemTeamBad         = "doctor.memory.team-bad"
+	DocMemTeamContainer   = "doctor.memory.team-container"
+	DocMemTeamNone        = "doctor.memory.team-none"
+	DocMemChosen          = "doctor.memory.chosen"
+	DocMemMismatch        = "doctor.memory.mismatch"
+	DocMemSharedLoopback  = "doctor.memory.shared-loopback"
+	DocMemLegacyFields    = "doctor.memory.legacy-fields"
+	DocMemTeammate        = "doctor.memory.teammate"
+	DocRuntimeOK          = "doctor.runtime.ok"
+	DocRuntimeDrift       = "doctor.runtime.drift"
+	DocRuntimeTodo        = "doctor.runtime.todo"
+	DocRuntimeHistory     = "doctor.runtime.history"
+	DocRuntimeConflict    = "doctor.runtime.persona-conflict"
+	DocRuntimeGentleKiro  = "doctor.runtime.gentle-kiro"
+	DocRuntimePersonaLang = "doctor.runtime.persona-lang"
+	DocGitRepo            = "doctor.git.repo"
+	DocGitNoRepo          = "doctor.git.no-repo"
+	DocGitProvider        = "doctor.git.provider"
+	DocGitDelivery        = "doctor.git.delivery"
+	DocGitDeliveryTodo    = "doctor.git.delivery-todo"
+	DocGitProviderDiffer  = "doctor.git.provider-differs"
+	DocGitAuth            = "doctor.git.auth"
+	DocGitAuthTodo        = "doctor.git.auth-todo"
+	DocGitAuthTool        = "doctor.git.auth-tool"
+	DocGitIdentity        = "doctor.git.identity"
+	DocGitNoIdentity      = "doctor.git.no-identity"
+	DocLegacyGentle       = "doctor.legacy.gentle"
+	DocLegacyBackups      = "doctor.legacy.gentle-backups"
+	DocLegacySnapshots    = "doctor.legacy.snapshots"
+	DocLegacyNone         = "doctor.legacy.none"
 )
 
 // DoctorSections are the section names in order (spec 41).
@@ -82,7 +83,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocRuntimePersonaLang, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -238,6 +239,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	renv := env.RT()
 	st, _ := renv.Store().Load()
 	managed := 0
+	plang, _ := gabitotl.LoadPersonaLang(env.Home)
 	mcp, extra, retire := rt.MemoryFor(provider, m.HasBinary)
 	for _, r := range inv.Runtimes {
 		if r.State == rt.StateNone {
@@ -249,7 +251,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		case isManaged:
 			managed++
 			bad := ""
-			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
+			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(plang), Skills: SkillAssets(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
 				if !c.OK {
 					bad = c.Name + ": " + c.Detail
 					break
@@ -280,6 +282,9 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		}
 	}
 	add("memory", mem...)
+	if managed > 0 {
+		rts = append(rts, L(LineOK, DocRuntimePersonaLang, string(plang)))
+	}
 	add("runtimes", rts...)
 
 	// Git

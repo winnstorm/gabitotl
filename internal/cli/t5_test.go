@@ -306,7 +306,7 @@ func slurpT(t *testing.T, p string) string {
 func TestInteractiveFlowAsksOnlyWhatCannotBeDetected(t *testing.T) {
 	f := newCfix(t)
 	// 1 migrate | mode (default solo) | delivery (platform, automation, draft: defaults) | persona yes | apply yes | retire: do it
-	in := "1\n\n" + acceptDelivery + "s\ns\n1\n"
+	in := "1\n" + acceptLang + "\n" + acceptDelivery + "s\ns\n1\n"
 	r := f.run(in, true, "install")
 	if r.code != 0 {
 		t.Fatalf("%+v", r)
