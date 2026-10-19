@@ -318,3 +318,25 @@ func TestUninstallDesktopIsUnsupportedOffWindows(t *testing.T) {
 		t.Fatalf("%+v %v", pl, err)
 	}
 }
+
+func TestPlanAndApplyDesktopPieces(t *testing.T) {
+	r := newRig(t)
+	w := WindowsAnswers{StartMenu: true, AddToPath: true}
+	if p, err := r.svc.PlanDesktop(w); err != nil || p.Supported || p.Mutates {
+		t.Fatalf("off Windows nothing applies: %+v %v", p, err)
+	}
+	if _, err := r.svc.ApplyDesktop(w, "x", nil); !errors.Is(err, ErrPlanChanged) && !errors.Is(err, ErrUnsupportedOS) {
+		t.Fatalf("got %v", err)
+	}
+	m := r.withDesktop()
+	p, err := r.svc.PlanDesktop(w)
+	if err != nil || !p.Supported || !p.Mutates || len(p.Steps) == 0 {
+		t.Fatalf("%+v %v", p, err)
+	}
+	if _, err := r.svc.ApplyDesktop(w, "", nil); !errors.Is(err, ErrPlanRequired) {
+		t.Fatalf("the plan id is required, got %v", err)
+	}
+	if _, err := r.svc.ApplyDesktop(w, p.ID, nil); err != nil || m.reg == nil || m.path == "" {
+		t.Fatalf("%v reg=%v path=%q", err, m.reg, m.path)
+	}
+}

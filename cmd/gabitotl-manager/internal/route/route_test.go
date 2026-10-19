@@ -34,3 +34,16 @@ func TestRelaunchTarget(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestRootIsRemembered(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "sub", "manager.json")
+	if got := LoadRoot(f); got != "" {
+		t.Fatalf("no file yet, got %q", got)
+	}
+	if err := SaveRoot(f, "/work/app"); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadRoot(f); got != "/work/app" {
+		t.Fatalf("got %q", got)
+	}
+}
