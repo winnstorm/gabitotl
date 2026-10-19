@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -59,9 +61,9 @@ type ProjectDetail struct {
 // Project describes root. It only reads; a remote URL is reduced to its host and
 // never returned (it can embed credentials).
 func (s *Service) Project(ctx context.Context, root string) (ProjectDetail, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil || root == "" {
-		return ProjectDetail{}, errors.New("choose a project folder first")
+	abs, err := checkRoot(root)
+	if err != nil {
+		return ProjectDetail{}, err
 	}
 	env, err := s.env(abs)
 	if err != nil {
@@ -127,7 +129,11 @@ func (s *Service) effectiveDelivery(env installer.Env, root string, hasProject b
 
 // ResetProjectDelivery makes the project follow the global defaults again.
 func (s *Service) ResetProjectDelivery(root string) (ChangeResult, error) {
-	if root == "" || !gabitotl.Exists(root) {
+	root, err := checkRoot(root)
+	if err != nil {
+		return ChangeResult{}, err
+	}
+	if !gabitotl.Exists(root) {
 		return ChangeResult{}, errors.New("there is no .gabitotl here: set GabitoTL up in the project first")
 	}
 	env, err := s.env(root)
@@ -155,11 +161,8 @@ func projectFiles(l gabitotl.Layout, root string) []string {
 // PlanProjectSetup shows what setting GabitoTL up in root creates. It is the same
 // `gabitotl init` the CLI runs (solo memory, nothing overwritten).
 func (s *Service) PlanProjectSetup(_ context.Context, root string) (Plan, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil || root == "" {
-		return Plan{}, errors.New("choose a project folder first")
-	}
-	if err := gabitotl.ValidateRoot(abs); err != nil {
+	abs, err := checkRoot(root)
+	if err != nil {
 		return Plan{}, err
 	}
 	env, err := s.env(abs)
@@ -188,7 +191,10 @@ func (s *Service) ApplyProjectSetup(ctx context.Context, root, planID string, p 
 	if err := checkPlan(planID, fresh); err != nil {
 		return ChangeResult{}, err
 	}
-	abs, _ := filepath.Abs(root)
+	abs, err := checkRoot(root)
+	if err != nil {
+		return ChangeResult{}, err
+	}
 	env, err := s.env(abs)
 	if err != nil {
 		return ChangeResult{}, err
@@ -217,6 +223,17 @@ func (s *Service) ApplyProjectSetup(ctx context.Context, root, planID string, p 
 // IndexProject indexes root with the named code index tool, reporting progress.
 // Cancelling ctx stops the tool.
 func (s *Service) IndexProject(ctx context.Context, root, tool string, p Progress) error {
+	if _, err := checkRoot(root); err != nil {
+		return err
+	}
+	if !s.beginOp() {
+		env, err := s.env("")
+		if err != nil {
+			return ErrBusy
+		}
+		return errors.New(msgs(env, "").Format("gui.error.busy"))
+	}
+	defer s.endOp()
 	p.emit("index", "running", tool, 10)
 	if err := s.SetCodeIndex(ctx, root, tool); err != nil {
 		p.emit("index", "error", err.Error(), 100)
@@ -224,4 +241,41 @@ func (s *Service) IndexProject(ctx context.Context, root, tool string, p Progres
 	}
 	p.emit("index", "done", tool, 100)
 	return nil
+}
+
+// checkRoot is the gate of every project-scoped entry point: a non-empty,
+// absolute path to an existing directory that may be a project root (never the
+// home folder, a temporary folder, a filesystem or drive root or a UNC share).
+func checkRoot(root string) (string, error) {
+	if strings.TrimSpace(root) == "" {
+		return "", errors.New("choose a project folder first")
+	}
+	if !filepath.IsAbs(root) && !gabitotl.IsFilesystemRoot(root) {
+		return "", errors.New("the project folder must be an absolute path: " + root)
+	}
+	if err := gabitotl.ValidateRoot(root); err != nil {
+		return "", err
+	}
+	abs := filepath.Clean(root)
+	if fi, err := os.Stat(abs); err != nil || !fi.IsDir() {
+		return "", errors.New("not an existing folder: " + abs)
+	}
+	return abs, nil
+}
+
+// beginOp claims the single long-running operation slot; endOp frees it.
+func (s *Service) beginOp() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running {
+		return false
+	}
+	s.running = true
+	return true
+}
+
+func (s *Service) endOp() {
+	s.mu.Lock()
+	s.running = false
+	s.mu.Unlock()
 }

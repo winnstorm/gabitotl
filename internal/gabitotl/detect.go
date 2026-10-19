@@ -178,6 +178,9 @@ func FindRoot(start string) (string, error) {
 // ValidateRoot refuses directories that are never legitimate project roots:
 // the filesystem root, $HOME and the system temporary directories themselves.
 func ValidateRoot(root string) error {
+	if IsFilesystemRoot(root) {
+		return fmt.Errorf("refusing to use %s as a project root", root)
+	}
 	clean := resolve(root)
 	unsafe := []string{"/", os.TempDir(), "/tmp", "/var/tmp"}
 	if home, err := os.UserHomeDir(); err == nil {
@@ -197,4 +200,22 @@ func resolve(p string) string {
 		return r
 	}
 	return p
+}
+
+// IsFilesystemRoot reports a path that is a filesystem root on any OS: "/", a
+// Windows drive root (C:, C:\, C:/) or a UNC share root (\\host\share). It is a
+// pure string check, so it behaves the same on every platform.
+func IsFilesystemRoot(p string) bool {
+	q := strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
+	if q == "" {
+		return false
+	}
+	if strings.HasPrefix(q, "//") {
+		parts := strings.FieldsFunc(q, func(r rune) bool { return r == '/' })
+		return len(parts) <= 2
+	}
+	if len(q) >= 2 && q[1] == ':' && ((q[0] >= 'a' && q[0] <= 'z') || (q[0] >= 'A' && q[0] <= 'Z')) {
+		return strings.Trim(q[2:], "/") == ""
+	}
+	return strings.Trim(q, "/") == "" && strings.HasPrefix(q, "/")
 }

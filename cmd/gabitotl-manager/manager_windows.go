@@ -67,8 +67,12 @@ func (a *App) ResetProjectDelivery(root string) (gui.ChangeResult, error) {
 // IndexProject indexes a project with a code index tool. CancelOperation stops it.
 func (a *App) IndexProject(root, tool string) error {
 	ctx, cancel := context.WithCancel(a.ctx)
-	a.setCancel(cancel)
-	defer func() { a.setCancel(nil); cancel() }()
+	id, ok := a.setCancel(cancel)
+	if !ok {
+		cancel()
+		return gui.ErrBusy
+	}
+	defer func() { a.clearCancel(id); cancel() }()
 	return a.svc.IndexProject(ctx, root, tool, a.progress())
 }
 
@@ -82,9 +86,25 @@ func (a *App) CancelOperation() {
 	}
 }
 
-func (a *App) setCancel(c context.CancelFunc) {
+// setCancel claims the cancel slot; ok is false while another operation holds it,
+// so a rejected second call never replaces the first one's cancel function.
+func (a *App) setCancel(c context.CancelFunc) (id uint64, ok bool) {
 	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cancel != nil {
+		return 0, false
+	}
+	a.opID++
 	a.cancel = c
+	return a.opID, true
+}
+
+// clearCancel drops the cancel function only when it still is the one of op id.
+func (a *App) clearCancel(id uint64) {
+	a.mu.Lock()
+	if a.opID == id {
+		a.cancel = nil
+	}
 	a.mu.Unlock()
 }
 

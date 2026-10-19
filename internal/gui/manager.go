@@ -144,7 +144,11 @@ func (s *Service) SetPersona(root, lang, mode string) (ChangeResult, error) {
 // SetDelivery saves the delivery answers where the existing rule puts them (the
 // team file or the person's own) and, for Bitbucket, the token variable name.
 func (s *Service) SetDelivery(root string, d DeliveryAnswers) (ChangeResult, error) {
-	if root == "" || !gabitotl.Exists(root) {
+	root, err := checkRoot(root)
+	if err != nil {
+		return ChangeResult{}, err
+	}
+	if !gabitotl.Exists(root) {
 		return ChangeResult{}, errors.New("there is no .gabitotl here: install GabitoTL in the project first")
 	}
 	if d.Provider == "none" {
@@ -175,6 +179,10 @@ func (s *Service) SetGuardHooks(ctx context.Context, root string, install bool) 
 	if s.d.GuardHooks == nil {
 		return ErrNotAvailable
 	}
+	root, err := checkRoot(root)
+	if err != nil {
+		return err
+	}
 	return s.d.GuardHooks(ctx, root, install, s.installedCLI())
 }
 
@@ -182,6 +190,10 @@ func (s *Service) SetGuardHooks(ctx context.Context, root string, install bool) 
 func (s *Service) SetCodeIndex(ctx context.Context, root, tool string) error {
 	if !indexTools[tool] {
 		return fmt.Errorf("unknown code index %q (want codegraph or code-review-graph)", tool)
+	}
+	root, err := checkRoot(root)
+	if err != nil {
+		return err
 	}
 	env, err := s.env(root)
 	if err != nil {

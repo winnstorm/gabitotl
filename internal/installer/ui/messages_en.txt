@@ -951,6 +951,7 @@ gui.proj.tabs = Project sections
 gui.proj.tab.index = Code index
 gui.proj.tab.guard = Guard hooks
 gui.proj.none = Choose a project from the list.
+gui.error.busy = Another operation is still running. Wait for it to finish.
 gui.proj.lastseen = Last seen
 gui.proj.path = Folder
 gui.proj.git = Git repository

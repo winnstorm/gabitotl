@@ -3,11 +3,13 @@ package gui
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/installer"
 )
 
 func TestProjectWithoutGabitotlReadsGitAndCredential(t *testing.T) {
@@ -123,4 +125,77 @@ func TestIndexProjectReportsProgressAndErrors(t *testing.T) {
 	if err := r.svc.IndexProject(context.Background(), r.root, "bogus", p); err == nil || strings.Join(steps, ",") != "running,error" {
 		t.Fatalf("unknown tool: %v %v", err, steps)
 	}
+}
+
+func TestProjectEntryPointsRefuseUnsafeRoots(t *testing.T) {
+	r := newRig(t)
+	t.Setenv("HOME", r.home)
+	t.Setenv("USERPROFILE", r.home)
+	ctx := context.Background()
+	file := filepath.Join(t.TempDir(), "f")
+	write(t, file, "x")
+	missing := filepath.Join(t.TempDir(), "nope")
+	for _, bad := range []string{"", "  ", "relative/dir", missing, file, "/", r.home} {
+		if _, err := r.svc.Project(ctx, bad); err == nil {
+			t.Errorf("Project(%q) must be refused", bad)
+		}
+		if err := r.svc.IndexProject(ctx, bad, "codegraph", nil); err == nil {
+			t.Errorf("IndexProject(%q) must be refused", bad)
+		}
+		if err := r.svc.SetCodeIndex(ctx, bad, "codegraph"); err == nil {
+			t.Errorf("SetCodeIndex(%q) must be refused", bad)
+		}
+		if _, err := r.svc.SetDelivery(bad, DeliveryAnswers{Automation: "ask"}); err == nil {
+			t.Errorf("SetDelivery(%q) must be refused", bad)
+		}
+		if _, err := r.svc.ResetProjectDelivery(bad); err == nil {
+			t.Errorf("ResetProjectDelivery(%q) must be refused", bad)
+		}
+		if err := r.svc.SetGuardHooks(ctx, bad, true); err == nil {
+			t.Errorf("SetGuardHooks(%q) must be refused", bad)
+		}
+		if _, err := r.svc.PlanProjectSetup(ctx, bad); err == nil {
+			t.Errorf("PlanProjectSetup(%q) must be refused", bad)
+		}
+		if _, err := r.svc.ApplyProjectSetup(ctx, bad, "x", nil); err == nil {
+			t.Errorf("ApplyProjectSetup(%q) must be refused", bad)
+		}
+	}
+	if _, err := os.Stat(missing); err == nil {
+		t.Fatal("a refused setup must not create the folder")
+	}
+	if len(r.index.setups) != 0 || r.hooksOn != nil {
+		t.Fatal("no tool may run for a refused root")
+	}
+}
+
+func TestIndexProjectIsSingleFlight(t *testing.T) {
+	r := newRig(t)
+	release := make(chan struct{})
+	started := make(chan struct{})
+	r.svc.d.CodeIndex = blockingIndex{started: started, release: release}
+	done := make(chan error)
+	go func() { done <- r.svc.IndexProject(context.Background(), r.root, "codegraph", nil) }()
+	<-started
+	err := r.svc.IndexProject(context.Background(), r.root, "codegraph", nil)
+	if err == nil || !strings.Contains(err.Error(), "en curso") {
+		t.Fatalf("second index must be refused while one runs: %v", err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	r.svc.d.CodeIndex = r.index
+	if err := r.svc.IndexProject(context.Background(), r.root, "codegraph", nil); err != nil {
+		t.Fatalf("the slot must be free after the first one ends: %v", err)
+	}
+}
+
+type blockingIndex struct{ started, release chan struct{} }
+
+func (blockingIndex) Backends(string) []IndexBackend { return nil }
+func (b blockingIndex) Setup(context.Context, installer.Runner, string, string) error {
+	close(b.started)
+	<-b.release
+	return nil
 }

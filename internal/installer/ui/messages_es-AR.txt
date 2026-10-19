@@ -951,6 +951,7 @@ gui.proj.tabs = Secciones del proyecto
 gui.proj.tab.index = Índice de código
 gui.proj.tab.guard = Hooks de guarda
 gui.proj.none = Elegí un proyecto de la lista.
+gui.error.busy = Hay otra operación en curso. Esperá a que termine.
 gui.proj.lastseen = Visto por última vez
 gui.proj.path = Carpeta
 gui.proj.git = Repositorio Git

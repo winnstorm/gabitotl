@@ -28,6 +28,7 @@ type App struct {
 	cliPath string // gabitotl.exe next to this executable, "" when absent
 
 	mu     sync.Mutex
+	opID   uint64
 	cancel context.CancelFunc // the running cancellable operation, if any
 }
 

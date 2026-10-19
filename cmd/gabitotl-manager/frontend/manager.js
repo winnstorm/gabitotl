@@ -39,7 +39,7 @@ S.m = {
   screen: 'overview', tab: 'overview', proj: '', busy: false,
   doctor: null, integrations: null, settings: null, snaps: null,
   gd: null, cg: null, projects: null, pd: null,
-  toast: '', modal: null, loadErr: '', focusTitle: false,
+  seq: 0, toast: '', modal: null, loadErr: '', focusTitle: false,
   pf: '', psrc: 'all',
   f: {
     lang: 'es', mode: 'normal',
@@ -81,7 +81,12 @@ async function soft(fn, fallback) {
   try { return await fn(); } catch (e) { return fallback; }
 }
 
+// keep returns a loaded value, or the previous one when a newer load started
+// meanwhile, so a slow answer for a project you left never overwrites the page.
+function keep(seq, value, old) { return seq === S.m.seq ? value : old; }
+
 async function loadScreen() {
+  var seq = ++S.m.seq;
   S.m.loadErr = '';
   S.m.busy = true;
   render();
@@ -89,42 +94,44 @@ async function loadScreen() {
     var sc = S.m.screen;
     var r = PR();
     if (sc === 'overview') {
-      S.m.doctor = await soft(function () { return api().Doctor(''); }, null);
-      S.m.integrations = await soft(function () { return api().Integrations(''); }, []);
-      S.m.settings = await soft(function () { return api().Settings(''); }, null);
-      S.m.cg = await soft(function () { return api().CodeGraph(); }, null);
-      S.m.gd = await soft(function () { return api().GlobalDelivery(); }, null);
-      S.m.projects = await soft(function () { return api().Projects(); }, []);
+      S.m.doctor = keep(seq, await soft(function () { return api().Doctor(''); }, null), S.m.doctor);
+      S.m.integrations = keep(seq, await soft(function () { return api().Integrations(''); }, []), S.m.integrations);
+      S.m.settings = keep(seq, await soft(function () { return api().Settings(''); }, null), S.m.settings);
+      S.m.cg = keep(seq, await soft(function () { return api().CodeGraph(); }, null), S.m.cg);
+      S.m.gd = keep(seq, await soft(function () { return api().GlobalDelivery(); }, null), S.m.gd);
+      S.m.projects = keep(seq, await soft(function () { return api().Projects(); }, []), S.m.projects);
       await loadCredsQuiet();
     } else if (sc === 'delivery') {
-      S.m.gd = await api().GlobalDelivery();
+      S.m.gd = keep(seq, await api().GlobalDelivery(), S.m.gd);
       seedGlobalDelivery(S.m.gd);
       await loadCredsQuiet();
     } else if (sc === 'codegraph') {
-      S.m.cg = await api().CodeGraph();
+      S.m.cg = keep(seq, await api().CodeGraph(), S.m.cg);
     } else if (sc === 'integrations') {
-      S.m.integrations = await api().Integrations('');
+      S.m.integrations = keep(seq, await api().Integrations(''), S.m.integrations);
     } else if (sc === 'persona') {
-      S.m.settings = await api().Settings('');
+      S.m.settings = keep(seq, await api().Settings(''), S.m.settings);
       seedForms(S.m.settings);
     } else if (sc === 'doctor') {
-      S.m.doctor = await api().Doctor('');
+      S.m.doctor = keep(seq, await api().Doctor(''), S.m.doctor);
     } else if (sc === 'windows') {
-      S.m.settings = await api().Settings('');
+      S.m.settings = keep(seq, await api().Settings(''), S.m.settings);
     } else if (sc === 'backups') {
-      S.m.snaps = await api().Snapshots('');
+      S.m.snaps = keep(seq, await api().Snapshots(''), S.m.snaps);
     } else if (sc === 'uninstall') {
-      S.m.integrations = await api().Integrations('');
-      S.m.settings = await api().Settings('');
+      S.m.integrations = keep(seq, await api().Integrations(''), S.m.integrations);
+      S.m.settings = keep(seq, await api().Settings(''), S.m.settings);
       seedForms(S.m.settings);
     } else if (sc === 'projects') {
-      S.m.projects = await api().Projects();
+      S.m.projects = keep(seq, await api().Projects(), S.m.projects);
     } else if (sc === 'project') {
-      await loadProject(r);
+      await loadProject(r, seq);
     }
   } catch (e) {
+    if (seq !== S.m.seq) return;
     S.m.loadErr = t('gui.error.generic', { detail: errText(e) });
   }
+  if (seq !== S.m.seq) return; // a newer load (another screen or project) owns the page now
   S.m.busy = false;
   render();
 }
@@ -133,24 +140,25 @@ async function loadCredsQuiet() {
   try { S.cred.list = await api().Credentials(); S.cred.err = ''; } catch (e) { S.cred.err = t('gui.delivery.cred.unavailable'); }
 }
 
-async function loadProject(root) {
-  S.m.projects = await soft(function () { return api().Projects(); }, S.m.projects || []);
-  S.m.pd = await api().Project(root);
+async function loadProject(root, seq) {
+  S.m.projects = keep(seq, await soft(function () { return api().Projects(); }, S.m.projects || []), S.m.projects);
+  S.m.pd = keep(seq, await api().Project(root), S.m.pd);
+  if (seq !== S.m.seq) return;
   var tab = S.m.tab;
   if (tab === 'delivery') {
     seedDelivery(S.m.f.pdel, S.m.pd.delivery);
     await loadCredsQuiet();
   } else if (tab === 'index') {
-    S.m.cg = await soft(function () { return api().CodeGraph(); }, null);
+    S.m.cg = keep(seq, await soft(function () { return api().CodeGraph(); }, null), S.m.cg);
   } else if (tab === 'memory' && S.m.pd.hasGabitotl) {
-    S.m.settings = await api().Settings(root);
+    S.m.settings = keep(seq, await api().Settings(root), S.m.settings);
     seedForms(S.m.settings);
   } else if (tab === 'doctor' && S.m.pd.hasGabitotl) {
-    S.m.doctor = await api().Doctor(root);
+    S.m.doctor = keep(seq, await api().Doctor(root), S.m.doctor);
   } else if (tab === 'integrations' && S.m.pd.hasGabitotl) {
-    S.m.integrations = await api().Integrations(root);
+    S.m.integrations = keep(seq, await api().Integrations(root), S.m.integrations);
   } else if (tab === 'backups' && S.m.pd.hasGabitotl) {
-    S.m.snaps = await api().Snapshots(root);
+    S.m.snaps = keep(seq, await api().Snapshots(root), S.m.snaps);
   }
 }
 

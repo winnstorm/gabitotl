@@ -19,6 +19,8 @@ var (
 	// ErrCLINotInstalled means the guard hooks cannot be installed because no
 	// installed gabitotl executable is known; the hooks must never call the
 	// setup executable or anything in Downloads.
+	// ErrBusy means another long operation is still running.
+	ErrBusy            = errors.New("operation in progress")
 	ErrCLINotInstalled = errors.New("the gabitotl CLI is not installed yet")
 )
 

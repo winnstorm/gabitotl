@@ -70,6 +70,8 @@ type Service struct {
 
 	mu  sync.Mutex
 	cli string // gabitotl.exe installed by the last successful desktop apply
+
+	running bool // a long-running operation (project indexing) holds the slot
 }
 
 func (s *Service) setCLI(p string) {
