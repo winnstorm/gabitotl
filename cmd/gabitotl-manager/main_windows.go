@@ -41,19 +41,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// The guard hooks run the gabitotl CLI; only offer them when it ships next
-	// to this executable.
-	cliPath := filepath.Join(filepath.Dir(exe), "gabitotl.exe")
-	if _, err := os.Stat(cliPath); err != nil {
-		cliPath = ""
+	sibling := filepath.Join(filepath.Dir(exe), "gabitotl.exe")
+	if _, err := os.Stat(sibling); err != nil {
+		sibling = ""
 	}
 	inst := desktop.New()
 	inst.EmbeddedCLI = bundledCLI
+	// Order: CLI next to this exe, else the default install dir when the setup
+	// bundles one. The Service overrides it with the path it installed.
+	cliPath := sibling
 	if cliPath == "" && len(bundledCLI) > 0 {
-		// The setup installs the bundled CLI here, so hooks may point at it.
 		cliPath = filepath.Join(inst.Env.DefaultInstallDir, desktop.CLIExe)
 	}
-	deps := cli.GUIDeps(cliPath)
+	deps := cli.GUIDeps(func() string { return cliPath })
 	deps.Desktop = inst
 	svc := gui.New(deps)
 

@@ -112,5 +112,8 @@ func (s *Service) applyDesktop(o desktop.Options, p Progress, from, to int) Step
 		}
 		return StepResult{ID: "desktop", Status: StatusError, Message: err.Error()}
 	}
+	if cli := s.d.Desktop.CLITarget(o); cli != "" {
+		s.setCLI(cli)
+	}
 	return StepResult{ID: "desktop", Status: StatusOK}
 }

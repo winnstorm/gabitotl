@@ -366,6 +366,15 @@ func (in *Installer) installActions(o Options) []action {
 	return as
 }
 
+// CLITarget is where Apply puts gabitotl.exe for o, or "" when it will not be
+// installed (no sibling next to the manager and nothing bundled).
+func (in *Installer) CLITarget(o Options) string {
+	if len(in.EmbeddedCLI) == 0 && !in.FS.Exists(filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe)) {
+		return ""
+	}
+	return filepath.Join(in.dir(o), CLIExe)
+}
+
 // copyOne copies src to dst unless it already is dst (running from the
 // install dir), adding the bytes written to size.
 func (in *Installer) copyOne(src, dst string, size *int64) error {

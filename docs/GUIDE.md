@@ -65,7 +65,7 @@ the shortcuts, the PATH entry, the registration and the installed files; your pr
 unless you explicitly choose to purge them (it asks you to type the volume name).
 
 Limits: Windows is covered by unit tests and a CI build only; the GUI has not been exercised on a real machine
-yet. If you move the install folder, hooks written before the move point at the old path.
+yet.
 
 ## Core concepts
 

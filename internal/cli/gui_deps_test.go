@@ -10,12 +10,12 @@ import (
 
 func TestGUIDepsGuardHooksUseTheGivenBinary(t *testing.T) {
 	root := gitRepo(t)
-	d := GUIDeps("/opt/app/gabitotl")
+	d := GUIDeps(func() string { return "/opt/app/gabitotl" })
 	if d.Env == nil || d.VCSAuth == nil || d.GuardHistory == nil || d.Version == "" {
 		t.Fatalf("incomplete wiring: %+v", d)
 	}
 	ctx := context.Background()
-	if err := d.GuardHooks(ctx, root, true); err != nil {
+	if err := d.GuardHooks(ctx, root, true, ""); err != nil {
 		t.Fatal(err)
 	}
 	hook := filepath.Join(root, ".git", "hooks", "commit-msg")
@@ -23,7 +23,7 @@ func TestGUIDepsGuardHooksUseTheGivenBinary(t *testing.T) {
 	if err != nil || !strings.Contains(string(b), "/opt/app/gabitotl") {
 		t.Fatalf("the hook must call the CLI binary, not the app: %v\n%s", err, b)
 	}
-	if err := d.GuardHooks(ctx, root, false); err != nil {
+	if err := d.GuardHooks(ctx, root, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(hook); err == nil {
@@ -34,7 +34,7 @@ func TestGUIDepsGuardHooksUseTheGivenBinary(t *testing.T) {
 func TestGUIDepsGuardHistoryRuns(t *testing.T) {
 	root := gitRepo(t)
 	gwrite(t, root, ".gabitotl/workflow.md", "---\noutput: compact\nlanguage: es-AR\npersona: gabito\nbranding_guard: strip\n---\n")
-	if _, err := GUIDeps("").GuardHistory(context.Background(), root); err != nil {
+	if _, err := GUIDeps(nil).GuardHistory(context.Background(), root); err != nil {
 		t.Skipf("history scan needs commits in this git: %v", err) // an empty repo has no history to read
 	}
 }

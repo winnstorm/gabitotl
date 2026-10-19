@@ -261,3 +261,21 @@ func TestBitbucketTokenReferenceIsSavedNeverTheToken(t *testing.T) {
 		t.Fatalf("%+v %v", set.Delivery, err)
 	}
 }
+
+func TestHooksPointAtTheCLIInTheChosenInstallDir(t *testing.T) {
+	r := newRig(t)
+	r.withDesktop()
+	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
+	custom := filepath.Join(filepath.Dir(r.svc.d.Desktop.Env.DefaultInstallDir), "Custom")
+	a := r.answers()
+	a.Windows.StartMenu, a.Windows.InstallDir, a.Windows.GuardHooks = true, custom, true
+	r.install(a)
+	want := filepath.Join(custom, "gabitotl.exe")
+	if r.hooksOn == nil || !*r.hooksOn || r.hooksCLI != want {
+		t.Fatalf("hooks CLI = %q, want %q", r.hooksCLI, want)
+	}
+	// Later calls in the same process keep using it.
+	if err := r.svc.SetGuardHooks(context.Background(), r.root, true); err != nil || r.hooksCLI != want {
+		t.Fatalf("later hooks CLI = %q (%v)", r.hooksCLI, err)
+	}
+}

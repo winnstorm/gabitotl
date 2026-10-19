@@ -14,14 +14,18 @@ import (
 // GUIDeps is the composition root of the desktop app: the same installer
 // environment, platform login check and guard code the CLI commands use, handed
 // to the headless backend (internal/gui) without it importing this package.
-// cliBinary is the gabitotl executable the guard's Git hooks call.
-func GUIDeps(cliBinary string) gui.Deps {
+// cliPath resolves, when the hooks are installed, the gabitotl executable they
+// call ("" means the running executable); gui passes the freshly installed one.
+func GUIDeps(cliPath func() string) gui.Deps {
 	return gui.Deps{
 		Env:          installerEnvFn,
 		VCSAuth:      guiAuth,
 		GuardHistory: guiGuardHistory,
-		GuardHooks: func(ctx context.Context, root string, install bool) error {
-			return guiGuardHooks(ctx, root, install, cliBinary)
+		GuardHooks: func(ctx context.Context, root string, install bool, cli string) error {
+			if cli == "" && cliPath != nil {
+				cli = cliPath()
+			}
+			return guiGuardHooks(ctx, root, install, cli)
 		},
 		Version: version.Version,
 	}

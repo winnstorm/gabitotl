@@ -350,6 +350,10 @@ func (s *Service) runExtras(ctx context.Context, a InstallAnswers, pr prep, p Pr
 			p.emit("desktop", "skipped", pr.m.Format("gui.desktop.unsupported"), 100)
 		}
 		out = append(out, r)
+		if r.Status == StatusOK && a.Windows.GuardHooks && pr.env.ProjectRoot != "" && s.d.GuardHooks != nil {
+			// The CLI now lives in the chosen folder: point the hooks there.
+			add("guard-hooks", s.d.GuardHooks(ctx, pr.env.ProjectRoot, true, s.installedCLI()))
+		}
 	}
 	return out
 }

@@ -175,7 +175,7 @@ func (s *Service) SetGuardHooks(ctx context.Context, root string, install bool) 
 	if s.d.GuardHooks == nil {
 		return ErrNotAvailable
 	}
-	return s.d.GuardHooks(ctx, root, install)
+	return s.d.GuardHooks(ctx, root, install, s.installedCLI())
 }
 
 // SetCodeIndex indexes the project with the chosen tool.

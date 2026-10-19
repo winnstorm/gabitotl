@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -35,8 +36,10 @@ type Deps struct {
 	VCSAuth func(ctx context.Context, root string) (SignIn, error)
 	// GuardHistory audits existing commits for AI attribution (read-only).
 	GuardHistory func(ctx context.Context, root string) (GuardScan, error)
-	// GuardHooks installs or removes the authorship guard Git hooks.
-	GuardHooks func(ctx context.Context, root string, install bool) error
+	// GuardHooks installs or removes the authorship guard Git hooks. cli is the
+	// gabitotl executable the hooks call when the Service knows it (it was just
+	// installed into the chosen folder); "" lets the composition root decide.
+	GuardHooks func(ctx context.Context, root string, install bool, cli string) error
 	// CodeIndex detects and sets up the optional code index; nil uses the real tools.
 	CodeIndex CodeIndex
 	// Desktop is the Windows integration; nil means this OS has none.
@@ -46,7 +49,24 @@ type Deps struct {
 }
 
 // Service is the facade the shell binds to the page.
-type Service struct{ d Deps }
+type Service struct {
+	d Deps
+
+	mu  sync.Mutex
+	cli string // gabitotl.exe installed by the last successful desktop apply
+}
+
+func (s *Service) setCLI(p string) {
+	s.mu.Lock()
+	s.cli = p
+	s.mu.Unlock()
+}
+
+func (s *Service) installedCLI() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cli
+}
 
 // New returns a Service over deps.
 func New(d Deps) *Service { return &Service{d: d} }

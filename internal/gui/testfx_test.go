@@ -26,9 +26,10 @@ type rig struct {
 	svc    *Service
 	now    time.Time
 
-	auth    SignIn
-	hooksOn *bool
-	index   *fakeIndex
+	auth     SignIn
+	hooksOn  *bool
+	hooksCLI string
+	index    *fakeIndex
 }
 
 type fakeIndex struct{ setups []string }
@@ -92,8 +93,11 @@ func newRig(t *testing.T) *rig {
 		GuardHistory: func(context.Context, string) (GuardScan, error) {
 			return GuardScan{Mode: "strip", History: []GuardFinding{{Commit: "abc", Where: "message", Text: "x"}}}, nil
 		},
-		GuardHooks: func(_ context.Context, _ string, on bool) error { r.hooksOn = &on; return nil },
-		Version:    "test",
+		GuardHooks: func(_ context.Context, _ string, on bool, cli string) error {
+			r.hooksOn, r.hooksCLI = &on, cli
+			return nil
+		},
+		Version: "test",
 	})
 	return r
 }
