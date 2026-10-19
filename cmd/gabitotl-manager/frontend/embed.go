@@ -7,5 +7,5 @@ import "embed"
 
 // Assets is served by the Wails asset server at the root of the window.
 //
-//go:embed index.html app.css app.js i18n.js
+//go:embed index.html app.css app.js i18n.js wizard.js
 var Assets embed.FS
