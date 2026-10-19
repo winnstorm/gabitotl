@@ -91,3 +91,28 @@ func TestMalformedGlobalFileErrorNamesThePath(t *testing.T) {
 		}
 	}
 }
+
+func TestResetDeliveryToGlobalDropsProjectAndPersonalOverrides(t *testing.T) {
+	home, root := t.TempDir(), t.TempDir()
+	l := NewLayout(root)
+	if _, err := Init(root, InitOptions{VCSProvider: "github"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SaveGlobalDelivery(home, DeliveryAnswers{Automation: AutomationAsk, MergeMethod: MergeRebase}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SaveDelivery(l, "ada", DeliveryAnswers{Automation: AutomationAll, MergeMethod: MergeMerge}); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := LoadVCSFor(l, "ada"); !c.Configured || c.MergeMethod != MergeMerge {
+		t.Fatalf("override not saved: %+v", c)
+	}
+	if err := ResetDeliveryToGlobal(l, "ada", home); err != nil {
+		t.Fatal(err)
+	}
+	g, _, _ := LoadGlobalVCS(home)
+	c, err := LoadVCSLayered(l, "ada", g)
+	if err != nil || c.Configured || c.MergeMethod != MergeRebase || c.AutomationLevel() != AutomationAsk || c.Provider != "github" {
+		t.Fatalf("after reset: %+v %v", c, err)
+	}
+}

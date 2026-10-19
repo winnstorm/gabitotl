@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -42,6 +43,50 @@ func (a *App) AddProject(path string) error { return a.svc.AddProject(path) }
 
 // ForgetProject drops a folder from the Manager's list (nothing on disk changes).
 func (a *App) ForgetProject(path string) error { return a.svc.ForgetProject(path) }
+
+// Project describes one project folder: git and platform detected from its
+// remote, the effective delivery settings with their source, whether the host's
+// token is stored, the code index state and the guard hooks.
+func (a *App) Project(root string) (gui.ProjectDetail, error) { return a.svc.Project(a.ctx, root) }
+
+// PlanProjectSetup shows what setting GabitoTL up in a folder creates.
+func (a *App) PlanProjectSetup(root string) (gui.Plan, error) {
+	return a.svc.PlanProjectSetup(a.ctx, root)
+}
+
+// ApplyProjectSetup creates the .gabitotl folder (the CLI's own init).
+func (a *App) ApplyProjectSetup(root, planID string) (gui.ChangeResult, error) {
+	return a.svc.ApplyProjectSetup(a.ctx, root, planID, a.progress())
+}
+
+// ResetProjectDelivery makes the project follow the global delivery defaults again.
+func (a *App) ResetProjectDelivery(root string) (gui.ChangeResult, error) {
+	return a.svc.ResetProjectDelivery(root)
+}
+
+// IndexProject indexes a project with a code index tool. CancelOperation stops it.
+func (a *App) IndexProject(root, tool string) error {
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.setCancel(cancel)
+	defer func() { a.setCancel(nil); cancel() }()
+	return a.svc.IndexProject(ctx, root, tool, a.progress())
+}
+
+// CancelOperation stops the long operation that is running, if it can be stopped.
+func (a *App) CancelOperation() {
+	a.mu.Lock()
+	cancel := a.cancel
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *App) setCancel(c context.CancelFunc) {
+	a.mu.Lock()
+	a.cancel = c
+	a.mu.Unlock()
+}
 
 // CopyText puts text on the clipboard.
 func (a *App) CopyText(text string) error { return wr.ClipboardSetText(a.ctx, text) }

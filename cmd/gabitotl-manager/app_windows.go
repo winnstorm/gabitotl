@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	goruntime "runtime"
+	"sync"
 	"syscall"
 
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -25,6 +26,9 @@ type App struct {
 	route   string
 	exe     string
 	cliPath string // gabitotl.exe next to this executable, "" when absent
+
+	mu     sync.Mutex
+	cancel context.CancelFunc // the running cancellable operation, if any
 }
 
 // Info is what the page needs before it draws the first screen.

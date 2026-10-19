@@ -60,3 +60,33 @@ func SaveGlobalDelivery(home string, a DeliveryAnswers) (VCSConfig, error) {
 	c.Configured = false
 	return c, nil
 }
+
+// ResetDeliveryToGlobal makes the project follow the global delivery defaults
+// again: the team vcs.md takes the global merge, branch and draft settings and
+// permissions and loses the configured marker, and the person's own permission
+// overrides are dropped. The provider and every other key stay as they are.
+func ResetDeliveryToGlobal(l Layout, user, home string) error {
+	g, _, err := LoadGlobalVCS(home)
+	if err != nil {
+		return err
+	}
+	cur, err := readSharedVCS(l)
+	if err != nil {
+		return err
+	}
+	cur.MergeMethod, cur.DeleteBranch, cur.DraftPRs = g.MergeMethod, g.DeleteBranch, g.DraftPRs
+	cur.Permissions, cur.RemoteActions, cur.Configured = g.Permissions, g.RemoteActions, false
+	if ValidID(user) {
+		loc, ok, err := readLocalVCS(l, user)
+		if err != nil {
+			return err
+		}
+		if ok && !loc.Permissions.empty() {
+			loc.Permissions = localPerms{}
+			if err := writeLocalVCS(l, user, loc); err != nil {
+				return err
+			}
+		}
+	}
+	return saveConfig(l.VCS(), &cur, bodyVCS)
+}

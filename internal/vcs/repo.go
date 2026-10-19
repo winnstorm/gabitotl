@@ -259,3 +259,7 @@ func firstLine(s string) string {
 	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
 	return s
 }
+
+// RemoteHost is the lower-case host of a Git remote URL (https or scp-like),
+// without credentials or port; "" when it cannot be read.
+func RemoteHost(remote string) string { return remoteHost(strings.TrimSpace(remote)) }
