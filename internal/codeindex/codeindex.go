@@ -149,3 +149,23 @@ func NextStep(root string) string {
 	}
 	return "optional: " + CodeGraph().InstallHint()
 }
+
+// Quick is a one-line status without running any tool (no --version call):
+// the first installed backend and whether the project is indexed, or "none".
+func Quick(root string) string {
+	for _, b := range All() {
+		t, ok := b.(tool)
+		if !ok {
+			continue
+		}
+		if _, err := exec.LookPath(t.name); err != nil {
+			continue
+		}
+		s := Status{Installed: true}
+		if fi, err := os.Stat(filepath.Join(root, t.indexDir)); err == nil && fi.IsDir() {
+			s.Indexed = true
+		}
+		return t.name + ": " + Describe(s)
+	}
+	return "none installed (optional)"
+}

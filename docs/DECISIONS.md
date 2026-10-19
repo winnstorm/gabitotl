@@ -652,3 +652,12 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** only the team server store lists and deletes, so the Engram provider is refused instead of
   half-applied. Digests carry the topic key `digest/progress/YYYY-MM`, so a re-run is idempotent. Session summaries
   kept in their own table are not touched.
+
+## D47. Savings are measured, not claimed
+
+- **Decision:** there is one token estimator (`internal/tokens`: `Estimate` at ~3.6 characters per token, `EstimateLegacy`
+  at chars/4 for the persona budget). `gabitotl stats` reports savings from `savings.log` (written by `run` and
+  `memory context`), the session context and the always-on cost. Docs describe how to measure, never a fixed percentage.
+- **Why:** a saving nobody can reproduce is marketing. The estimator was copied in three packages and could drift.
+- **Consequences:** numbers are estimates and say so; a bytes-saved figure ignores what the agent would not have read
+  anyway. Per person and local, so there is no team-wide total.

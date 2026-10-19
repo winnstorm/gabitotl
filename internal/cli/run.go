@@ -67,6 +67,15 @@ func runRun(env Env, args []string) int {
 	}
 
 	full := buf.String()
+	if !*asJSON && len(full) <= smallOutputBytes && countLines(full) <= *tail+*maxLines {
+		// Small output: the digest would cost more than the output itself.
+		fmt.Fprint(env.Stdout, full)
+		if full != "" && !strings.HasSuffix(full, "\n") {
+			fmt.Fprintln(env.Stdout)
+		}
+		fmt.Fprintf(env.Stdout, "run: exit %d in %.1fs\n", exit, secs)
+		return exit
+	}
 	logDir, layout, haveProject := runLogDir(env, *root)
 	logPath := writeRunLog(logDir, start, buf.Bytes())
 	if logPath != "-" {
@@ -93,7 +102,7 @@ func runRun(env Env, args []string) int {
 	}
 	fmt.Fprint(env.Stdout, printed)
 
-	if haveProject {
+	if haveProject && len(full) > len(printed) {
 		user := gabitotl.ActiveUserID()
 		if user == "" {
 			user = activeID(layout.Root)
@@ -115,7 +124,22 @@ func runLogDir(env Env, flagRoot string) (string, gabitotl.Layout, bool) {
 	return filepath.Join(layout.Dir(), "tmp"), layout, true
 }
 
-const defaultKeepLogs = 20
+const (
+	defaultKeepLogs = 20
+	// smallOutputBytes is the largest output printed verbatim instead of digested.
+	smallOutputBytes = 2048
+)
+
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	n := strings.Count(s, "\n")
+	if !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
+}
 
 // pruneRunLogs deletes all but the newest keep files named run-*.log (best-effort).
 // Names embed a sortable timestamp, so name order is age order.

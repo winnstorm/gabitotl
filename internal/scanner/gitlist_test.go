@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/winnstorm/gabitotl/internal/budget"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 func gitIn(t *testing.T, root string, args ...string) {
@@ -161,7 +161,7 @@ func TestMapEntryRespectsTokenBudgetAndSaysWhatWasOmitted(t *testing.T) {
 		pm.Conventions = append(pm.Conventions, strings.Repeat("convention ", 12))
 	}
 	e := pm.ToEntry("")
-	if got := budget.EstimateTextTokens(e.Content); got > MapTokenBudget {
+	if got := tokens.Estimate(e.Content); got > MapTokenBudget {
 		t.Fatalf("map is %d tokens, budget %d", got, MapTokenBudget)
 	}
 	for _, want := range []string{"truncated", "lists shortened"} {

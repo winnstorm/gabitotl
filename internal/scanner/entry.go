@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/winnstorm/gabitotl/internal/budget"
 	"github.com/winnstorm/gabitotl/internal/memory"
+	"github.com/winnstorm/gabitotl/internal/tokens"
 )
 
 // ProjectMapTopicKey makes saving the map an upsert in providers that support
@@ -31,11 +31,11 @@ func (pm *ProjectMap) ToEntry(project string) memory.Entry {
 	var content string
 	for i, lv := range capLevels {
 		content = pm.render(lv.mods, lv.cmds, lv.hist, lv.other, lv.arch, i > 0)
-		if budget.EstimateTextTokens(content) <= MapTokenBudget {
+		if tokens.Estimate(content) <= MapTokenBudget {
 			break
 		}
 	}
-	if budget.EstimateTextTokens(content) > MapTokenBudget {
+	if tokens.Estimate(content) > MapTokenBudget {
 		r := []rune(content)
 		max := int(float64(MapTokenBudget) * 3.6)
 		if len(r) > max {
