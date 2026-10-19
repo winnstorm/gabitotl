@@ -84,6 +84,7 @@ func commands() map[string]Command {
 		{"import", "Import knowledge from other harnesses (detect, run)", runImport},
 		{"persona", "Show the installed persona (print, mode)", runPersona},
 		{"context", "Context budget (add, report, check, checkpoint; hook is for the host)", runContext},
+		{"run", "Run a noisy command, print only a digest (run -- <cmd>); full log in .gabitotl/tmp", runRun},
 		{"version", "Print the version", runVersion},
 	}
 	m := make(map[string]Command, len(list)+1)

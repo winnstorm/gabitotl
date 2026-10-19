@@ -166,6 +166,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `persona print [--stats]` | Print the installed persona prompt. |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
+| `run [--max-lines N] [--tail N] [--json] -- <cmd> [args...]` | Run a noisy command (tests, build, lint) without a shell and print only a digest: failure lines with context, the tail and the exit code (the command's own; 127 if not found). The full output is saved to `.gabitotl/tmp/run-<time>.log`. |
 | `version`, `help` | |
 
 ## 🛡️ Authorship: no AI branding
@@ -302,6 +303,14 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
+
+### Saving tokens
+
+Test, build and lint output is the biggest token sink in large projects. Ask the agent to run them as
+`gabitotl run -- go test ./...`: it sees the exit code, the failures and the last lines, not thousands of lines. The
+full log stays in `.gabitotl/tmp/` and the agent searches it only when the digest is not enough. Bytes kept out of the
+context are appended to `.gabitotl/local/users/<id>/savings.log` (`<unix> run <full_bytes> <printed_bytes>`, never
+committed) for the stats command.
 
 ### Chat modes
 

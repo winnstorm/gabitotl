@@ -23,6 +23,13 @@ metadata:
 - The task needs a real interactive tool (editor, REPL, pager).
 - Python is missing. Say so and fall back to the simplest single-line command.
 
+## Noisy commands: use `gabitotl run`
+
+For any command with long output (tests, builds, linters, installs) run `gabitotl run -- <command> [args...]`
+instead of the bare command. It prints the exit code, the failures and the last lines, and saves the full output to
+`.gabitotl/tmp/run-<time>.log`. Read that log only when the digest is not enough, and then by targeted search
+(`rg -n "pattern" <log>`), never whole.
+
 ## Procedure
 
 1. Do not retry the same command. After the first failure, switch to a script.
