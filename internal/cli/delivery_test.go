@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -62,7 +63,8 @@ func TestVCSSetupOnAConfiguredProjectAsksOnlyForYourAutomationAndKeepsItYours(t 
 	if !strings.Contains(st.out, "delivery: configured (ask)") || !strings.Contains(st.out, "push=ask (yours)") || !strings.Contains(st.out, "overridden by you:") {
 		t.Fatalf("status:\n%s", st.out)
 	}
-	if !strings.Contains(st.out, "yours="+root) {
+	realRoot, _ := filepath.EvalSymlinks(root)
+	if !strings.Contains(st.out, "yours="+root) && !strings.Contains(st.out, "yours="+realRoot) {
 		t.Fatalf("status names your file:\n%s", st.out)
 	}
 	// A teammate keeps the team's choice.

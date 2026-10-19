@@ -46,6 +46,11 @@ func HooksDir(ctx context.Context, run vcs.Runner, dir string) (string, error) {
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(dir, p)
 	}
+	// Resolve symlinks (macOS /var -> /private/var) so the main checkout and its
+	// linked worktrees report the same hooks directory.
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real, nil
+	}
 	return filepath.Clean(p), nil
 }
 
