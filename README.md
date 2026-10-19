@@ -61,6 +61,11 @@ parts that chats and models do not keep.
     <td valign="top">📦 <b>Single Go binary</b><br>No runtime to install. Also a full-screen installer on a terminal.</td>
     <td valign="top">🩺 <b>Doctor</b><br>A read-only health check of the install and the project.</td>
   </tr>
+  <tr>
+    <td valign="top">🪟 <b>Windows setup and Manager</b><br>One downloaded <code>.exe</code> opens a bilingual setup wizard, installs per user (no admin) and then becomes the Manager app.</td>
+    <td></td>
+    <td></td>
+  </tr>
 </table>
 
 ## 🔧 How it works
@@ -108,6 +113,24 @@ make build        # writes bin/gabitotl
 
 Prebuilt binaries for Linux, macOS and Windows (amd64 and arm64) are published on the
 [releases page](https://github.com/winnstorm/gabitotl/releases).
+
+### 🪟 Windows setup
+
+Download `GabitoTL-Setup-<version>-windows-amd64.exe` from the releases page and double-click it. It is a
+single file: it carries the `gabitotl` CLI inside, installs both under `%LOCALAPPDATA%\Programs\GabitoTL`,
+adds that folder to your user PATH, creates the Start menu entry (and optionally a desktop shortcut) and
+registers in Settings > Apps. No administrator rights are needed. Afterwards the same app is the Manager
+(doctor, integrations, settings, backups, uninstall).
+
+> Screenshot: to be added once the first signed-off Windows build is published (no mock image on purpose).
+
+Build it yourself (cross-compiles from Linux or macOS, no CGO, no wails CLI):
+
+```bash
+make manager-windows VERSION=0.3.0   # writes dist/GabitoTL-Setup-0.3.0-windows-amd64.exe
+```
+
+See [docs/GUIDE.md](docs/GUIDE.md#windows-setup-and-manager) for details.
 
 Requires Go 1.26 (see `go.mod`) to build, and Git. Engram, Claude Code, OpenCode, Kiro and `gh` are optional:
 GabitoTL detects what exists and never installs a missing tool behind your back.

@@ -5,6 +5,7 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 ## Contents
 
 - [The installer screen (TUI)](#the-installer-screen-tui)
+- [Windows setup and Manager](#windows-setup-and-manager)
 - [Core concepts](#core-concepts)
 - [Commands](#commands)
 - [Authorship: no AI branding](#authorship-no-ai-branding)
@@ -41,6 +42,30 @@ follows terminal resizes, and honors `NO_COLOR` (symbols, never color alone, car
 
 The TUI opens only when stdin **and** stdout are terminals. `--no-tui`, `--yes`, `--dry-run`,
 pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
+
+## Windows setup and Manager
+
+**Install.** Download `GabitoTL-Setup-<version>-windows-amd64.exe` and run it. The wizard (Spanish or English)
+detects your agents, shows a plan of everything it will change, and only applies it after you confirm.
+It needs no administrator rights: everything is per user.
+
+**Where things go.**
+
+- `%LOCALAPPDATA%\Programs\GabitoTL\gabitotl-manager.exe` (the app) and `gabitotl.exe` (the CLI, bundled inside the setup).
+- That folder is appended to your user `PATH`, so `gabitotl` works in new terminals.
+- A Start menu entry, an optional desktop shortcut, and an entry in Settings > Apps.
+- GabitoTL's own data stays where the CLI keeps it (`~/.gabitotl`, per-project `.gabitotl/`).
+
+**The Manager.** After setup the same app opens as the Manager: doctor with one-click fixes, integrations
+(Claude Code, OpenCode, Kiro, guard hooks), settings (persona, memory, delivery), backups and restore, and
+uninstall. Every change is shown as a plan first and nothing runs until you accept it.
+
+**Uninstall.** Use Settings > Apps > GabitoTL Manager > Uninstall, or the Manager's uninstall screen. It removes
+the shortcuts, the PATH entry, the registration and the installed files; your projects and backups are kept
+unless you explicitly choose to purge them (it asks you to type the volume name).
+
+Limits: Windows is covered by unit tests and a CI build only; the GUI has not been exercised on a real machine
+yet. If you move the install folder, hooks written before the move point at the old path.
 
 ## Core concepts
 

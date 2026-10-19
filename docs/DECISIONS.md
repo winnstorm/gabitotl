@@ -748,3 +748,23 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   in every runtime. Both texts stay under the 1500-token budget and are tested for the same required rules. Reinstall and
   upgrade keep the saved choice; `doctor` shows it and verifies the installed persona against it. The CLI's own screens,
   the guard messages and the `gabito-*` skills remain Spanish (OJO).
+
+## D55. Visual Windows setup and Manager (Wails, per-user self-install)
+
+- **Context:** Windows users had to install Go or unpack a release by hand, edit PATH and run a terminal installer.
+  They asked for a visual, double-click setup, and for the same app to manage GabitoTL afterwards.
+- **Decision:** one downloaded executable, `GabitoTL-Setup-<version>-windows-amd64.exe`, is both setup and Manager.
+  It is a Wails v2 app (WebView2) with a plain HTML/CSS/JS frontend and no npm step, kept in `cmd/gabitotl-manager`
+  under a `windows` build constraint. All logic lives in headless packages: `internal/gui` (the Manager backend,
+  reusing the CLI's installer, doctor and backup code per D50) and `internal/desktop` (self-install through ports:
+  copy, user PATH, shortcuts, Apps & features). The install is per user under `%LOCALAPPDATA%` and never needs admin
+  rights. Every change is a reviewed plan first. The CLI is embedded in the setup (`-tags embedcli`) and written next
+  to the manager so PATH and the guard hooks work from a single download. Version comes from the same
+  `internal/version.Version` ldflag as the CLI; `make manager-windows` builds it. CI builds and tests the
+  Windows-relevant packages on `windows-latest`.
+- **Why:** it keeps one implementation of install logic, keeps Linux and macOS builds free of Wails and CGO, and makes
+  the download self-contained. Per-user avoids UAC and keeps uninstall simple.
+- **Consequences:** the setup is about 20 MB larger because it carries the CLI. Windows behavior is verified only by
+  unit tests with fakes and a CI build; the GUI has not been run on a real Windows machine (OJO). Only the Windows-
+  relevant packages run in the Windows CI job; the full suite and e2e stay on Linux and macOS. Code signing is not set
+  up, so SmartScreen may warn on first run.
