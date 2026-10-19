@@ -768,3 +768,24 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   unit tests with fakes and a CI build; the GUI has not been run on a real Windows machine (OJO). Only the Windows-
   relevant packages run in the Windows CI job; the full suite and e2e stay on Linux and macOS. Code signing is not set
   up, so SmartScreen may warn on first run.
+
+## D56. Credentials in the OS credential store; global delivery defaults layered under the project
+
+- **Context:** the install is global and must work with no project, yet each project may live on a different Git
+  platform. The first Windows test showed the sign-in asked for a project and an "env var name" field confused users.
+- **Decision:** (1) Tokens live behind a port, `internal/credstore.Store` (`Get/Set/Delete` keyed by platform host).
+  Adapters: Windows Credential Manager through advapi32 (`CredWriteW/CredReadW/CredDeleteW/CredFree` via
+  `golang.org/x/sys/windows`, generic credential, target `gabitotl:vcs:<host>`, `CRED_PERSIST_LOCAL_MACHINE`, user
+  `gabitotl`, no CGO); on other systems a 0600 file `~/.gabitotl/secrets/vcs-credentials` in a 0700 directory,
+  written atomically; and an in-memory fake for tests. (2) Delivery defaults live in `~/.gabitotl/vcs.md`, parsed by
+  the same code as the project file. Load order: built-in default, global file, project team `vcs.md`, per-person
+  file. (3) Token lookup for the platform clients: process environment and `env:NAME` reference first, then the
+  credential store by host. (4) `vcs.VerifyToken` checks a token against the platform API with no project; the
+  Manager verifies before it stores.
+- **Why:** per-user OS storage (DPAPI) is safer than a file and needs no project; reusing the existing parser keeps
+  one implementation of the delivery settings; env-first keeps CI and existing setups working unchanged.
+- **Consequences:** `vcs login --store-token` now stores into the credential store (not the memory secrets file).
+  Tokens never appear in any `.md` file, log or Manager return value. GitHub and GitLab operations still go through
+  `gh` / `glab`, which do not read this store yet (OJO: only Bitbucket Cloud consumes a stored token for delivery);
+  custom hosts can be stored and verified but the Manager lists only the three public hosts. The Windows adapter is
+  compile-checked only and has not run on a real Windows machine.

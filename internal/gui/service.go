@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
@@ -44,6 +45,11 @@ type Deps struct {
 	CodeIndex CodeIndex
 	// Desktop is the Windows integration; nil means this OS has none.
 	Desktop *desktop.Installer
+	// Credentials is the OS credential store of the user at home; nil disables the
+	// credential methods. VerifyToken asks the platform whether a token works with
+	// no project involved (ok, a secret-free detail, a transport error).
+	Credentials func(home string) credstore.Store
+	VerifyToken func(ctx context.Context, platform, host, token string) (ok bool, detail string, err error)
 	// Version is shown in Apps & features.
 	Version string
 }

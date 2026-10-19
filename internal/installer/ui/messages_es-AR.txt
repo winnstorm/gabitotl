@@ -209,8 +209,8 @@ vcs.login.noplatform = No sé en qué plataforma está este repositorio (origin 
 vcs.login.bb.askenv = ¿En qué variable de entorno está tu token de Bitbucket?
 vcs.login.bb.badname = {name} no es un nombre de variable de entorno válido (letras, números y guion bajo, sin empezar con número).
 vcs.login.bb.notset = La variable {name} no está definida en esta terminal ni en tu archivo de secretos. Creá un token de acceso en Bitbucket, exportalo (export {name}=...) y volvé a correr gabitotl vcs login.
-vcs.login.bb.askstore = ¿Guardo el token en el archivo de secretos de tu usuario (permisos 0600) para que lo usen los runtimes aunque no tengan tu terminal?
-vcs.login.bb.stored = Guardé el token en {path} (permisos 0600). Nunca se escribe en .gabitotl.
+vcs.login.bb.askstore = ¿Guardo el token en el almacén de credenciales de tu usuario para que lo usen los runtimes aunque no tengan tu terminal?
+vcs.login.bb.stored = Guardé el token en el almacén de credenciales de tu usuario ({target}). Nunca se escribe en .gabitotl.
 vcs.login.bb.saved = Guardé la referencia {ref} en {path}. El token no se guarda ahí.
 vcs.login.bb.rejected = Bitbucket no aceptó el token de {name}. Revisá que no haya vencido y que pueda leer y escribir pull requests, y corré gabitotl vcs login otra vez.
 vcs.login.bb.ok = Sesión en Bitbucket verificada con la variable {name}.

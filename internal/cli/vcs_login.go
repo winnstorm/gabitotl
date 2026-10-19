@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
@@ -25,7 +26,7 @@ func runVCSLogin(env Env, args []string) int {
 	fl.SetOutput(env.Stderr)
 	root := fl.String("root", "", "project root (default: Git top-level of the current directory)")
 	tokenEnv := fl.String("token-env", "", "Bitbucket: name of the environment variable that holds the token (default BITBUCKET_TOKEN)")
-	store := fl.Bool("store-token", false, "Bitbucket: copy the token from that variable into the 0600 secrets file of your user")
+	store := fl.Bool("store-token", false, "Bitbucket: copy the token from that variable into the credential store of your user")
 	check := fl.Bool("check", false, "only verify the login; never log in or change anything")
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
@@ -161,15 +162,11 @@ func finishBitbucket(ctx context.Context, env Env, m ui.Messages, dir string, la
 		return ExitOK
 	}
 	if store {
-		renv, err := runtimeEnvFn(dir)
-		if err == nil {
-			err = mcp.WriteClientSecret(renv.Home, nameVar, value)
-		}
-		if err != nil {
+		if err := credStoreFn(userHome()).Set("bitbucket.org", value); err != nil {
 			fmt.Fprintf(env.Stderr, "gabitotl vcs login: store token: %v\n", err)
 			return ExitError
 		}
-		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.login.bb.stored", "path", mcp.ClientSecretsPath(renv.Home)))
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.login.bb.stored", "target", credstore.Target("bitbucket.org")))
 	}
 	if !gabitotl.Exists(dir) {
 		return ExitOK // nothing to save the reference in; the login itself works

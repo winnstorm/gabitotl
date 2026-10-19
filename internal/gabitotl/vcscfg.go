@@ -128,8 +128,12 @@ func writeLocalVCS(l Layout, user string, loc localVCS) error {
 }
 
 // readSharedVCS decodes the committed vcs.md over the defaults.
-func readSharedVCS(l Layout) (VCSConfig, error) {
-	c := DefaultVCS("git")
+func readSharedVCS(l Layout) (VCSConfig, error) { return readSharedVCSOver(l, DefaultVCS("git")) }
+
+// readSharedVCSOver decodes the committed vcs.md over base, so a key the file
+// does not carry keeps the value of base (the global defaults).
+func readSharedVCSOver(l Layout, base VCSConfig) (VCSConfig, error) {
+	c := base
 	return c, readConfig(l.VCS(), &c)
 }
 
@@ -141,7 +145,14 @@ func LoadVCS(l Layout) (VCSConfig, error) { return LoadVCSFor(l, ActiveUserID())
 // fallback when the local file has none. An empty or invalid user reads the shared
 // file alone. A missing shared file is reported as fs.ErrNotExist, as before.
 func LoadVCSFor(l Layout, user string) (VCSConfig, error) {
-	c, err := readSharedVCS(l)
+	return LoadVCSLayered(l, user, DefaultVCS("git"))
+}
+
+// LoadVCSLayered is LoadVCSFor with base as the lowest layer instead of the
+// built-in defaults. Callers pass the global defaults (LoadGlobalVCS), which gives
+// the order: built-in default, global user file, project team file, per-person file.
+func LoadVCSLayered(l Layout, user string, base VCSConfig) (VCSConfig, error) {
+	c, err := readSharedVCSOver(l, base)
 	if err != nil || !ValidID(user) {
 		return c, err
 	}

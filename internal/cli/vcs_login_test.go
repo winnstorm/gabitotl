@@ -12,8 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
-	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/vcs"
 )
@@ -197,25 +197,31 @@ func bitbucketAPI(t *testing.T, token string) *httptest.Server {
 	return srv
 }
 
+// fakeCreds swaps the OS credential store for an in-memory one.
+func fakeCreds(t *testing.T) *credstore.Fake {
+	t.Helper()
+	f := credstore.NewFake()
+	old := credStoreFn
+	credStoreFn = func(string) credstore.Store { return f }
+	t.Cleanup(func() { credStoreFn = old })
+	return f
+}
+
 func TestLoginBitbucketVerifiesTheTokenStoresItAndSavesOnlyTheReference(t *testing.T) {
 	t.Setenv("GABITOTL_USER", "ana")
 	root := project(t)
 	setOrigin(t, root, "git@bitbucket.org:acme/app.git")
 	const token = "bb-token-123456"
 	bitbucketAPI(t, token)
-	home := withPlatform(t, &platformFake{}, map[string]string{"MY_BB": token})
+	withPlatform(t, &platformFake{}, map[string]string{"MY_BB": token})
+	store := fakeCreds(t)
 
 	r := runIn(t, "", false, root, "vcs", "login", "--token-env", "MY_BB", "--store-token")
-	if r.code != 0 || !strings.Contains(r.out, "Sesión en Bitbucket verificada con la variable MY_BB") || !strings.Contains(r.out, "permisos 0600") {
+	if r.code != 0 || !strings.Contains(r.out, "Sesión en Bitbucket verificada con la variable MY_BB") || !strings.Contains(r.out, "gabitotl:vcs:bitbucket.org") {
 		t.Fatalf("%+v", r)
 	}
-	secrets := mcp.ClientSecretsPath(home)
-	st, err := os.Stat(secrets)
-	if err != nil || st.Mode().Perm() != 0o600 {
-		t.Fatalf("the secrets file must be 0600: %v %v", st, err)
-	}
-	if b, _ := os.ReadFile(secrets); !strings.Contains(string(b), "MY_BB="+token) {
-		t.Fatalf("token not stored:\n%s", b)
+	if got, ok, _ := store.Get("bitbucket.org"); !ok || got != token {
+		t.Fatal("token not stored in the credential store")
 	}
 	cfg, err := gabitotl.LoadVCSFor(gabitotl.NewLayout(root), "ana")
 	if err != nil || cfg.Auth != "env:MY_BB" {
@@ -235,7 +241,8 @@ func TestLoginBitbucketVerifiesTheTokenStoresItAndSavesOnlyTheReference(t *testi
 		t.Fatal("the token must never be printed")
 	}
 	// Later the variable is gone from the shell: the stored token still resolves.
-	cred, err := vcs.ResolveCredential(cfg.Auth, mcp.Resolver{Getenv: func(string) string { return "" }, Home: home}.Lookup)
+	withPlatform(t, &platformFake{}, nil)
+	cred, err := credentialFor(root, cfg)
 	if err != nil || cred.Secret != token {
 		t.Fatalf("the stored token resolves without the variable: %v", err)
 	}
@@ -246,12 +253,13 @@ func TestLoginBitbucketRejectedTokenSavesNothing(t *testing.T) {
 	root := project(t)
 	setOrigin(t, root, "git@bitbucket.org:acme/app.git")
 	bitbucketAPI(t, "the-right-token")
-	home := withPlatform(t, &platformFake{}, map[string]string{"BITBUCKET_TOKEN": "a-wrong-token"})
+	withPlatform(t, &platformFake{}, map[string]string{"BITBUCKET_TOKEN": "a-wrong-token"})
+	store := fakeCreds(t)
 	r := runIn(t, "", false, root, "vcs", "login", "--store-token")
 	if r.code == 0 || !strings.Contains(r.err, "Bitbucket no aceptó el token de BITBUCKET_TOKEN") {
 		t.Fatalf("%+v", r)
 	}
-	if _, err := os.Stat(mcp.ClientSecretsPath(home)); err == nil {
+	if _, ok, _ := store.Get("bitbucket.org"); ok {
 		t.Fatal("a rejected token is not stored")
 	}
 	if cfg, _ := gabitotl.LoadVCSFor(gabitotl.NewLayout(root), "ana"); cfg.Auth != "" {
@@ -281,13 +289,14 @@ func TestLoginBitbucketInteractiveAsksTheNameAndWhetherToStore(t *testing.T) {
 	setOrigin(t, root, "https://bitbucket.org/acme/app.git")
 	const token = "bb-token-abcdef"
 	bitbucketAPI(t, token)
-	home := withPlatform(t, &platformFake{}, map[string]string{"TEAM_BB": token})
+	withPlatform(t, &platformFake{}, map[string]string{"TEAM_BB": token})
+	store := fakeCreds(t)
 	r := runIn(t, "TEAM_BB\ns\n", true, root, "vcs", "login")
 	if r.code != 0 || !strings.Contains(r.out, "¿En qué variable de entorno está tu token de Bitbucket?") || !strings.Contains(r.out, "Guardé el token en") {
 		t.Fatalf("%+v", r)
 	}
-	if b, _ := os.ReadFile(mcp.ClientSecretsPath(home)); !strings.Contains(string(b), "TEAM_BB="+token) {
-		t.Fatalf("stored:\n%s", b)
+	if got, ok, _ := store.Get("bitbucket.org"); !ok || got != token {
+		t.Fatal("not stored in the credential store")
 	}
 	// Asked once: with the reference saved, a second login asks nothing and --check changes nothing.
 	r = runIn(t, "", true, root, "vcs", "login", "--check")

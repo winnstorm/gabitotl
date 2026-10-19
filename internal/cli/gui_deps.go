@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/guard"
 	"github.com/winnstorm/gabitotl/internal/gui"
@@ -30,8 +31,19 @@ func GUIDeps(cliPath func() string) gui.Deps {
 			}
 			return guiGuardHooks(ctx, root, install, cli)
 		},
-		Version: version.Version,
+		Credentials: func(home string) credstore.Store { return credStoreFn(home) },
+		VerifyToken: guiVerifyToken,
+		Version:     version.Version,
 	}
+}
+
+// guiVerifyToken checks a token against the platform API with no project.
+func guiVerifyToken(ctx context.Context, platform, host, token string) (bool, string, error) {
+	st, err := vcs.VerifyToken(ctx, platform, host, token, vcs.VerifyOptions{HTTP: vcsHTTPFn(), APIBase: vcsAPIFn()})
+	if err != nil {
+		return false, "", err
+	}
+	return st.OK(), st.Detail, nil
 }
 
 // guiAuth is `vcs login --check` as data.

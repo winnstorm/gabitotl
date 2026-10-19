@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/vcs"
@@ -19,7 +20,33 @@ var (
 	// vcsHTTPFn and vcsAPIFn override the Bitbucket client and API root ("" and nil keep the real ones).
 	vcsHTTPFn = func() *http.Client { return nil }
 	vcsAPIFn  = func() string { return "" }
+	// credStoreFn is the OS credential store of the user at home (Windows Credential
+	// Manager, or a 0600 file elsewhere); tests replace it with a fake.
+	credStoreFn = func(home string) credstore.Store { return credstore.New(home) }
 )
+
+// userHome is the home folder of the user, "" when unknown.
+func userHome() string {
+	if renv, err := runtimeEnvFn(""); err == nil {
+		return renv.Home
+	}
+	return ""
+}
+
+// credentialFor resolves the Bitbucket credential in this order: the process
+// environment and the secrets file behind the person's auth reference (env:NAME),
+// then the credential store by host (bitbucket.org). Only a missing credential
+// falls through; any other error is returned.
+func credentialFor(root string, cfg gabitotl.VCSConfig) (vcs.Credential, error) {
+	c, err := vcs.ResolveCredential(cfg.Auth, tokenLookup(root))
+	if err == nil || !errors.Is(err, vcs.ErrNotLoggedIn) {
+		return c, err
+	}
+	if tok, ok, serr := credStoreFn(userHome()).Get("bitbucket.org"); serr == nil && ok {
+		return vcs.ParseCredential(tok), nil
+	}
+	return c, err
+}
 
 // platformNames are the providers GabitoTL can drive, with their display names.
 var platformNames = map[string]string{"github": "GitHub", "gitlab": "GitLab", "bitbucket": "Bitbucket"}
@@ -53,10 +80,9 @@ func tokenLookup(root string) func(string) string {
 
 // hostFor builds the host of provider for the person's saved auth reference.
 func hostFor(provider, root string, cfg gabitotl.VCSConfig) (vcs.Host, error) {
-	lookup := tokenLookup(root)
 	return vcs.HostFor(provider, vcs.HostOptions{
 		Runner: vcsRunnerFn(), HTTP: vcsHTTPFn(), BitbucketAPI: vcsAPIFn(),
-		Credentials: func() (vcs.Credential, error) { return vcs.ResolveCredential(cfg.Auth, lookup) },
+		Credentials: func() (vcs.Credential, error) { return credentialFor(root, cfg) },
 	})
 }
 
@@ -79,12 +105,17 @@ func authOf(ctx context.Context, root string, cfg gabitotl.VCSConfig) (vcs.AuthS
 	return st, true
 }
 
-// loadVCSOrDefault is the merged settings of the active person, or the defaults
-// when the project has no vcs.md yet.
+// loadVCSOrDefault is the merged settings of the active person: built-in
+// defaults, then the user's global ~/.gabitotl/vcs.md, then the project team file
+// and the person's own file. A project without vcs.md yet gets the global layer.
 func loadVCSOrDefault(layout gabitotl.Layout, user string) (gabitotl.VCSConfig, error) {
-	cfg, err := gabitotl.LoadVCSFor(layout, user)
+	base, _, err := gabitotl.LoadGlobalVCS(userHome())
+	if err != nil {
+		return base, err
+	}
+	cfg, err := gabitotl.LoadVCSLayered(layout, user, base)
 	if errors.Is(err, fs.ErrNotExist) {
-		return gabitotl.DefaultVCS("git"), nil
+		return base, nil
 	}
 	return cfg, err
 }

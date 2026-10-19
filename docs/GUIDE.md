@@ -775,9 +775,20 @@ a generic Git host have no pull request support yet.
   (default `BITBUCKET_TOKEN`; a plain token is sent as a Bearer token, `user:app-password` as Basic),
   verifies it with `GET /2.0/user`, and saves the reference `auth: env:NAME` in your own
   git-ignored `.gabitotl/local/users/<id>/vcs.md`. With `--store-token` (or by answering yes on a
-  terminal) it also copies the token into the same 0600 secrets file the team-memory token uses
-  (`~/.gabitotl/secrets/memory-client.env`), so runtimes that start without your shell can use it.
+  terminal) it also stores the token in your user credential store under `bitbucket.org` (Windows
+  Credential Manager, target `gabitotl:vcs:bitbucket.org`; elsewhere a 0600 file at
+  `~/.gabitotl/secrets/vcs-credentials`), so runtimes that start without your shell can use it. The
+  token is looked up in the process environment and the `env:NAME` reference first, then in the store.
   The token is never written under `.gabitotl/`, never printed and never part of an error message.
+
+**Global defaults and credentials.** GabitoTL is installed once per user, so delivery defaults live in
+`~/.gabitotl/vcs.md` (same format as a project's `vcs.md`; settings only, never a token or an `auth`
+reference). A project's settings are layered: built-in defaults, then that global file, then the
+project's team `.gabitotl/vcs.md`, then your own local file; the later layer wins per key, so projects
+that already have a `vcs.md` behave as before. The provider still comes from the project's remote.
+Tokens per platform host (`github.com`, `gitlab.com`, `bitbucket.org` or a custom host) are kept in the
+OS credential store; the Manager verifies a token against the platform API before storing it and never
+shows it again.
 
 Flags for scripts: `--token-env NAME`, `--store-token`, `--check` (only verify; never log in or change
 anything). `vcs status` shows an `auth:` line (`ok`, what is missing with the exact fix, or `n/a`) and
