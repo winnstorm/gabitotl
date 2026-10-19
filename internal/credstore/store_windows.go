@@ -78,6 +78,9 @@ func (manager) Set(host, token string) error {
 	}
 	user, _ := windows.UTF16PtrFromString(userName)
 	blob := []byte(strings.TrimSpace(token))
+	if len(blob) > MaxTokenBytes {
+		return ErrTokenTooLong
+	}
 	c := credential{
 		Type: credTypeGeneric, TargetName: target, UserName: user, Persist: credPersistLocalMachine,
 		CredentialBlobSize: uint32(len(blob)), CredentialBlob: &blob[0],

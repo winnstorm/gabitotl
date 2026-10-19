@@ -165,7 +165,8 @@ func (s *Service) SaveCredential(ctx context.Context, platform, host, token stri
 		res.Detail = "the token must be a single non-empty line"
 		return res, nil
 	}
-	ok, detail, err := s.d.VerifyToken(ctx, platform, res.Host, strings.TrimSpace(token))
+	// The platform is asked at the host as typed (port included); the store key drops the port.
+	ok, detail, err := s.d.VerifyToken(ctx, platform, strings.ToLower(host), strings.TrimSpace(token))
 	switch {
 	case err != nil:
 		res.Status, res.Detail = CredUnreachable, "could not check the token"
@@ -179,6 +180,10 @@ func (s *Service) SaveCredential(ctx context.Context, platform, host, token stri
 		return res, nil
 	}
 	if err := st.Set(res.Host, token); err != nil {
+		if errors.Is(err, credstore.ErrTokenTooLong) {
+			res.Status, res.Detail = CredInvalid, "the token is too long for the credential store"
+			return res, nil
+		}
 		return res, err
 	}
 	res.Status, res.Stored = CredSaved, true

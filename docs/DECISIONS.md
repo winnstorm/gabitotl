@@ -810,3 +810,4 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** bumping CodeGraph means changing the version and hashes in one file. Linux and macOS are not wired
   (npm remains the hint). Unverified on a real Windows machine; `cmd /c` as the stdio command is the common Windows
   pattern but has not been exercised with each agent.
+- **Hardening:** the store key is the host name without a port (a token for `git.corp:8443` serves any remote on `git.corp`); an empty or relative home is refused, never a path under the working directory; tokens over 2560 bytes are refused on Windows; token checks never follow redirects; error text is scrubbed of the raw, query- and path-escaped token. Known and left: a 403 from the platform counts as rejected, and the remote is looked up on every `gh`/`glab` call.

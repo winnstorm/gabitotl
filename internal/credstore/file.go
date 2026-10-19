@@ -8,7 +8,11 @@ import (
 )
 
 // FilePath is the secrets file of the user under home.
+// It is "" when home is empty or relative: never a path under the working directory.
 func FilePath(home string) string {
+	if home == "" || !filepath.IsAbs(home) {
+		return ""
+	}
 	return filepath.Join(home, ".gabitotl", "secrets", "vcs-credentials")
 }
 
@@ -20,6 +24,9 @@ type File struct{ Path string }
 func NewFile(home string) *File { return &File{Path: FilePath(home)} }
 
 func (f *File) read() (map[string]string, error) {
+	if f.Path == "" {
+		return nil, ErrNoHome
+	}
 	m := map[string]string{}
 	fh, err := os.Open(f.Path)
 	if os.IsNotExist(err) {
@@ -43,6 +50,9 @@ func (f *File) read() (map[string]string, error) {
 }
 
 func (f *File) write(m map[string]string) error {
+	if f.Path == "" {
+		return ErrNoHome
+	}
 	dir := filepath.Dir(f.Path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

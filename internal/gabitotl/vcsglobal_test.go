@@ -75,3 +75,19 @@ func TestGlobalFileNeverCarriesAuthOrConfigured(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 }
+
+func TestMalformedGlobalFileErrorNamesThePath(t *testing.T) {
+	home := t.TempDir()
+	p := GlobalLayout(home).VCS()
+	if err := os.MkdirAll(GlobalLayout(home).Dir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{"---\nprovider: [unclosed\n---\n", "---\nmerge_method: nope\n---\n"} {
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := LoadGlobalVCS(home); err == nil || !strings.Contains(err.Error(), p) {
+			t.Fatalf("the error must name %s: %v", p, err)
+		}
+	}
+}

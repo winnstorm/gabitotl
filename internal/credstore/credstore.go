@@ -14,6 +14,16 @@ import (
 // target is TargetPrefix + the lower-case host, for example "gabitotl:vcs:github.com".
 const TargetPrefix = "gabitotl:vcs:"
 
+// ErrNoHome means the home folder is empty or relative, so no secrets file can be placed safely.
+var ErrNoHome = errors.New("credstore: the home folder is unknown or not absolute")
+
+// ErrTokenTooLong means the OS credential store cannot hold the token.
+var ErrTokenTooLong = errors.New("credstore: the token is too long for the credential store")
+
+// MaxTokenBytes is the largest token the Windows Credential Manager accepts
+// (CRED_MAX_CREDENTIAL_BLOB_SIZE).
+const MaxTokenBytes = 2560
+
 // Store is the credential port.
 type Store interface {
 	// Get returns the token of host; ok is false when none is stored.
@@ -27,10 +37,21 @@ type Store interface {
 // Target is the credential name of host in the OS store.
 func Target(host string) string { return TargetPrefix + NormalizeHost(host) }
 
-// NormalizeHost lower-cases and trims host.
-func NormalizeHost(host string) string { return strings.ToLower(strings.TrimSpace(host)) }
+// NormalizeHost lower-cases and trims host and drops a trailing ":port". The key is
+// the host name alone: a remote URL's port is the SSH or web port, not an identity,
+// so a token stored for "git.corp:8443" is the one used for any remote on git.corp.
+func NormalizeHost(host string) string {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if i := strings.LastIndexByte(h, ':'); i >= 0 && i < len(h)-1 {
+		port := h[i+1:]
+		if strings.Trim(port, "0123456789") == "" {
+			return h[:i]
+		}
+	}
+	return h
+}
 
-// ValidHost accepts a plain host name (letters, digits, dot, dash, optional :port).
+// ValidHost accepts a plain host name (letters, digits, dot, dash), with or without a :port.
 func ValidHost(host string) bool {
 	h := NormalizeHost(host)
 	if h == "" || len(h) > 253 {
@@ -38,7 +59,7 @@ func ValidHost(host string) bool {
 	}
 	for _, r := range h {
 		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-', r == ':':
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-':
 		default:
 			return false
 		}

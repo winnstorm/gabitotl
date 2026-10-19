@@ -123,3 +123,16 @@ func jsonOf(t *testing.T, v any) string {
 	}
 	return string(b)
 }
+
+type tooLongStore struct{ *credstore.Fake }
+
+func (tooLongStore) Set(string, string) error { return credstore.ErrTokenTooLong }
+
+func TestSaveCredentialMapsATooLongTokenToInvalid(t *testing.T) {
+	c := newCredRig(t)
+	c.svc.d.Credentials = func(string) credstore.Store { return tooLongStore{c.store} }
+	res, err := c.svc.SaveCredential(context.Background(), "github", "", "tok")
+	if err != nil || res.Status != CredInvalid || res.Stored {
+		t.Fatalf("%+v %v", res, err)
+	}
+}

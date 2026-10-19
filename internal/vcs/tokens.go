@@ -2,6 +2,8 @@ package vcs
 
 import (
 	"context"
+	"errors"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -58,11 +60,38 @@ func (t tokenRunner) Run(ctx context.Context, dir, name string, args ...string) 
 		return t.inner.Run(ctx, dir, name, args...)
 	}
 	out, err := t.inner.RunEnv(ctx, dir, env, name, args...)
-	if ce, isCE := err.(*CommandError); isCE && token != "" {
-		ce.Stderr = strings.ReplaceAll(ce.Stderr, token, "***")
-		out = strings.ReplaceAll(out, token, "***")
+	return scrubSecret(out, token), scrubError(err, token)
+}
+
+// secretForms are the spellings a token may take in text: raw, query- and path-escaped.
+func secretForms(token string) []string {
+	return []string{token, url.QueryEscape(token), url.PathEscape(token)}
+}
+
+func scrubSecret(s, token string) string {
+	if token == "" {
+		return s
 	}
-	return out, err
+	for _, f := range secretForms(token) {
+		s = strings.ReplaceAll(s, f, "***")
+	}
+	return s
+}
+
+// scrubError removes the token from err wherever it sits in the chain; when the
+// message still carries it afterwards, it is replaced by a plain scrubbed error.
+func scrubError(err error, token string) error {
+	if err == nil || token == "" {
+		return err
+	}
+	var ce *CommandError
+	if errors.As(err, &ce) {
+		ce.Cmd, ce.Stderr = scrubSecret(ce.Cmd, token), scrubSecret(ce.Stderr, token)
+	}
+	if msg := err.Error(); scrubSecret(msg, token) != msg {
+		return errors.New(scrubSecret(msg, token))
+	}
+	return err
 }
 
 // envFor is the extra environment for name against host, or nil when the person

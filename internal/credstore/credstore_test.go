@@ -1,6 +1,7 @@
 package credstore
 
 import (
+	"errors"
 	"os"
 	"runtime"
 	"strings"
@@ -80,5 +81,48 @@ func TestTarget(t *testing.T) {
 	}
 	if !strings.HasPrefix(TargetPrefix, "gabitotl:") {
 		t.Fatal()
+	}
+}
+
+func TestFileRefusesEmptyOrRelativeHome(t *testing.T) {
+	wd := t.TempDir()
+	t.Chdir(wd)
+	for _, home := range []string{"", ".", "rel/home"} {
+		if FilePath(home) != "" {
+			t.Fatalf("FilePath(%q) must be empty", home)
+		}
+		f := NewFile(home)
+		if err := f.Set("github.com", "t"); !errors.Is(err, ErrNoHome) {
+			t.Fatalf("Set with home %q: %v", home, err)
+		}
+		if _, _, err := f.Get("github.com"); !errors.Is(err, ErrNoHome) {
+			t.Fatalf("Get with home %q: %v", home, err)
+		}
+		if err := f.Delete("github.com"); !errors.Is(err, ErrNoHome) {
+			t.Fatalf("Delete with home %q: %v", home, err)
+		}
+	}
+	if entries, _ := os.ReadDir(wd); len(entries) != 0 {
+		t.Fatalf("nothing may be written under the working directory: %v", entries)
+	}
+}
+
+func TestPortIsNotPartOfTheKey(t *testing.T) {
+	for _, s := range []Store{NewFake(), NewFile(t.TempDir())} {
+		if err := s.Set("Git.Corp:8443", "tok"); err != nil {
+			t.Fatal(err)
+		}
+		if v, ok, _ := s.Get("git.corp"); !ok || v != "tok" {
+			t.Fatalf("lookup by bare host: %q %v", v, ok)
+		}
+		if _, ok, _ := s.Get("git.corp:22"); !ok {
+			t.Fatal("any port maps to the same key")
+		}
+	}
+	if Target("git.corp:8443") != "gabitotl:vcs:git.corp" || NormalizeHost("a:b") != "a:b" {
+		t.Fatal(Target("git.corp:8443"))
+	}
+	if ValidHost("a:b") {
+		t.Fatal("a non-numeric port suffix is not a host")
 	}
 }

@@ -3,6 +3,8 @@ package vcs
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -74,5 +76,33 @@ func TestRunnerWithoutEnvSupportIsLeftAlone(t *testing.T) {
 	var plain Runner = noRunner{}
 	if withStoredTokens(plain, func(string) (string, bool) { return "t", true }) != plain {
 		t.Fatal("a runner that cannot carry an environment must not be wrapped")
+	}
+}
+
+func TestScrubCoversEscapedFormsAndWrappedErrors(t *testing.T) {
+	const tok = "a b/c+d"
+	for _, text := range []string{tok, url.QueryEscape(tok), url.PathEscape(tok)} {
+		f := &envFake{remote: "git@github.com:a/b.git", fail: "GET https://x/?t=" + text}
+		_, err := runWith(f, nil, map[string]string{"github.com": tok}, "gh")
+		if err == nil || strings.Contains(err.Error(), text) {
+			t.Fatalf("form %q leaked: %v", text, err)
+		}
+	}
+	wrapped := fmt.Errorf("outer: %w", &CommandError{Cmd: "gh", Stderr: "x " + url.QueryEscape(tok), Err: errors.New("exit 1")})
+	if got := scrubError(wrapped, tok); strings.Contains(got.Error(), url.QueryEscape(tok)) {
+		t.Fatalf("wrapped error leaked: %v", got)
+	}
+	if got := scrubError(errors.New("plain "+tok), tok); strings.Contains(got.Error(), tok) {
+		t.Fatalf("plain error leaked: %v", got)
+	}
+}
+
+func TestStoredHostWithPortMatchesRemoteHost(t *testing.T) {
+	f := &envFake{remote: "https://ghe.corp:8443/a/b.git"}
+	if _, err := runWith(f, nil, map[string]string{"ghe.corp": "T"}, "gh"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(f.calls[len(f.calls)-1], " "); got != "GH_ENTERPRISE_TOKEN=T GH_HOST=ghe.corp" {
+		t.Fatal(got)
 	}
 }

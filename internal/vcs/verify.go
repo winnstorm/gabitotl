@@ -44,10 +44,14 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 	if host == "" {
 		host = DefaultHost(platform)
 	}
-	client := o.HTTP
-	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second}
+	// Never follow a redirect: the token header must not be forwarded to another host.
+	client := &http.Client{Timeout: 20 * time.Second}
+	if o.HTTP != nil {
+		c := *o.HTTP
+		client = &c
 	}
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	o.HTTP = client
 	var url, header, value string
 	switch platform {
 	case "bitbucket":

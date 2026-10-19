@@ -52,3 +52,23 @@ func TestVerifyToken(t *testing.T) {
 		t.Fatal("an HTTP 500 is not a verdict")
 	}
 }
+
+func TestVerifyTokenNeverFollowsRedirects(t *testing.T) {
+	leaked := false
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("PRIVATE-TOKEN") != "" || r.Header.Get("Authorization") != ""
+	}))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/user", http.StatusFound)
+	}))
+	defer srv.Close()
+	for _, p := range []string{"github", "gitlab"} {
+		if _, err := VerifyToken(context.Background(), p, "", "secret", VerifyOptions{APIBase: srv.URL}); err == nil || !strings.Contains(err.Error(), "HTTP 302") {
+			t.Fatalf("%s: a redirect is not a verdict: %v", p, err)
+		}
+	}
+	if leaked {
+		t.Fatal("the token was forwarded on a redirect")
+	}
+}
