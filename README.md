@@ -42,7 +42,7 @@ parts that chats and models do not keep.
 
 <table>
   <tr>
-    <td width="33%" valign="top">🎭 <b>Persona and chat modes</b><br>Gabito, a pragmatic Technical Leader. Short answers; <code>normal</code>, <code>lite</code> and <code>full</code> chat modes.</td>
+    <td width="33%" valign="top">🎭 <b>Persona and chat modes</b><br>Gabito, a pragmatic Technical Leader. Chats in 🇦🇷 Argentine Spanish or 🇬🇧 English (chosen at install); <code>normal</code>, <code>lite</code> and <code>full</code> chat modes.</td>
     <td width="33%" valign="top">🧠 <b>Project memory</b><br>Engram for one person, or GabitoTL's own Memory MCP server over PostgreSQL for a team. Chosen per project.</td>
     <td width="33%" valign="top">💸 <b>Token savings</b><br>75% context warning (also from Kiro's own usage %), <code>memory context</code>, <code>run</code> digests, scan cache and <code>stats</code>.</td>
   </tr>
@@ -133,10 +133,15 @@ Every flag and subcommand: [User guide, Commands](docs/GUIDE.md#commands) or `ga
 
 ## 🎭 Persona and chat modes
 
-Gabito answers in short, natural Argentine Spanish by default and builds in English. Prefer English chat? Install
-with `--persona-lang en` (or pick it when the installer asks): same rules, plain English voice. Long work ends with
-*Qué hice / Progreso / Qué sigue* (English: *What I did / Progress / Next*); `OJO` and `TIP` (English: *Heads-up* and
-`TIP`) appear only when they apply. Ask for shorter chat replies with
+| Language | How to get it | Long-work blocks |
+|---|---|---|
+| 🇦🇷 Español (Argentina) — default | `gabitotl install` | *Qué hice / Progreso / Qué sigue* · `OJO` · `TIP` |
+| 🇬🇧 English | `gabitotl install --persona-lang en`, or pick it when the installer asks | *What I did / Progress / Next* · *Heads-up* · `TIP` |
+
+Your choice is saved in `~/.gabitotl/persona.md` and kept on reinstall; run `install --persona-lang es|en` again to switch.
+
+Both languages follow the same rules; only the chat voice changes, and code, commits and docs stay in English.
+`OJO`/*Heads-up* and `TIP` appear only when they apply. Ask for shorter chat replies with
 `gabitotl persona mode lite|full` (back with `normal`); code, commits, PRs and memory are never touched.
 More: [persona](docs/GUIDE.md#the-gabito-persona), [chat modes](docs/GUIDE.md#chat-modes).
 
