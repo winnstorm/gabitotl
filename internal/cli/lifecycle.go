@@ -47,6 +47,9 @@ func runDoctor(env Env, args []string) int {
 	defer cancel()
 	d := installer.Doctor(ctx, ienv) // read-only
 	ui.RenderDoctor(env.Stdout, ui.Default(), d)
+	if r := projectRoot(env, *root); r != "" {
+		fmt.Fprintln(env.Stdout, indexLine(r)) // informational, never a failure
+	}
 	if d.Errors() > 0 {
 		return ExitError
 	}

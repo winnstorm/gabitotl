@@ -72,6 +72,7 @@ func commands() map[string]Command {
 		{"cleanup", "Offer to delete expired legacy snapshots (30 days)", runCleanup},
 		{"init", "Create .gabitotl/ in a project", runInit},
 		{"memory", "Memory tools (doctor, search, server, serve, token, mcp, migrate)", runMemory},
+		{"index", "Optional code index (status, setup): CodeGraph first, code-review-graph second", runIndex},
 		{"scan", "Scan the project and print its map", runScan},
 		{"vcs", "Git delivery: status, branch, setup (the delivery questions, asked once), login", runVCS},
 		{"guard", "Authorship guard: no AI branding (scan, fix, install-hooks, uninstall-hooks, status)", runGuard},

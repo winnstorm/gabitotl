@@ -145,6 +145,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `cleanup` | Offer to delete expired snapshots and legacy copies (30 days). |
 | `init` | Create `.gabitotl/`; `--yes`, `--user-name`, `--mode solo\|team`, `--provider engram\|memory-mcp`, `--vcs`. On a terminal it asks "work alone or with other people?" for a new project, and offers to change an Engram project to team memory when re-run. |
 | `scan [--json] [--refresh]` | Project map (structure, stack, commands, recent history) from `git ls-files`, capped near 800 tokens. Reused while HEAD and the untracked files are unchanged; `--refresh` rebuilds. |
+| `index status [--json] \| setup [--tool T] [--yes]` | Optional code index (CodeGraph first, code-review-graph second): what is installed and indexed, and the exact command to index this project. `setup` prints the command; `--yes` runs it. It never installs the tool. |
 | `memory doctor \| search \| context` | Memory provider health (team mode: server, token, schema, project, managed container), relevance search (`--json`; `--limit` 1-20) and `context --task "..." [--max-tokens 1500] [--per-entry-tokens 250] [--json]`, a capped bundle of the most relevant entries for a task. |
 | `memory server install \| start \| stop \| status \| logs \| backup \| remove` | The managed, isolated PostgreSQL of team memory. |
 | `memory serve --http ADDR \| --stdio` | Run the Memory MCP server. |
@@ -608,6 +609,21 @@ Gabito: Falló por el escapado. No reintento: escribo .gabitotl/tmp/find_names.p
   is reported; directories GabitoTL created are removed only when they end up empty.
 - Every skill carries `metadata.author: gabitotl`, and a test fails if a skill mentions a `gabitotl` command that
   does not exist, so the skills cannot drift from the binary.
+
+## 🔎 Code index (optional)
+
+An index lets the agent ask "who calls X" in one call instead of reading files. GabitoTL detects one if you have it
+(`gabitotl index status`, also one line in `doctor`) and tells the agent to use it first; it never requires one.
+
+| | CodeGraph (default) | code-review-graph |
+|---|---|---|
+| Agent surface | one MCP tool, `codegraph_explore`, plus a CLI with the same output | about 30 MCP tools (`get_minimal_context`, `get_impact_radius`) |
+| Context cost | small | larger (many tool definitions) |
+| Install | its own installer | `pipx install code-review-graph` (Python) |
+| Index dir | `.codegraph/` | `.code-review-graph/` |
+
+`gabitotl index setup` prints the tool's own init/build command; `--yes` runs it. polycodegraph was not chosen: a
+third overlapping graph with no advantage for this workflow. See D45.
 
 ## 🔄 Migrating from Gentle-AI
 

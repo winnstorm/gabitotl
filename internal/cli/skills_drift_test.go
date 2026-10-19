@@ -21,6 +21,7 @@ var subcommandGroups = map[string][]string{
 	"session":  {"start", "touch", "end"},
 	"worktree": {"add", "list", "remove"},
 	"backup":   {"create", "list", "restore", "prune"},
+	"index":    {"status", "setup"},
 	"memory":   {"doctor", "search", "context", "use", "server", "serve", "token", "mcp", "migrate"},
 }
 
