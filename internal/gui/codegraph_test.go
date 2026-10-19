@@ -108,6 +108,9 @@ func TestWizardInstallsCodeGraphAndRegistersMCP(t *testing.T) {
 	if len(st.Agents) == 0 || !st.Agents[0].Registered {
 		t.Fatalf("agents %+v", st.Agents)
 	}
+	if st.Action != "skip" || st.PathOnly {
+		t.Fatalf("after installing, the setup has nothing left to do: %+v", st)
+	}
 }
 
 func TestWizardStopsWhenCodeGraphFailsClosed(t *testing.T) {

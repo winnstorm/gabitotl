@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -106,8 +107,8 @@ func TestInstallIsPlanFirstAndApplies(t *testing.T) {
 	if _, err := os.Stat(res.Snapshot); err != nil {
 		t.Fatalf("the backup directory must exist: %v", err)
 	}
-	if _, err := os.Stat(gabitotl.NewLayout(r.root).Project()); err != nil {
-		t.Fatalf("project.md: %v", err)
+	if _, err := os.Stat(filepath.Join(r.root, gabitotl.DirName)); err == nil {
+		t.Fatal("the wizard is global: it must not create a project")
 	}
 	if lang, _ := r.svc.Language(); lang != "en" {
 		t.Fatalf("the wizard language must be remembered, got %q", lang)
@@ -119,8 +120,11 @@ func TestInstallIsPlanFirstAndApplies(t *testing.T) {
 	if steps["persona-mode"] != StatusOK {
 		t.Fatalf("steps: %+v", res.Steps)
 	}
-	if set, _ := r.svc.Settings(ctx, r.root); set.PersonaMode != "lite" || set.Delivery.Automation != "until-pr" || set.Memory.Provider != "engram" {
-		t.Fatalf("settings after install: %+v", set)
+	if g, _ := r.svc.GlobalDelivery(); !g.Saved || g.Automation != "until-pr" {
+		t.Fatalf("global delivery after install: %+v", g)
+	}
+	if steps["delivery-global"] != StatusOK {
+		t.Fatalf("steps: %+v", res.Steps)
 	}
 	last := -1
 	for _, e := range events {
@@ -160,21 +164,16 @@ func TestInstallRefusesWhatHasNoBackingCode(t *testing.T) {
 		t.Fatal("an unknown memory mode must be refused")
 	}
 	a = r.answers()
-	a.Delivery.TokenEnv = "not valid!"
+	a.Delivery.Automation = "sometimes"
 	if _, err := r.svc.PlanInstall(context.Background(), a); err == nil {
-		t.Fatal("a bad token variable name must be refused")
-	}
-	a = r.answers()
-	a.Windows.CodeIndex = "nope"
-	if _, err := r.svc.PlanInstall(context.Background(), a); err == nil {
-		t.Fatal("an unknown code index must be refused")
+		t.Fatal("an unknown automation level must be refused")
 	}
 }
 
 func TestWindowsStepsAreUnsupportedOffWindows(t *testing.T) {
 	r := newRig(t)
 	a := r.answers()
-	a.Windows.StartMenu, a.Windows.DesktopShortcut, a.Windows.CodeIndex = true, true, "codegraph"
+	a.Windows.StartMenu, a.Windows.DesktopShortcut = true, true
 	pl, err := r.svc.PlanInstall(context.Background(), a)
 	if err != nil {
 		t.Fatal(err)
@@ -190,8 +189,8 @@ func TestWindowsStepsAreUnsupportedOffWindows(t *testing.T) {
 	for _, s := range res.Steps {
 		got[s.ID] = s.Status
 	}
-	if got["desktop"] != StatusUnsupported || got["code-index"] != StatusOK || len(r.index.setups) != 1 || r.index.setups[0] != "codegraph" {
-		t.Fatalf("steps %+v, index setups %v", got, r.index.setups)
+	if got["desktop"] != StatusUnsupported {
+		t.Fatalf("steps %+v", got)
 	}
 }
 
@@ -251,35 +250,6 @@ func TestCheckSignIn(t *testing.T) {
 	}
 }
 
-func TestBitbucketTokenReferenceIsSavedNeverTheToken(t *testing.T) {
-	r := newRig(t)
-	a := r.answers()
-	a.Delivery = DeliveryAnswers{Provider: "bitbucket", Automation: "ask", TokenEnv: "MY_BB_TOKEN"}
-	r.install(a)
-	set, err := r.svc.Settings(context.Background(), r.root)
-	if err != nil || set.Delivery.Auth != "env:MY_BB_TOKEN" || set.Delivery.Provider != "bitbucket" {
-		t.Fatalf("%+v %v", set.Delivery, err)
-	}
-}
-
-func TestHooksPointAtTheCLIInTheChosenInstallDir(t *testing.T) {
-	r := newRig(t)
-	r.withDesktop()
-	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
-	custom := filepath.Join(filepath.Dir(r.svc.d.Desktop.Env.DefaultInstallDir), "Custom")
-	a := r.answers()
-	a.Windows.StartMenu, a.Windows.InstallDir, a.Windows.GuardHooks = true, custom, true
-	r.install(a)
-	want := filepath.Join(custom, "gabitotl.exe")
-	if r.hooksOn == nil || !*r.hooksOn || r.hooksCLI != want {
-		t.Fatalf("hooks CLI = %q, want %q", r.hooksCLI, want)
-	}
-	// Later calls in the same process keep using it.
-	if err := r.svc.SetGuardHooks(context.Background(), r.root, true); err != nil || r.hooksCLI != want {
-		t.Fatalf("later hooks CLI = %q (%v)", r.hooksCLI, err)
-	}
-}
-
 func stepStatus(res InstallResult, id string) string {
 	for _, s := range res.Steps {
 		if s.ID == id {
@@ -289,32 +259,49 @@ func stepStatus(res InstallResult, id string) string {
 	return ""
 }
 
-func TestHooksSkippedWithoutWindowsOptions(t *testing.T) {
-	r := newRig(t)
-	r.withDesktop()
-	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
-	a := r.answers()
-	a.Windows.GuardHooks = true
-	res := r.install(a)
-	if r.hooksOn != nil || stepStatus(res, "guard-hooks") != StatusSkipped {
-		t.Fatalf("hooks must be skipped: on=%v steps=%+v", r.hooksOn, res.Steps)
-	}
-	for _, s := range res.Steps {
-		if s.ID == "guard-hooks" && s.Message == "" {
-			t.Fatal("the skip must explain why")
+func TestWizardIsGlobalAndIgnoresProjectOnlyAnswers(t *testing.T) {
+	for _, root := range []string{"", "project"} {
+		r := newRig(t)
+		r.withDesktop()
+		r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
+		in, _ := r.withCodeGraph(false)
+		a := r.answers()
+		if root == "" {
+			a.Root = ""
 		}
-	}
-}
-
-func TestHooksSkippedWhenTheDesktopStepFails(t *testing.T) {
-	r := newRig(t)
-	m := r.withDesktop()
-	m.failRegister = true
-	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
-	a := r.answers()
-	a.Windows.StartMenu, a.Windows.GuardHooks = true, true
-	res := r.install(a)
-	if stepStatus(res, "desktop") != StatusError || stepStatus(res, "guard-hooks") != StatusSkipped || r.hooksOn != nil {
-		t.Fatalf("steps=%+v hooks=%v", res.Steps, r.hooksOn)
+		// Project-only answers a stale client might still send.
+		a.Windows.StartMenu, a.Windows.GuardHooks, a.Windows.CodeIndex = true, true, "codegraph"
+		a.Delivery = DeliveryAnswers{Provider: "bitbucket", Automation: "ask", TokenEnv: "MY_BB_TOKEN"}
+		pl, err := r.svc.PlanInstall(context.Background(), a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := map[string]bool{}
+		for _, s := range pl.Steps {
+			ids[s.ID] = true
+		}
+		if !ids["codegraph"] || !ids["delivery-global"] || ids["guard-hooks"] || ids["code-index"] || ids["delivery-auth"] {
+			t.Fatalf("root %q: plan steps %+v", root, pl.Steps)
+		}
+		res := r.install(a)
+		if r.hooksOn != nil || len(r.index.setups) != 0 || stepStatus(res, "guard-hooks") != "" || stepStatus(res, "code-index") != "" {
+			t.Fatalf("root %q: project-only steps ran: hooks=%v setups=%v steps=%+v", root, r.hooksOn, r.index.setups, res.Steps)
+		}
+		if stepStatus(res, "codegraph") != StatusOK {
+			t.Fatalf("root %q: codegraph step: %+v", root, res.Steps)
+		}
+		if _, err := os.Stat(in.Launcher()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(r.root, gabitotl.DirName)); err == nil {
+			t.Fatalf("root %q: a project folder was written", root)
+		}
+		g, err := r.svc.GlobalDelivery()
+		if err != nil || !g.Saved || g.Automation != "ask" {
+			t.Fatalf("root %q: global delivery %+v %v", root, g, err)
+		}
+		if b, _ := os.ReadFile(gabitotl.GlobalLayout(r.home).VCS()); strings.Contains(string(b), "MY_BB_TOKEN") || strings.Contains(string(b), "bitbucket") {
+			t.Fatalf("the global file must hold settings only:\n%s", b)
+		}
 	}
 }

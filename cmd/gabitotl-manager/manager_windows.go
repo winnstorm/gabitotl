@@ -125,6 +125,26 @@ func (a *App) ApplyDesktop(w gui.WindowsAnswers, planID string) (gui.StepResult,
 	return a.svc.ApplyDesktop(w, planID, a.progress())
 }
 
+// GlobalDelivery reads the delivery defaults every project starts from.
+func (a *App) GlobalDelivery() (gui.GlobalDelivery, error) { return a.svc.GlobalDelivery() }
+
+// SetGlobalDelivery saves those defaults.
+func (a *App) SetGlobalDelivery(d gui.GlobalDeliveryAnswers) (gui.GlobalDelivery, error) {
+	return a.svc.SetGlobalDelivery(d)
+}
+
+// Credentials lists the platforms and whether a token is stored for each. It
+// never returns a token.
+func (a *App) Credentials() ([]gui.CredentialInfo, error) { return a.svc.Credentials() }
+
+// SaveCredential verifies a token with its platform and stores it only when accepted.
+func (a *App) SaveCredential(platform, host, token string) (gui.CredentialResult, error) {
+	return a.svc.SaveCredential(a.ctx, platform, host, token)
+}
+
+// DeleteCredential removes the stored token of a host.
+func (a *App) DeleteCredential(host string) error { return a.svc.DeleteCredential(host) }
+
 // CodeGraph reports the required CodeGraph component and its MCP registration.
 func (a *App) CodeGraph() (gui.CodeGraphStatus, error) { return a.svc.CodeGraph(a.ctx) }
 

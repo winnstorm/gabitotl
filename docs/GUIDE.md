@@ -49,6 +49,13 @@ pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
 detects your agents, shows a plan of everything it will change, and only applies it after you confirm.
 It needs no administrator rights: everything is per user.
 
+The setup is always global and never asks for a project folder. Its delivery step saves your defaults
+(automation, merge method, draft PRs, branch cleanup) for all projects; a project can override them later from
+the Manager. You can also paste an access token per platform (GitHub, GitLab, Bitbucket): it is verified with
+the platform and stored in the Windows Credential Manager, never in a file or shown again. Skipping it is fine.
+CodeGraph (the code index for your agents) is a required component and is installed by the setup; guard hooks and
+per-project indexing are project-level and live in the Manager.
+
 **Where things go.**
 
 - `%LOCALAPPDATA%\Programs\GabitoTL\gabitotl-manager.exe` (the app) and `gabitotl.exe` (the CLI, bundled inside the setup).

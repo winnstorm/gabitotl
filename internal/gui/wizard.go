@@ -105,15 +105,10 @@ func installOptions(a InstallAnswers) (installer.Options, error) {
 			return installer.Options{}, err
 		}
 	}
-	if a.Windows.CodeIndex != "" && a.Windows.CodeIndex != "none" {
-		if _, ok := indexTools[a.Windows.CodeIndex]; !ok {
-			return installer.Options{}, fmt.Errorf("unknown code index %q (want codegraph, code-review-graph or none)", a.Windows.CodeIndex)
-		}
-	}
 	o := installer.Options{
 		Source: installer.SourceInstall, Runtimes: a.Runtimes, User: a.User, UserName: a.Name,
 		MigratePersona: a.MigratePersona, RetireGentleKiro: a.RetireGentleKiro, DryRun: a.DryRun,
-		NoGuardHooks: !a.Windows.GuardHooks, PersonaLang: a.Lang,
+		NoGuardHooks: true, PersonaLang: a.Lang,
 	}
 	if o.UserName == "" {
 		o.UserName = a.User
@@ -127,16 +122,10 @@ func installOptions(a InstallAnswers) (installer.Options, error) {
 	if err := memoryOptions(&o, a.Memory); err != nil {
 		return o, err
 	}
-	d := a.Delivery
-	if d.Provider == "none" {
-		d.Provider = ""
-	}
-	o.Delivery = gabitotl.DeliveryAnswers{Provider: d.Provider, Automation: d.Automation, MergeMethod: d.MergeMethod, DeleteBranch: d.DeleteBranch, Draft: d.Draft}
-	if err := o.Delivery.Validate(); err != nil {
+	// The install is global: delivery answers become the user's global defaults
+	// (runExtras), never a project vcs.md, so the installer gets none of them.
+	if err := globalAnswers(a.Delivery).Validate(); err != nil {
 		return o, err
-	}
-	if d.TokenEnv != "" && !envNameRe.MatchString(d.TokenEnv) {
-		return o, fmt.Errorf("the token variable must be a name like BITBUCKET_TOKEN, got %q", d.TokenEnv)
 	}
 	return o, nil
 }
@@ -182,7 +171,8 @@ func (s *Service) prepare(ctx context.Context, a InstallAnswers) (prep, error) {
 	if err != nil {
 		return prep{}, err
 	}
-	env, err := s.env(a.Root)
+	// The wizard never has a project: the install is global.
+	env, err := s.env("")
 	if err != nil {
 		return prep{}, err
 	}
@@ -208,11 +198,8 @@ func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []string, er
 	if a.PersonaMode != "" {
 		steps = append(steps, PlanStep{ID: "persona-mode", Title: p.m.Format("gui.step.persona-mode", "mode", a.PersonaMode)})
 	}
-	if a.Delivery.TokenEnv != "" {
-		steps = append(steps, PlanStep{ID: "delivery-auth", Title: p.m.Format("gui.step.delivery-auth", "name", a.Delivery.TokenEnv)})
-	}
-	if t := a.Windows.CodeIndex; t != "" && t != "none" {
-		steps = append(steps, PlanStep{ID: "code-index", Title: p.m.Format("gui.step.code-index", "tool", t)})
+	if da := globalAnswers(a.Delivery); !da.Empty() {
+		steps = append(steps, PlanStep{ID: "delivery-global", Title: p.m.Format("gui.step.delivery-global", "automation", da.Automation)})
 	}
 	if a.Windows.InstallDir != "" || a.Windows.StartMenu || a.Windows.DesktopShortcut || a.Windows.AddToPath {
 		ds, supported, err := s.desktopSteps(s.desktopOptions(a.Windows))
@@ -312,9 +299,6 @@ func (s *Service) Install(ctx context.Context, a InstallAnswers, planID string, 
 	if err := checkPlan(planID, fresh); err != nil {
 		return InstallResult{}, err
 	}
-	// Hooks are installed after the desktop step, against the installed CLI;
-	// the first pass would point them at whatever executable is running.
-	pr.env.GuardHooks = nil
 	// CodeGraph is required: install it first, so a failure stops the wizard
 	// before any agent is configured to start it.
 	var cgStep []StepResult
@@ -356,11 +340,9 @@ func (s *Service) runExtras(ctx context.Context, a InstallAnswers, pr prep, p Pr
 		_, err := gabitotl.SavePersonaMode(pr.env.ProjectRoot, gabitotl.ActiveUserID(), pr.env.Home, mode)
 		add("persona-mode", err)
 	}
-	if a.Delivery.TokenEnv != "" && pr.env.ProjectRoot != "" {
-		add("delivery-auth", saveTokenRef(pr.env.ProjectRoot, a.Delivery.TokenEnv))
-	}
-	if t := a.Windows.CodeIndex; t != "" && t != "none" && pr.env.ProjectRoot != "" {
-		add("code-index", s.codeIndex().Setup(ctx, pr.env.Runner, pr.env.ProjectRoot, t))
+	if da := globalAnswers(a.Delivery); !da.Empty() {
+		_, err := s.SetGlobalDelivery(GlobalDeliveryAnswers{Automation: da.Automation, MergeMethod: da.MergeMethod, DeleteBranch: a.Delivery.DeleteBranch, Draft: a.Delivery.Draft})
+		add("delivery-global", err)
 	}
 	if a.Windows.InstallDir != "" || a.Windows.StartMenu || a.Windows.DesktopShortcut || a.Windows.AddToPath {
 		r := s.applyDesktop(s.desktopOptions(a.Windows), p, 85, 100)
@@ -369,14 +351,14 @@ func (s *Service) runExtras(ctx context.Context, a InstallAnswers, pr prep, p Pr
 		}
 		out = append(out, r)
 	}
-	if a.Windows.GuardHooks && pr.env.ProjectRoot != "" && s.d.GuardHooks != nil {
-		if cli := s.installedCLI(); cli != "" {
-			add("guard-hooks", s.d.GuardHooks(ctx, pr.env.ProjectRoot, true, cli))
-		} else {
-			out = append(out, StepResult{ID: "guard-hooks", Status: StatusSkipped, Message: pr.m.Format("gui.hooks.skipped")})
-		}
-	}
 	return out
+}
+
+// globalAnswers is the part of the delivery screen that is a global default. The
+// platform and the token variable are not: projects detect their platform from
+// the remote and tokens live in the credential store.
+func globalAnswers(d DeliveryAnswers) gabitotl.DeliveryAnswers {
+	return gabitotl.DeliveryAnswers{Automation: d.Automation, MergeMethod: d.MergeMethod, DeleteBranch: d.DeleteBranch, Draft: d.Draft}
 }
 
 // saveTokenRef stores the reference (never the token) to the variable that

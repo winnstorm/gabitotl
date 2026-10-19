@@ -28,6 +28,8 @@ type CodeGraphStatus struct {
 	Shadow    string           `json:"shadow,omitempty"` // another codegraph ahead on PATH (never modified)
 	NeedsWork bool             `json:"needsWork"`        // missing, older than pinned, or an agent lacks the MCP server
 	Hint      string           `json:"hint,omitempty"`   // how to install it where there is no managed install
+	Action    string           `json:"action"`           // what the setup would do: install | upgrade | skip | unsupported
+	PathOnly  bool             `json:"pathOnly"`         // skip, except that the user PATH entry is added
 	Agents    []CodeGraphAgent `json:"agents"`
 }
 
@@ -80,6 +82,8 @@ func (s *Service) CodeGraph(ctx context.Context) (CodeGraphStatus, error) {
 	if !st.Supported {
 		out.Hint = codegraph.Hint
 	}
+	pl := s.codegraph().Plan(ctx)
+	out.Action, out.PathOnly = string(pl.Action), pl.Action == codegraph.ActionSkip && len(pl.Steps) > 0
 	out.NeedsWork = st.Supported && (!st.Installed || codegraph.Compare(st.Version, st.Pinned) < 0 || !st.OnPath)
 	env, err := s.env("")
 	if err != nil {

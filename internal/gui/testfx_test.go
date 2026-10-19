@@ -115,6 +115,15 @@ func (r *rig) answers() InstallAnswers {
 	}
 }
 
+// project initializes r.root as a GabitoTL project, the way `gabitotl init` does:
+// the wizard itself is global and never creates one.
+func (r *rig) project() {
+	r.t.Helper()
+	if _, err := gabitotl.Init(r.root, gabitotl.InitOptions{Provider: gabitotl.MemoryEngram, VCSProvider: "github"}); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
 // install plans and applies answers, failing the test on any error.
 func (r *rig) install(a InstallAnswers) InstallResult {
 	r.t.Helper()

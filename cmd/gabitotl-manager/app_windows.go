@@ -65,11 +65,6 @@ func (a *App) Detect(root string) (gui.DetectResult, error) {
 	return a.svc.Detect(a.ctx, root)
 }
 
-// CheckSignIn checks the Git platform login of the project.
-func (a *App) CheckSignIn(root string) (gui.SignIn, error) {
-	return a.svc.CheckSignIn(a.ctx, root)
-}
-
 // PlanInstall shows what the wizard would do without changing anything.
 func (a *App) PlanInstall(ans gui.InstallAnswers) (gui.Plan, error) {
 	return a.svc.PlanInstall(a.ctx, ans)

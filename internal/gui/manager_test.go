@@ -169,6 +169,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
 	r.install(r.answers())
+	r.project()
 	if _, err := r.svc.SetDelivery(r.root, DeliveryAnswers{Automation: "all", MergeMethod: "rebase"}); err != nil {
 		t.Fatal(err)
 	}
@@ -210,6 +211,7 @@ func TestMemorySettingsGoThroughThePlan(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
 	r.install(r.answers())
+	r.project()
 	team := MemoryAnswers{Mode: "team", Role: "client", URL: "https://memoria.example.com/mcp"}
 	pl, err := r.svc.PlanMemory(ctx, r.root, team)
 	if err != nil || !pl.Mutates {
@@ -286,6 +288,7 @@ func TestUninstallPlanAndRun(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
 	r.install(r.answers())
+	r.project()
 	m := r.withDesktop()
 	o := UninstallOptions{Root: r.root, Desktop: true}
 	pl, err := r.svc.PlanUninstall(ctx, o)

@@ -1,5 +1,5 @@
 'use strict';
-// wizard.js: the seven setup screens (welcome, detect, profile, memory, delivery,
+// wizard.js: the seven setup screens (global only: no project folder anywhere) (welcome, detect, profile, memory, delivery,
 // Windows, install), their validation and the install run. Every visible string
 // comes from the message catalogue through t().
 
@@ -15,6 +15,7 @@ var STEPS = [
 var STEP_INSTALL = STEPS.length - 1;
 
 var ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// PROVIDER_ENV is also used by the Manager's per-project delivery form.
 var PROVIDER_ENV = { github: 'GITHUB_TOKEN', gitlab: 'GITLAB_TOKEN', bitbucket: 'BITBUCKET_TOKEN' };
 
 function renderWizard() {
@@ -71,7 +72,6 @@ function stepDetect() {
   if (!d) return head + '<p class="lead">' + esc(t('gui.detect.scanning')) + '</p>';
   var none = t('gui.detect.none');
   var rows = [];
-  rows.push('<div class="row"><b>' + esc(t('gui.detect.project')) + '</b><span class="mono">' + esc(S.root ? S.root : t('gui.detect.project.none')) + '</span><span class="sp"></span><button type="button" class="btn sm" data-act="folder">' + esc(t('gui.btn.change')) + '</button></div>');
   rows.push(row(t('gui.detect.git'), d.git.found ? (d.git.path || 'git') + (d.userName ? ' · ' + d.userName : '') : none, d.git.found ? badge('ok', t('gui.detect.badge.ready')) : badge('err', t('gui.detect.badge.missing'))));
   d.runtimes.forEach(function (r) { rows.push(row(r.label, r.name, runtimeBadge(r.state))); });
   rows.push(row(t('gui.detect.engram'), d.engram.present ? String(d.engram.observations) : none, d.engram.present ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional'))));
@@ -132,14 +132,13 @@ function stepMemory() {
   return out;
 }
 
+var CRED_PLATFORMS = [['github', 'gui.delivery.platform.github'], ['gitlab', 'gui.delivery.platform.gitlab'], ['bitbucket', 'gui.delivery.platform.bitbucket']];
+var CRED_STATUS = { saved: 'gui.delivery.cred.saved', rejected: 'gui.delivery.cred.rejected', unreachable: 'gui.delivery.cred.unreachable', invalid: 'gui.delivery.cred.invalid' };
+
 function stepDelivery() {
   var dl = S.a.delivery;
   var all = dl.automation === 'all';
-  var prov = dl.provider;
-  var out = '<div><h1>' + esc(t('gui.delivery.title')) + '</h1><p class="lead">' + esc(t('gui.delivery.lead')) + '</p></div>' +
-    '<div class="field">' + esc(t('gui.delivery.platform')) + '<div style="display:flex;align-items:center;gap:12px">' +
-    seg('a.delivery.provider', [['github', 'gui.delivery.platform.github'], ['gitlab', 'gui.delivery.platform.gitlab'], ['bitbucket', 'gui.delivery.platform.bitbucket'], ['none', 'gui.delivery.platform.none']], t('gui.delivery.platform')) +
-    (S.detect && S.detect.git.provider ? '<span class="hint">' + esc(t('gui.delivery.platform.detected')) + '</span>' : '') + '</div></div>' +
+  return '<div><h1>' + esc(t('gui.delivery.title')) + '</h1><p class="lead">' + esc(t('gui.delivery.lead')) + '</p></div>' +
     '<div class="field">' + esc(t('gui.delivery.automation')) + '<div class="grid3">' +
     radio('a.delivery.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc')) +
     radio('a.delivery.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc')) +
@@ -150,36 +149,49 @@ function stepDelivery() {
       return '<option value="' + o[0] + '"' + attr('selected', true, dl.mergeMethod === o[0]) + '>' + esc(t(o[1])) + '</option>';
     }).join('') + '</select><span class="hint">' + esc(t('gui.delivery.merge.hint')) + '</span></label>' +
     '<div style="display:flex;flex-direction:column;gap:10px;padding-bottom:20px">' + check('a.delivery.draft', t('gui.delivery.draft')) +
-    check('a.delivery.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>';
-  if (prov !== 'none') {
-    out += '<div class="hrow">' + field('a.delivery.tokenEnv', t('gui.delivery.token'), { mono: true, style: 'flex:1', placeholder: PROVIDER_ENV[prov] || '' }) +
-      '<button type="button" class="btn sm" data-act="signin"' + attr('disabled', true, S.checking) + '>' + esc(t('gui.btn.check')) + '</button>' + signInBadge() + '</div>';
-  }
-  return out;
+    check('a.delivery.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>' +
+    credentialsBlock();
 }
 
-function signInBadge() {
-  var s = S.signIn;
-  var style = ' style="margin-bottom:9px"';
-  if (S.checking) return '<span class="badge todo"' + style + '>' + esc(t('gui.delivery.checking')) + '</span>';
-  if (!s) return '';
-  if (s.text) return '<span class="badge warn"' + style + '>' + esc(s.text) + '</span>';
-  if (s.ok) return '<span class="badge ok"' + style + '>' + esc(t('gui.delivery.signin.ok')) + (s.detail ? ' · ' + esc(s.detail) : '') + '</span>';
-  var key = { 'not-logged-in': 'gui.delivery.signin.no', 'tool-missing': 'gui.delivery.signin.tool' }[s.status] || 'gui.delivery.signin.unknown';
-  return '<span class="badge warn"' + style + '>' + esc(t(key)) + '</span>';
+// credentialsBlock is one row per platform: stored or not, a write-only token
+// field and its outcome. The token is never read back from Go.
+function credentialsBlock() {
+  var c = S.cred;
+  var head = '<div class="lbl">' + esc(t('gui.delivery.creds.title')) + '</div><p class="hint">' + esc(t('gui.delivery.creds.lead')) + '</p>';
+  if (c.err) return head + '<p class="hint" role="alert">' + esc(c.err) + '</p>';
+  return head + '<div class="box">' + CRED_PLATFORMS.map(function (p) {
+    var info = (c.list || []).filter(function (x) { return x.platform === p[0]; })[0] || { host: '', stored: false };
+    var busy = c.busy === p[0];
+    var msg = c.msg[p[0]];
+    var msgHTML = msg ? '<span class="badge ' + esc(msg.cls) + '" role="status">' + esc(msg.text) + '</span>' : '';
+    var label = t(p[1]) + ' — ' + t('gui.delivery.cred.input');
+    return '<div class="row"><b>' + esc(t(p[1])) + '</b><span class="mono">' + esc(info.host) + '</span><span class="sp"></span>' +
+      badge(info.stored ? 'ok' : 'todo', info.stored ? t('gui.delivery.cred.stored') : t('gui.delivery.cred.none')) +
+      (info.stored ? '<button type="button" class="btn sm" data-act="credremove" data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" data-k="credremove-' + esc(p[0]) + '"' + attr('disabled', true, !!c.busy) + '>' + esc(t('gui.delivery.cred.remove')) + '</button>' : '') + '</div>' +
+      '<div class="row"><input class="mono" style="flex:1;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 12px" type="password" autocomplete="off" spellcheck="false" aria-label="' + esc(label) + '" data-bind="cred.tok.' + esc(p[0]) + '" data-cred="' + esc(p[0]) + '" data-k="cred-' + esc(p[0]) + '" data-norender value="' + esc(c.tok[p[0]]) + '"' + attr('disabled', true, !!c.busy) + '>' +
+      '<button type="button" class="btn sm" data-act="credsave" data-cred="' + esc(p[0]) + '" data-k="credsave-' + esc(p[0]) + '"' + attr('disabled', true, !!c.busy) + '>' + esc(busy ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + msgHTML + '</div>';
+  }).join('') + '</div>';
+}
+
+function codegraphLines() {
+  var g = S.cg;
+  if (!g) return { text: t('gui.windows.codegraph.checking'), shadow: '' };
+  var text;
+  if (!g.supported) text = t('gui.windows.codegraph.unsupported') + (g.hint ? ' ' + g.hint : '');
+  else if (g.action === 'install') text = t('gui.windows.codegraph.install', { version: g.pinned });
+  else if (g.action === 'upgrade') text = t('gui.windows.codegraph.upgrade', { installed: g.version, version: g.pinned });
+  else if (g.pathOnly) text = t('gui.windows.codegraph.path', { version: g.version });
+  else text = t('gui.windows.codegraph.ok', { version: g.version });
+  return { text: text, shadow: g.shadow ? t('gui.windows.codegraph.shadow', { path: g.shadow }) : '' };
 }
 
 function stepWindows() {
-  var w = S.a.win;
   var supported = !!S.info.installDir;
-  var noProject = !S.root;
-  var noCLI = !S.info.hasCli;
-  var guardOff = noProject || noCLI;
-  var guardTip = noProject ? t('gui.windows.guard.noproject') : (noCLI ? t('gui.windows.guard.nocli') : '');
   var toggle = function (path, title, desc, o) {
     o = o || {};
-    return '<label class="tog' + (o.disabled ? ' off' : '') + '"' + attr('title', o.tip, !!o.tip) + '><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, !!get(path)) + attr('disabled', true, !!o.disabled) + '><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></label>';
+    return '<label class="tog' + (o.disabled ? ' off' : '') + '"><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, !!get(path)) + attr('disabled', true, !!o.disabled) + '><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></label>';
   };
+  var cg = codegraphLines();
   return '<div><h1>' + esc(t('gui.windows.title')) + '</h1><p class="lead">' + esc(supported ? t('gui.windows.lead') : t('gui.windows.unsupported')) + '</p></div>' +
     '<div class="hrow">' + field('a.win.installDir', t('gui.windows.dir'), { mono: true, style: 'flex:1', disabled: !supported }) +
     '<button type="button" class="btn sm" data-act="browse"' + attr('disabled', true, !supported) + '>' + esc(t('gui.btn.browse')) + '</button></div>' +
@@ -187,13 +199,9 @@ function stepWindows() {
     toggle('a.win.startMenu', t('gui.windows.startmenu'), t('gui.windows.startmenu.desc'), { disabled: !supported }) +
     toggle('a.win.desktopShortcut', t('gui.windows.desktop'), t('gui.windows.desktop.desc'), { disabled: !supported }) +
     toggle('a.win.addToPath', t('gui.windows.path'), t('gui.windows.path.desc'), { disabled: !supported }) + '</div>' +
-    '<div class="lbl">' + esc(t('gui.windows.extras')) + '</div><div class="box">' +
-    toggle('a.win.guardHooks', t('gui.windows.guard'), guardOff ? guardTip : t('gui.windows.guard.desc'), { disabled: guardOff, tip: guardTip }) +
-    '<div class="tog' + (noProject ? ' off' : '') + '"' + attr('title', t('gui.windows.guard.noproject'), noProject) + '><b style="flex:none">' + esc(t('gui.windows.index')) + '</b><span>' + esc(t('gui.windows.index.desc')) + '</span>' +
-    '<select class="sel-sm" aria-label="' + esc(t('gui.windows.index')) + '" data-bind="a.win.codeIndex" data-k="a.win.codeIndex"' + attr('disabled', true, noProject) + '>' +
-    [['codegraph', 'gui.windows.index.codegraph'], ['code-review-graph', 'gui.windows.index.code-review-graph'], ['none', 'gui.windows.index.none']].map(function (o) {
-      return '<option value="' + o[0] + '"' + attr('selected', true, w.codeIndex === o[0]) + '>' + esc(t(o[1])) + '</option>';
-    }).join('') + '</select></div></div>';
+    '<div class="lbl">' + esc(t('gui.windows.required')) + '</div><div class="box">' +
+    '<label class="tog off"><input type="checkbox" checked disabled aria-describedby="cg-status"><b>' + esc(t('gui.windows.codegraph')) + '</b><span>' + esc(t('gui.windows.codegraph.desc')) + '</span></label>' +
+    '<div class="tog" id="cg-status" role="status"><span>' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div></div>';
 }
 
 function selectedRuntimes() {
@@ -209,15 +217,16 @@ function stepInstall() {
   var m = S.a.memory;
   var memText = m.mode === 'solo' ? t('gui.install.sum.memory.solo') : t(m.role === 'host' ? 'gui.install.sum.memory.host' : 'gui.install.sum.memory.client');
   var dl = S.a.delivery;
-  var providerKey = { github: 'gui.delivery.platform.github', gitlab: 'gui.delivery.platform.gitlab', bitbucket: 'gui.delivery.platform.bitbucket', none: 'gui.delivery.platform.none' };
   var autoKey = { all: 'gui.delivery.auto.all', 'until-pr': 'gui.delivery.auto.until-pr', ask: 'gui.delivery.auto.ask' };
-  var delivery = [t(providerKey[dl.provider]), t(autoKey[dl.automation])];
+  var delivery = [t(autoKey[dl.automation]), t('gui.install.sum.delivery.global')];
   if (dl.draft) delivery.push(t('gui.delivery.draft'));
   var agents = selectedRuntimes().map(function (r) { return r.label; });
   out += '<dl class="sum">' +
     '<dt>' + esc(t('gui.install.sum.agents')) + '</dt><dd>' + esc(agents.length ? agents.join(', ') + ' (' + t('gui.install.sum.global') + ')' : t('gui.install.sum.none')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.memory')) + '</dt><dd>' + esc(memText) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.delivery')) + '</dt><dd>' + esc(delivery.join(' · ')) + '</dd>' +
+    '<dt>' + esc(t('gui.install.sum.creds')) + '</dt><dd>' + esc(t('gui.install.sum.creds.n', { n: storedCount() })) + '</dd>' +
+    (S.cg && S.cg.supported ? '<dt>' + esc(t('gui.install.sum.codegraph')) + '</dt><dd>' + esc(t('gui.install.sum.codegraph.value', { version: S.cg.pinned })) + '</dd>' : '') +
     '<dt>' + esc(t('gui.install.sum.windows')) + '</dt><dd class="mono">' + esc(S.a.win.installDir || t('gui.install.sum.none')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.backup')) + '</dt><dd>' + esc(S.plan.snapshot ? S.plan.snapshot : t('gui.install.sum.backup.value')) + '</dd></dl>';
   if (!S.running && !S.finished) return out + planDetails(S.plan);
@@ -226,6 +235,10 @@ function stepInstall() {
     '<div class="log mono" role="log" aria-label="' + esc(t('gui.install.log')) + '">' + S.log.map(logLine).join('') + '</div>';
   if (S.finished) out += resultBlock();
   return out;
+}
+
+function storedCount() {
+  return (S.cred.list || []).filter(function (c) { return c.stored; }).length;
 }
 
 function planDetails(p) {
@@ -271,7 +284,7 @@ function validate(step) {
       if (a.memory.mode === 'team' && a.memory.role === 'client' && !a.memory.url.trim()) return t('gui.memory.url.required');
       if (a.memory.mode === 'team' && a.memory.role === 'client' && a.memory.tokenEnv && !ENV_NAME.test(a.memory.tokenEnv)) return t('gui.memory.token.invalid');
       return '';
-    case 4: return a.delivery.provider === 'none' || !a.delivery.tokenEnv || ENV_NAME.test(a.delivery.tokenEnv) ? '' : t('gui.delivery.token.invalid');
+    case 4: return '';
     case 5: return S.info.installDir && !a.win.installDir.trim() ? t('gui.windows.dir.required') : '';
   }
   return '';
@@ -298,6 +311,8 @@ actions.next = async function () {
   S.step++;
   if (S.step === 1 && !S.detect) scan();
   if (S.step === 2) applyDetectDefaults();
+  if (S.step === 4) loadDelivery();
+  if (S.step === 5) loadCodeGraph();
   if (S.step === STEP_INSTALL) replan();
   render();
 };
@@ -311,7 +326,6 @@ function applyDetectDefaults() {
   if (!S.a.name) S.a.name = d.userName || '';
   if (d.personaMode) S.a.personaMode = d.personaMode;
   d.runtimes.forEach(function (r) { S.a.runtimes[r.name] = r.usable; });
-  if (['github', 'gitlab', 'bitbucket'].indexOf(d.git.provider) >= 0) S.a.delivery.provider = d.git.provider;
   if (!d.gentleAI.found) S.a.gentleAction = '';
 }
 
@@ -320,7 +334,7 @@ async function scan() {
   S.detectErr = '';
   render();
   try {
-    S.detect = await api().Detect(S.root);
+    S.detect = await api().Detect('');
     defaultsApplied = false;
   } catch (e) {
     S.detectErr = t('gui.error.generic', { detail: errText(e) });
@@ -330,20 +344,6 @@ async function scan() {
 }
 
 actions.scan = scan;
-
-actions.folder = async function () {
-  try {
-    var dir = await api().ChooseFolder(t('gui.detect.project'), S.root);
-    if (dir) {
-      S.root = dir;
-      S.signIn = null;
-      await scan();
-    }
-  } catch (e) {
-    S.error = t('gui.error.generic', { detail: errText(e) });
-    render();
-  }
-};
 
 actions.browse = async function () {
   try {
@@ -358,21 +358,84 @@ actions.browse = async function () {
   }
 };
 
-actions.signin = async function () {
-  if (!S.root) {
-    S.signIn = { text: t('gui.delivery.signin.needs-project') };
+// loadDelivery fills the delivery step: the saved global defaults (once) and
+// which platforms already have a token.
+var deliveryLoaded = false;
+async function loadDelivery() {
+  await loadCreds();
+  if (deliveryLoaded) return;
+  deliveryLoaded = true;
+  try {
+    var g = await api().GlobalDelivery();
+    if (g && g.saved) {
+      S.a.delivery.automation = g.automation === 'custom' ? S.a.delivery.automation : g.automation;
+      S.a.delivery.mergeMethod = g.mergeMethod || S.a.delivery.mergeMethod;
+      S.a.delivery.deleteBranch = !!g.deleteBranch;
+      S.a.delivery.draft = !!g.draft;
+    }
+  } catch (e) { /* the built-in defaults stay */ }
+  render();
+}
+
+async function loadCreds() {
+  try {
+    S.cred.list = await api().Credentials();
+    S.cred.err = '';
+  } catch (e) {
+    S.cred.err = t('gui.delivery.cred.unavailable');
+  }
+  render();
+}
+
+async function loadCodeGraph() {
+  try { S.cg = await api().CodeGraph(); } catch (e) { S.cg = null; }
+  render();
+}
+
+actions.credsave = async function (el) {
+  var p = el.getAttribute('data-cred');
+  var tok = (S.cred.tok[p] || '').trim();
+  if (!tok || S.cred.busy) {
+    S.cred.msg[p] = { cls: 'warn', text: t('gui.delivery.cred.invalid') };
     return render();
   }
-  S.checking = true;
+  S.cred.busy = p;
+  S.cred.msg[p] = null;
   render();
   try {
-    S.signIn = await api().CheckSignIn(S.root);
+    var r = await api().SaveCredential(p, '', tok);
+    var st = CRED_STATUS[r.status] ? r.status : 'invalid';
+    S.cred.msg[p] = { cls: st === 'saved' ? 'ok' : 'warn', text: t(CRED_STATUS[st]) };
+    if (r.stored) S.cred.tok[p] = '';
   } catch (e) {
-    S.signIn = { text: errText(e) };
+    S.cred.msg[p] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
   }
-  S.checking = false;
-  render();
+  S.cred.busy = '';
+  await loadCreds();
 };
+
+actions.credremove = async function (el) {
+  var p = el.getAttribute('data-cred');
+  S.cred.busy = p;
+  render();
+  try {
+    await api().DeleteCredential(el.getAttribute('data-host'));
+    S.cred.msg[p] = { cls: 'todo', text: t('gui.delivery.cred.removed') };
+  } catch (e) {
+    S.cred.msg[p] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
+  }
+  S.cred.busy = '';
+  await loadCreds();
+};
+
+// Enter in a token field saves it.
+document.addEventListener('keydown', function (ev) {
+  var p = ev.key === 'Enter' && ev.target.getAttribute && ev.target.getAttribute('data-cred');
+  if (p && ev.target.tagName === 'INPUT') {
+    ev.preventDefault();
+    actions.credsave(ev.target);
+  }
+});
 
 // buildAnswers turns the wizard state into the backend's InstallAnswers.
 function buildAnswers() {
@@ -384,7 +447,7 @@ function buildAnswers() {
   var all = a.delivery.automation === 'all';
   var d = S.detect || { gentleAI: {} };
   return {
-    root: S.root,
+    root: '',
     lang: S.lang,
     gentleAction: d.gentleAI.found ? a.gentleAction : '',
     name: a.name.trim(),
@@ -400,13 +463,12 @@ function buildAnswers() {
       storeToken: false, importEngram: m.mode === 'team' && !!m.importEngram, invites: [],
     },
     delivery: {
-      provider: a.delivery.provider, automation: a.delivery.automation, mergeMethod: all ? a.delivery.mergeMethod : '',
-      deleteBranch: all ? !!a.delivery.deleteBranch : null, draft: !!a.delivery.draft, tokenEnv: a.delivery.provider === 'none' ? '' : a.delivery.tokenEnv.trim(),
+      provider: '', automation: a.delivery.automation, mergeMethod: all ? a.delivery.mergeMethod : '',
+      deleteBranch: all ? !!a.delivery.deleteBranch : null, draft: !!a.delivery.draft, tokenEnv: '',
     },
     windows: {
       installDir: a.win.installDir.trim(), startMenu: !!a.win.startMenu, desktopShortcut: !!a.win.desktopShortcut,
-      addToPath: !!a.win.addToPath, guardHooks: !!a.win.guardHooks && !!S.root && S.info.hasCli,
-      codeIndex: S.root ? a.win.codeIndex : 'none',
+      addToPath: !!a.win.addToPath,
     },
     dryRun: false,
   };
