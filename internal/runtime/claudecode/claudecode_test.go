@@ -279,3 +279,26 @@ func TestSkillsProjectScopeAndEditedFile(t *testing.T) {
 		t.Fatalf("an edited skill must be kept and reported: %+v", res)
 	}
 }
+
+func TestToolServerRegisteredOnceAndIdempotent(t *testing.T) {
+	env, home := fixture(t, true)
+	o := opts
+	o.Tools = []rt.MemoryMCP{{Name: rt.EntryCodeGraph, Command: "cmd", Args: []string{"/c", "codegraph", "serve", "--mcp"}}}
+	a := New()
+	for i := 0; i < 2; i++ {
+		plan, err := a.Plan(env, o)
+		must(t, err)
+		_, _, err = rt.BackupAndApply(env, a, plan)
+		must(t, err)
+	}
+	cfg := read(t, filepath.Join(home, ".claude.json"))
+	if strings.Count(cfg, `"codegraph": {`) != 1 || !strings.Contains(cfg, `"serve"`) || !strings.Contains(cfg, `"other"`) {
+		t.Fatalf("config:\n%s", cfg)
+	}
+	plan, _ := a.Plan(env, o)
+	for _, ac := range plan {
+		if strings.Contains(ac.Target, "codegraph") && ac.Kind != rt.NoAction {
+			t.Errorf("second plan not idempotent: %s", ac)
+		}
+	}
+}

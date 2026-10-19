@@ -23,6 +23,6 @@ func RuntimeOptions(renv rt.Env, root string, scope rt.Scope, memory string, mig
 	mem, extra, retire := rt.MemoryFor(memory, engramPresent)
 	return rt.Options{
 		Scope: scope, PersonaText: persona.TextFor(gabitotl.ActivePersonaLang(renv.Home)), Skills: SkillAssets(),
-		Memory: mem, MemoryExtra: extra, RetireMemory: retire, MigrateGentleman: migrate,
+		Memory: mem, MemoryExtra: extra, Tools: CodeGraphTools(renv, false), RetireMemory: retire, MigrateGentleman: migrate,
 	}
 }

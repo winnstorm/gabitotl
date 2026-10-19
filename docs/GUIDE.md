@@ -60,6 +60,12 @@ It needs no administrator rights: everything is per user.
 (Claude Code, OpenCode, Kiro, guard hooks), settings (persona, memory, delivery), backups and restore, and
 uninstall. Every change is shown as a plan first and nothing runs until you accept it.
 
+**CodeGraph (required).** The setup installs CodeGraph 1.6.2 for your user (`%LOCALAPPDATA%\codegraph\current`,
+added to your user PATH; no Node or npm needed) after checking the download against a pinned SHA-256, and
+registers its MCP server (`cmd /c codegraph serve --mcp`) in each agent GabitoTL manages. If the check fails nothing
+is installed and no agent is configured. The Manager can repair or upgrade it. On Linux and macOS install it with
+`npm install -g @colbymchenry/codegraph`.
+
 **Uninstall.** Use Settings > Apps > GabitoTL Manager > Uninstall, or the Manager's uninstall screen. It removes
 the shortcuts, the PATH entry, the registration and the installed files; your projects and backups are kept
 unless you explicitly choose to purge them (it asks you to type the volume name).

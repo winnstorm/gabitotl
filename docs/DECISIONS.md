@@ -789,3 +789,24 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   `gh` / `glab`, which do not read this store yet (resolved: `vcs.HostFor` hands the stored token of the remote's host to `gh` / `glab` in that child's environment only, `GH_TOKEN` / `GH_ENTERPRISE_TOKEN`+`GH_HOST` / `GITLAB_TOKEN`+`GITLAB_HOST`, and never when the person already set one);
   custom hosts can be stored and verified but the Manager lists only the three public hosts. The Windows adapter is
   compile-checked only and has not run on a real Windows machine.
+
+## D57. CodeGraph is a required, pinned component installed by the Windows setup
+
+- **Context:** the user made CodeGraph mandatory for the Windows setup. The official `install.ps1` downloads whatever
+  is latest and `codegraph install` rewrites `CLAUDE.md` / `AGENTS.md`, which GabitoTL manages (D50).
+- **Decision:** (1) `internal/codegraph` pins release v1.6.2 and the SHA-256 of `codegraph-win32-x64.zip`
+  (`7455e817ee80...deea`) and `codegraph-win32-arm64.zip` (`308f7bf92e78...c071`), taken from the release's
+  `SHA256SUMS`. A mismatch fails closed: nothing is extracted or activated. The zip is self-contained (bundled
+  `node.exe`), so no Node/npm. (2) Same layout as the official installer (`%LOCALAPPDATA%\codegraph\current`,
+  `current\bin` on the user PATH, added once through `internal/desktop.PathEnv`) so `codegraph upgrade` keeps working;
+  a replaced install renames locked files aside (`*.old-<token>`). An install at the pinned version or newer is left
+  alone. (3) The MCP server `codegraph serve --mcp` is registered by GabitoTL's own runtime adapters (new
+  `rt.Options.Tools`, planned like the memory entries and backed up by `BackupAndApply`), never by `codegraph install`.
+  On Windows the entry is `cmd /c codegraph serve --mcp` because the launcher is a `.cmd`; the PATH entry keeps it valid
+  across upgrades. (4) The wizard installs it before configuring any agent and stops if it fails; the Manager exposes
+  `CodeGraph`, `PlanCodeGraph` and `ApplyCodeGraph` (plan-first) to repair or upgrade.
+- **Why:** a pinned, verified artifact is reproducible and tamper-evident; reusing the runtime adapters keeps one config
+  writer and one backup path.
+- **Consequences:** bumping CodeGraph means changing the version and hashes in one file. Linux and macOS are not wired
+  (npm remains the hint). Unverified on a real Windows machine; `cmd /c` as the stdio command is the common Windows
+  pattern but has not been exercised with each agent.

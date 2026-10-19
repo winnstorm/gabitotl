@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -163,6 +164,8 @@ type MemoryMCP struct {
 const (
 	EntryEngram = "engram"
 	EntryBridge = "gabitotl-memory"
+	// EntryCodeGraph is the CodeGraph code-index MCP entry (see Options.Tools).
+	EntryCodeGraph = "codegraph"
 )
 
 // MemoryFor returns the memory MCP entries to configure and the entries that
@@ -209,6 +212,9 @@ type Options struct {
 	// MemoryExtra are further memory MCP entries to configure next to Memory
 	// (Engram's own server, see MemoryFor).
 	MemoryExtra []MemoryMCP
+	// Tools are non-memory stdio MCP servers GabitoTL registers the same way
+	// (today only CodeGraph). They are planned through MemoryServers.
+	Tools []MemoryMCP
 	// RetireMemory lists memory MCP entry names GabitoTL may have created earlier
 	// and that are now obsolete. An adapter plans their removal (REMOVE-AFTER-VERIFY)
 	// only when the ownership state says GabitoTL created that exact entry: an entry
@@ -222,13 +228,13 @@ type Options struct {
 	Skills []Asset
 }
 
-// MemoryServers lists every memory MCP entry to configure: Memory, then MemoryExtra.
+// MemoryServers lists every stdio MCP entry to configure: Memory, MemoryExtra, then Tools.
 func (o Options) MemoryServers() []MemoryMCP {
 	var out []MemoryMCP
 	if o.Memory.Command != "" {
 		out = append(out, o.Memory)
 	}
-	for _, m := range o.MemoryExtra {
+	for _, m := range append(slices.Clone(o.MemoryExtra), o.Tools...) {
 		if m.Command != "" {
 			out = append(out, m)
 		}

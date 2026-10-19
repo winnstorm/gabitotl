@@ -186,6 +186,7 @@ func (s *Service) prepare(ctx context.Context, a InstallAnswers) (prep, error) {
 	if err != nil {
 		return prep{}, err
 	}
+	opts.CodeGraph = s.codegraph().Supported()
 	inv := installer.BuildInventory(ctx, env, nil)
 	if opts.Source == installer.SourceGentleAI && !inv.Other.GentleAI.Found {
 		return prep{}, errors.New("Gentle AI was not found on this machine: nothing to migrate")
@@ -201,6 +202,9 @@ func (s *Service) prepare(ctx context.Context, a InstallAnswers) (prep, error) {
 func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []string, error) {
 	var steps []PlanStep
 	var unsupported []string
+	if cg := s.codegraphStep(p.m); cg != nil {
+		steps = append(steps, *cg)
+	}
 	if a.PersonaMode != "" {
 		steps = append(steps, PlanStep{ID: "persona-mode", Title: p.m.Format("gui.step.persona-mode", "mode", a.PersonaMode)})
 	}
@@ -311,6 +315,17 @@ func (s *Service) Install(ctx context.Context, a InstallAnswers, planID string, 
 	// Hooks are installed after the desktop step, against the installed CLI;
 	// the first pass would point them at whatever executable is running.
 	pr.env.GuardHooks = nil
+	// CodeGraph is required: install it first, so a failure stops the wizard
+	// before any agent is configured to start it.
+	var cgStep []StepResult
+	if !a.DryRun && s.codegraph().Supported() {
+		r := s.applyCodeGraph(ctx, pr.m, p, 1, 5)
+		cgStep = append(cgStep, r)
+		if r.Status == StatusError {
+			err := errors.New(r.Message)
+			return InstallResult{Error: r.Message, Steps: cgStep, Applied: []string{}, Checks: []Check{}, Warnings: []string{}, Notices: []Note{}}, err
+		}
+	}
 	res, err := installer.Run(ctx, pr.env, pr.inv, pr.plan, observer(pr.m, p), installer.Hooks{})
 	out := resultOf(pr.m, res)
 	if err != nil {
@@ -320,7 +335,7 @@ func (s *Service) Install(ctx context.Context, a InstallAnswers, planID string, 
 	if res.DryRun {
 		return out, nil
 	}
-	out.Steps = s.runExtras(ctx, a, pr, p)
+	out.Steps = append(cgStep, s.runExtras(ctx, a, pr, p)...)
 	p.emit("done", "done", pr.m.Format("result.done"), 100)
 	return out, nil
 }

@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"errors"
+	"github.com/winnstorm/gabitotl/internal/codegraph"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,7 +99,8 @@ func newRig(t *testing.T) *rig {
 			r.hooksOn, r.hooksCLI = &on, cli
 			return nil
 		},
-		Version: "test",
+		CodeGraph: &codegraph.Installer{GOOS: "linux", GOARCH: "amd64"},
+		Version:   "test",
 	})
 	return r
 }

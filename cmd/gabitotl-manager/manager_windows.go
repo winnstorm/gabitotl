@@ -125,6 +125,17 @@ func (a *App) ApplyDesktop(w gui.WindowsAnswers, planID string) (gui.StepResult,
 	return a.svc.ApplyDesktop(w, planID, a.progress())
 }
 
+// CodeGraph reports the required CodeGraph component and its MCP registration.
+func (a *App) CodeGraph() (gui.CodeGraphStatus, error) { return a.svc.CodeGraph(a.ctx) }
+
+// PlanCodeGraph shows what repairing or upgrading CodeGraph would do.
+func (a *App) PlanCodeGraph() (gui.Plan, error) { return a.svc.PlanCodeGraph(a.ctx) }
+
+// ApplyCodeGraph runs that plan.
+func (a *App) ApplyCodeGraph(planID string) ([]gui.StepResult, error) {
+	return a.svc.ApplyCodeGraph(a.ctx, planID, a.progress())
+}
+
 // PlanUninstall shows what an uninstall would remove and keep.
 func (a *App) PlanUninstall(o gui.UninstallOptions) (gui.UninstallPlan, error) {
 	return a.svc.PlanUninstall(a.ctx, o)

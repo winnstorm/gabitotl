@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/winnstorm/gabitotl/internal/codegraph"
 	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -50,6 +51,9 @@ type Deps struct {
 	// no project involved (ok, a secret-free detail, a transport error).
 	Credentials func(home string) credstore.Store
 	VerifyToken func(ctx context.Context, platform, host, token string) (ok bool, detail string, err error)
+	// CodeGraph installs the required CodeGraph component; nil uses the real
+	// installer of this machine (Windows only, unsupported elsewhere).
+	CodeGraph *codegraph.Installer
 	// Version is shown in Apps & features.
 	Version string
 }

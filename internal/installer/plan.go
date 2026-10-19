@@ -42,7 +42,10 @@ type Options struct {
 	PreserveEngram   bool // informational: Engram is always adopted, never copied
 	// PersonaLang is the language of Gabito's chat voice, es | en (D54). Empty: the
 	// choice saved by a previous install, else es.
-	PersonaLang  string
+	PersonaLang string
+	// CodeGraph registers the CodeGraph MCP server in the agents even before the
+	// binary exists (the setup installs it in the same run). Windows only.
+	CodeGraph    bool
 	NoGuardHooks bool // do not install the authorship guard Git hooks (remembered in workflow.md)
 	DryRun       bool
 
@@ -127,6 +130,7 @@ type Plan struct {
 	ProjectFiles []string       // .gabitotl files Init would create (absolute paths)
 	Memory       rt.MemoryMCP   // the bridge: it routes by the provider of each project
 	MemoryExtra  []rt.MemoryMCP // Engram's own entry, when its binary is present
+	Tools        []rt.MemoryMCP // CodeGraph's MCP entry (Windows)
 	RetireMemory []string       // memory MCP entries that are obsolete (Engram's entry once its binary is gone)
 	Team         *TeamPlan
 	MemoryChoice string
@@ -264,6 +268,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	// Both providers are available on every machine; the choice only decides what
 	// this project's memory.md says. A missing Engram is a hint, never a failure.
 	pl.Memory, pl.MemoryExtra, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.HasBinary)
+	pl.Tools = CodeGraphTools(env.RT(), opts.CodeGraph)
 	if !inv.Memory.HasBinary {
 		pl.note(NoteEngramMissing, "")
 	}
@@ -310,7 +315,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(lang), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(lang), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, Tools: pl.Tools, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)
