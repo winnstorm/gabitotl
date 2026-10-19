@@ -86,6 +86,9 @@ func (l Layout) LocalMemory(user string) (string, error) { return l.localFile(us
 // optional permission overrides. It lives under the git-ignored local/.
 func (l Layout) LocalVCS(user string) (string, error) { return l.localFile(user, "vcs.md") }
 
+// LocalPersona holds the per-person chat concision mode (front matter `mode`).
+func (l Layout) LocalPersona(user string) (string, error) { return l.localFile(user, "persona.md") }
+
 // LocalSession is the per-person session state.
 func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
 

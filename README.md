@@ -164,6 +164,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `runtime list \| detect \| plan \| apply \| verify \| remove \| set` | Per-runtime configuration and model choice. |
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats]` | Print the installed persona prompt. |
+| `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `version`, `help` | |
 
 ## 🛡️ Authorship: no AI branding
@@ -300,6 +301,22 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
+
+### Chat modes
+
+To save tokens you can ask for shorter replies: `gabitotl persona mode lite` or `full` (back with `normal`,
+the default). With no argument it prints the active mode and its rules. The setting is personal: it is stored
+in `.gabitotl/local/users/<id>/persona.md` (git-ignored) inside a project, or in `~/.gabitotl/persona.md`
+outside one, so a teammate is never affected. The agent reads it at the start of a chat.
+
+| Mode | Style | Example |
+|---|---|---|
+| `normal` | Persona defaults. | Listo. Arreglé la validación y comprobé que los tests pasen. Si querés, sigo con el logout. |
+| `lite` | No filler, greetings or closing offers; full grammar. | Arreglé la validación. Los tests pasan. |
+| `full` | Telegraphic, symbols, one line per fact. | Validación → arreglada. Tests = OK. |
+
+Only chat gets shorter. Code, comments, commits, PRs, docs and memory entries are never touched, and security
+warnings, confirmations of destructive actions and questions to you always stay in full sentences.
 
 ## 🧩 Skills
 

@@ -76,3 +76,9 @@ Work is substantial when it has two or more meaningful steps, or progress worth 
 - Report with the persona blocks: did, progress, next. Add OJO or TIP only when they add value.
 - Save decisions and discoveries (`gabito-memoria`) before saying "done", and write the session summary.
 - Say plainly which checks failed, were skipped or were unavailable.
+
+## Chat concision
+
+The reply length follows `gabitotl persona mode` (normal, lite or full). It shapes only what you say in chat:
+helpers' prompts, code, commits, PRs, docs and memory entries keep their normal wording, and security warnings,
+destructive-action confirmations and questions to the user are never shortened.
