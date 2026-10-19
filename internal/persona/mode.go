@@ -37,11 +37,18 @@ func modeNames() string {
 	return strings.Join(names, ", ")
 }
 
-const rulesHeader = `The mode applies ONLY to what you say in chat. Never apply it to code, comments, commit messages, PR text, docs, memory entries or UI strings.
+const rulesHead = `The mode applies ONLY to what you say in chat. Never apply it to code, comments, commit messages, PR text, docs, memory entries or UI strings.
 Always write full, clear sentences for: security warnings, confirmations of destructive or hard-to-revert actions, questions to the user, and professional proposals with their everyday example.
 Quote error messages verbatim.
-Keep the Gabito voice (Argentine Spanish, voseo) and the block format (Qué hice / Progreso / Qué sigue, OJO, TIP): only the wording gets shorter.
 `
+
+// rulesVoice is the last header line: the voice and block labels to keep.
+var rulesVoice = map[Lang]string{
+	LangES: "Keep the Gabito voice (Argentine Spanish, voseo) and the block format (Qué hice / Progreso / Qué sigue, OJO, TIP): only the wording gets shorter.\n",
+	LangEN: "Keep the Gabito voice (plain, pragmatic English) and the block format (What I did / Progress / Next, Heads-up, TIP): only the wording gets shorter.\n",
+}
+
+func rulesHeader(lang Lang) string { return rulesHead + rulesVoice[normLang(lang)] }
 
 var modeRules = map[Mode]string{
 	ModeNormal: "Mode normal: no change, follow the persona defaults.\n",
@@ -62,21 +69,27 @@ var modeRules = map[Mode]string{
 
 // Rules returns the instructions the agent follows in chat for m. An unknown
 // mode gets the rules of ModeNormal.
-func Rules(m Mode) string {
+func Rules(m Mode) string { return RulesFor(m, LangES) }
+
+// RulesFor is Rules with the header of lang.
+func RulesFor(m Mode, lang Lang) string {
 	r, ok := modeRules[m]
 	if !ok {
 		r = modeRules[ModeNormal]
 	}
-	return rulesHeader + r
+	return rulesHeader(lang) + r
 }
 
 // HookContext is what a session-start hook injects for m: the full rules for
 // lite and full, and a one-line confirmation for normal (so the agent does not
 // fall back to asking for the mode with a tool call).
-func HookContext(m Mode) string {
+func HookContext(m Mode) string { return HookContextFor(m, LangES) }
+
+// HookContextFor is HookContext with the header of lang.
+func HookContextFor(m Mode, lang Lang) string {
 	if m == ModeLite || m == ModeFull {
 		r := modeRules[m]
-		return "Persona " + strings.ToLower(r[:1]) + r[1:] + rulesHeader
+		return "Persona " + strings.ToLower(r[:1]) + r[1:] + rulesHeader(lang)
 	}
 	return "Persona mode normal: no change, follow the persona defaults.\n"
 }

@@ -1,0 +1,54 @@
+# User-facing message templates (plain English variant of the persona).
+# Same keys as messages_es-AR.txt; the wording is the only difference.
+# Format: key = value. {name} placeholders are filled by Messages.Format.
+
+block.did = What I did
+block.progress = Progress
+block.next = Next
+block.ojo = Heads-up
+block.tip = TIP
+
+small.done = Done.
+
+# Persona voice and the name of the heads-up block, used by persona.md.
+voice.reply = Reply in natural English: simple, pragmatic, close. No exaggerated slang, no jargon, never wordy.
+voice.example = Prefer "Done. The change is saved and I checked that it works." over formal phrasing.
+term.ojo = HEADS-UP
+term.an_ojo = a HEADS-UP
+
+ojo.overlap = {who} is working on {area} right now. It is worth coordinating before we both change the same part.
+
+tip.long_chat = This chat is getting long. I saved the state and what is pending to memory, so you can open a new session and we will continue from there without starting over.
+
+# Authorship guard (docs/GUARD.md). Authorship belongs to the person who asked for the work.
+guard.stripped = I removed {n} AI attribution line(s) in {where}. Authorship belongs to whoever asked for the work, not to the tool.
+guard.blocked = I stopped {where}: it has AI attribution and I cannot remove it safely. Remove that line by hand and try again.
+guard.warned = Heads-up: {where} has AI attribution ({n}). You are in warn mode, so I carry on anyway.
+guard.where.commit = the commit
+guard.where.pr = the pull request
+guard.where.memory = the memory
+guard.where.staged = what you are about to commit
+guard.finding = {file}:{line} [{class}] {text}
+guard.finding.nofile = line {line} [{class}] {text}
+guard.scan.clean = Done: I found no AI attribution.
+guard.scan.found = I found {n} line(s) with AI attribution. Authorship of the code belongs to whoever asked for the work.
+guard.history.note = Heads-up: {n} commit(s) already made carry AI attribution. I do not rewrite history; if needed, decide it with your team.
+guard.history.clean = The repo history is free of AI attribution.
+guard.fix.nothing = There is nothing to fix automatically.
+guard.fix.plan = I am going to remove {n} line(s) in {files} file(s):
+guard.fix.manual = {n} case(s) are left to review by hand: the attribution shares a line with code or text I must not touch.
+guard.fix.done = Done. I removed {n} line(s) in {files} file(s). Backup in .gabitotl/.bak/{user}/{snapshot}.
+guard.fix.skipped = I did not touch {path}: {reason}.
+guard.fix.confirm = Do I apply the changes? (y/N)
+guard.fix.noconfirm = I changed nothing. To apply use --yes (or --dry-run to see the plan).
+guard.hooks.installed = Guard hooks installed in {dir}.
+guard.hooks.chained = I kept your {name} hook and still call it after the guard.
+guard.hooks.removed = Guard hooks removed from {dir}.
+guard.hooks.state = {name}: {state}
+guard.hooks.ask = Do I install the Git hooks that protect authorship (commit-msg and pre-commit)? (Y/n)
+guard.hooks.declined = Okay, I do not install the hooks. You can do it whenever you want with: gabitotl guard install-hooks
+guard.mode = Guard mode: {mode}
+guard.hook.state.none = not installed
+guard.hook.state.installed = installed
+guard.hook.state.chained = installed (with your hook chained)
+guard.hook.state.foreign = there is a hook of yours, without the guard

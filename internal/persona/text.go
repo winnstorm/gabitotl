@@ -23,3 +23,6 @@ func Text(msgs Messages) string {
 
 // DefaultText is Text with the embedded es-AR templates.
 func DefaultText() string { return Text(DefaultMessages()) }
+
+// TextFor is Text with the embedded templates of lang.
+func TextFor(lang Lang) string { return Text(MessagesFor(lang)) }

@@ -73,7 +73,7 @@ Work is substantial when it has two or more meaningful steps, or progress worth 
 
 ## Closing
 
-- Report with the persona blocks: did, progress, next. Add OJO or TIP only when they add value.
+- Report with the persona blocks: did, progress, next. Add the OJO (Heads-up in English) or TIP block only when it adds value; the persona language names it.
 - Save decisions and discoveries (`gabito-memoria`) before saying "done", and write the session summary.
 - Say plainly which checks failed, were skipped or were unavailable.
 

@@ -134,7 +134,7 @@ func (r *run) warn(format string, a ...any) {
 }
 
 func (r *run) ropts() rt.Options {
-	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
+	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(persona.Lang(r.pl.Options.PersonaLang)), Skills: SkillAssets(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
 }
 
 // Run executes the plan. Order is fixed and enforced here:
@@ -195,7 +195,23 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 		r.rollback(err)
 		return res, err
 	}
+	r.savePersonaLang()
 	return res, nil
+}
+
+// savePersonaLang remembers the persona language of a successful run so a
+// reinstall or upgrade keeps it. It only writes when the saved value differs.
+func (r *run) savePersonaLang() {
+	lang := persona.Lang(r.pl.Options.PersonaLang)
+	if lang == "" {
+		return
+	}
+	if cur, ok := gabitotl.LoadPersonaLang(r.env.Home); ok && cur == lang {
+		return
+	}
+	if _, err := gabitotl.SavePersonaLang(r.env.Home, lang); err != nil {
+		r.warn("persona language not saved: %v", err)
+	}
 }
 
 // mutate runs every phase after the snapshot. An error means "revert".

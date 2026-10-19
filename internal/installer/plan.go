@@ -40,8 +40,11 @@ type Options struct {
 	// into the snapshot and removes them after verify. Gentle AI itself is untouched.
 	RetireGentleKiro bool
 	PreserveEngram   bool // informational: Engram is always adopted, never copied
-	NoGuardHooks     bool // do not install the authorship guard Git hooks (remembered in workflow.md)
-	DryRun           bool
+	// PersonaLang is the language of Gabito's chat voice, es | en (D54). Empty: the
+	// choice saved by a previous install, else es.
+	PersonaLang  string
+	NoGuardHooks bool // do not install the authorship guard Git hooks (remembered in workflow.md)
+	DryRun       bool
 
 	// Team memory (see team.go). Only meaningful with Memory memory-mcp.
 	MemoryRole     string   // host | client
@@ -178,6 +181,20 @@ func importerEnv(env Env, key string) importer.Env {
 	return ie
 }
 
+// ResolvePersonaLang picks the persona language of a run: the explicit choice
+// (flag or question), else the one saved by a previous install, else Spanish.
+func ResolvePersonaLang(home, choice string) (persona.Lang, error) {
+	if strings.TrimSpace(choice) != "" {
+		l, err := persona.ParseLang(choice)
+		if err != nil {
+			return "", fmt.Errorf("--persona-lang must be es or en, got %q", choice)
+		}
+		return l, nil
+	}
+	l, _ := gabitotl.LoadPersonaLang(home)
+	return l, nil
+}
+
 // BuildPlan is pure: it detects nothing new and writes nothing. It reads
 // adapter plans (themselves pure) and previews importers in dry-run mode.
 func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan, error) {
@@ -262,6 +279,12 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		pl.note(NoteEngramNoBackup, "")
 	}
 
+	lang, err := ResolvePersonaLang(env.Home, opts.PersonaLang)
+	if err != nil {
+		return pl, err
+	}
+	pl.Options.PersonaLang = string(lang)
+
 	// Snapshot dir.
 	pl.add(rt.Create, filepath.Join(env.StateDir(), "migrations", pl.SnapshotID)+string(filepath.Separator), WhySnapshot)
 
@@ -287,7 +310,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.DefaultText(), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(lang), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)

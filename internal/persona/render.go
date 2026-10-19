@@ -15,7 +15,7 @@ const (
 
 // Output errors.
 var (
-	ErrMissingBlock  = errors.New("persona: a long response needs Qué hice, Progreso and Qué sigue")
+	ErrMissingBlock  = errors.New("persona: a long response needs the did, progress and next blocks")
 	ErrTooLong       = errors.New("persona: block is longer than the allowed maximum")
 	ErrTooManySents  = errors.New("persona: a small response must be one or two sentences")
 	ErrEmptyOptional = errors.New("persona: Ojo and TIP must not be present when empty")
@@ -54,7 +54,10 @@ type Renderer struct {
 }
 
 // NewRenderer returns a Renderer with the embedded es-AR templates.
-func NewRenderer() Renderer { return Renderer{Msgs: DefaultMessages()} }
+func NewRenderer() Renderer { return NewRendererFor(LangES) }
+
+// NewRendererFor returns a Renderer with the embedded templates of lang.
+func NewRendererFor(lang Lang) Renderer { return Renderer{Msgs: MessagesFor(lang)} }
 
 func (r Renderer) label(key string) string { return "**" + r.Msgs[key] + ":**" }
 

@@ -52,7 +52,7 @@ func runMemoryUse(env Env, args []string) int {
 		return ExitUsage
 	}
 
-	m := ui.Default()
+	m := ui.Active("")
 	rootDir, err := resolveRoot(env, *root)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "%s %s (%v)\n", ui.SymError, m.Format("refuse.no_project"), err)

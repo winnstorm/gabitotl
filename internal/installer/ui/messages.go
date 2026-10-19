@@ -1,5 +1,5 @@
-// Package ui is the presentation of the installer: Rioplatense Spanish wording
-// (one embedded, replaceable messages file), state symbols and renderers. It
+// Package ui is the presentation of the installer: Rioplatense Spanish or
+// English wording (one embedded, replaceable messages file per persona language), state symbols and renderers. It
 // holds no installer logic; package installer returns typed results and this
 // package only formats them.
 package ui
@@ -10,10 +10,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
 //go:embed messages_es-AR.txt
 var defaultMessages string
+
+//go:embed messages_en.txt
+var englishMessages string
 
 // State symbols (installer spec section 50).
 const (
@@ -73,6 +79,24 @@ func Default() Messages {
 	}
 	return m
 }
+
+// For returns the embedded messages of the persona language lang (es-AR for an
+// unknown one). It is the same catalogue mechanism, one file per language.
+func For(lang persona.Lang) Messages {
+	src := defaultMessages
+	if lang == persona.LangEN {
+		src = englishMessages
+	}
+	m, err := parse(src)
+	if err != nil {
+		panic(err) // the embedded files are covered by tests
+	}
+	return m
+}
+
+// Active returns the messages in the persona language the person running the
+// command chose at install (home empty means os.UserHomeDir), else es-AR.
+func Active(home string) Messages { return For(gabitotl.ActivePersonaLang(home)) }
 
 // Format returns the template for key with {name} placeholders replaced by the
 // given name/value pairs. An unknown key yields the key itself, so a gap in a

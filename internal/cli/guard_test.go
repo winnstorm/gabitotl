@@ -273,3 +273,21 @@ func TestGuardStatusAndHistoryNote(t *testing.T) {
 		t.Fatalf("an empty repo has nothing to report: %+v", r)
 	}
 }
+
+func TestGuardMessagesFollowTheSavedPersonaLanguage(t *testing.T) {
+	fakeBinary(t)
+	root := initGit(t, "--no-hooks")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if _, err := gabitotl.SavePersonaLang(home, "en"); err != nil {
+		t.Fatal(err)
+	}
+	if r := runIn(t, "", false, root, "guard", "scan"); r.code != 0 || !strings.Contains(r.out, "I found no AI attribution") {
+		t.Fatalf("English clean scan: %+v", r)
+	}
+	r := runIn(t, "", false, root, "guard", "status")
+	if !strings.Contains(r.out, "Guard mode") || !strings.Contains(r.out, "not installed") || strings.Contains(r.out, "no instalado") {
+		t.Fatalf("English status: %+v", r)
+	}
+}

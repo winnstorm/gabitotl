@@ -11,6 +11,9 @@ import (
 //go:embed messages_es-AR.txt
 var defaultMessages string
 
+//go:embed messages_en.txt
+var englishMessages string
+
 // Message keys.
 const (
 	KeyBlockDid      = "block.did"
@@ -21,11 +24,15 @@ const (
 	KeySmallDone     = "small.done"
 	KeyOjoOverlap    = "ojo.overlap"
 	KeyTipLongChat   = "tip.long_chat"
+	KeyVoiceReply    = "voice.reply"
+	KeyVoiceExample  = "voice.example"
+	KeyTermOjo       = "term.ojo"
+	KeyTermAnOjo     = "term.an_ojo"
 )
 
 var requiredKeys = []string{
 	KeyBlockDid, KeyBlockProgress, KeyBlockNext, KeyBlockOjo, KeyBlockTip,
-	KeySmallDone, KeyOjoOverlap, KeyTipLongChat,
+	KeySmallDone, KeyOjoOverlap, KeyTipLongChat, KeyVoiceReply, KeyVoiceExample, KeyTermOjo, KeyTermAnOjo,
 }
 
 // Messages holds the replaceable user-facing templates.
@@ -61,19 +68,31 @@ func ParseMessages(src string) (Messages, error) {
 }
 
 // DefaultMessages returns the embedded es-AR templates.
-func DefaultMessages() Messages {
-	m, err := ParseMessages(defaultMessages)
+func DefaultMessages() Messages { return MessagesFor(LangES) }
+
+// MessagesFor returns the embedded templates of lang (es-AR for an unknown one).
+func MessagesFor(lang Lang) Messages {
+	src := defaultMessages
+	if lang == LangEN {
+		src = englishMessages
+	}
+	m, err := ParseMessages(src)
 	if err != nil {
-		panic(err) // embedded file is covered by tests
+		panic(err) // embedded files are covered by tests
 	}
 	return m
 }
 
 // Msg formats a template of the embedded es-AR file by key. Keys that are not
 // required (the authorship guard texts) are looked up here, so a custom messages
-// file written before they existed still works.
+// file written before they existed still works. Use MsgFor for the active language.
 func Msg(key string, pairs ...string) string {
 	return DefaultMessages().Format(key, pairs...)
+}
+
+// MsgFor is Msg in the persona language lang (es-AR for an unknown one).
+func MsgFor(lang Lang, key string, pairs ...string) string {
+	return MessagesFor(lang).Format(key, pairs...)
 }
 
 // Format returns the template for key with {name} placeholders replaced by the

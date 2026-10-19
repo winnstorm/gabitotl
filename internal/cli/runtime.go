@@ -104,7 +104,7 @@ func (f *rtFlags) setup(env Env, name string) (rt.Env, rt.Options, string, error
 	}
 	_, engramPresent := renv.Look("engram")
 	mem, extra, retire := memoryMCP(root, f.memory, engramPresent)
-	opts := rt.Options{Scope: rt.Scope(f.scope), PersonaText: persona.DefaultText(), Skills: installer.SkillAssets(), Memory: mem, MemoryExtra: extra, RetireMemory: retire, MigrateGentleman: f.migrate}
+	opts := rt.Options{Scope: rt.Scope(f.scope), PersonaText: persona.TextFor(gabitotl.ActivePersonaLang(renv.Home)), Skills: installer.SkillAssets(), Memory: mem, MemoryExtra: extra, RetireMemory: retire, MigrateGentleman: f.migrate}
 	return renv, opts, root, nil
 }
 

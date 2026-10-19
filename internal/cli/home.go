@@ -16,7 +16,7 @@ import (
 // short status and never opens the installer. `gabitotl install` is the way to
 // open the installer again.
 func runHome(env Env) int {
-	m := ui.Default()
+	m := ui.Active("")
 	root := ""
 	if wd, err := env.Getwd(); err == nil {
 		if r, err := gabitotl.FindRoot(wd); err == nil {

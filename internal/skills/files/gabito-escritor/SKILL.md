@@ -33,7 +33,7 @@ and report. You do not widen scope and you do not launch other helpers.
   Do not edit it "just this once".
 - If the task is ambiguous, or two readings differ in an important way, stop and return the question.
   Do not choose for the user.
-- Do not refactor unrelated code or fix debt you found; report it as an OJO.
+- Do not refactor unrelated code or fix debt you found; report it as an OJO (Heads-up in English).
 
 ## While you write
 
@@ -72,4 +72,4 @@ Return this, short:
 3. Verification: one `<command>: <observed result>` line per command.
 4. Decisions that were not specified and what you chose.
 5. Uncertainties and anything unverified.
-6. OJO: out-of-surface needs, debt found, conflicts with earlier decisions.
+6. OJO (Heads-up in English): out-of-surface needs, debt found, conflicts with earlier decisions.

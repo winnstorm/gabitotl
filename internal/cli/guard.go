@@ -51,23 +51,23 @@ func printFindings(env Env, fs []branding.Finding) {
 		if f.File == "" {
 			key = "guard.finding.nofile"
 		}
-		fmt.Fprintln(env.Stderr, persona.Msg(key, "file", f.File, "line", strconv.Itoa(f.Line), "class", string(f.Class), "text", f.Text))
+		fmt.Fprintln(env.Stderr, guardMsg(key, "file", f.File, "line", strconv.Itoa(f.Line), "class", string(f.Class), "text", f.Text))
 	}
 }
 
 // reportBranding is wired as Repo.OnBranding: nothing the guard changes is silent.
 func reportBranding(env Env) func(op string, removed, warned []branding.Finding) {
 	return func(op string, removed, warned []branding.Finding) {
-		where := persona.Msg("guard.where.commit")
+		where := guardMsg("guard.where.commit")
 		if op == vcs.OpPullRequest {
-			where = persona.Msg("guard.where.pr")
+			where = guardMsg("guard.where.pr")
 		}
 		if len(removed) > 0 {
-			fmt.Fprintln(env.Stderr, persona.Msg("guard.stripped", "n", strconv.Itoa(len(removed)), "where", where))
+			fmt.Fprintln(env.Stderr, guardMsg("guard.stripped", "n", strconv.Itoa(len(removed)), "where", where))
 			printFindings(env, removed)
 		}
 		if len(warned) > 0 {
-			fmt.Fprintln(env.Stderr, persona.Msg("guard.warned", "n", strconv.Itoa(len(warned)), "where", where))
+			fmt.Fprintln(env.Stderr, guardMsg("guard.warned", "n", strconv.Itoa(len(warned)), "where", where))
 			printFindings(env, warned)
 		}
 	}
@@ -188,14 +188,14 @@ func printScan(env Env, rep scanReport, hook bool) {
 	}
 	switch {
 	case len(rep.Findings) > 0 && hook && rep.Mode == gabitotl.GuardWarn:
-		fmt.Fprintln(w, persona.Msg("guard.warned", "n", strconv.Itoa(len(rep.Findings)), "where", persona.Msg("guard.where.staged")))
+		fmt.Fprintln(w, guardMsg("guard.warned", "n", strconv.Itoa(len(rep.Findings)), "where", guardMsg("guard.where.staged")))
 	case len(rep.Findings) > 0 && hook:
-		fmt.Fprintln(w, persona.Msg("guard.blocked", "where", persona.Msg("guard.where.staged")))
+		fmt.Fprintln(w, guardMsg("guard.blocked", "where", guardMsg("guard.where.staged")))
 		fmt.Fprintln(w, "  gabitotl guard fix --dry-run")
 	case len(rep.Findings) > 0:
-		fmt.Fprintln(w, persona.Msg("guard.scan.found", "n", strconv.Itoa(len(rep.Findings))))
+		fmt.Fprintln(w, guardMsg("guard.scan.found", "n", strconv.Itoa(len(rep.Findings))))
 	case !hook && len(rep.History) == 0:
-		fmt.Fprintln(w, persona.Msg("guard.scan.clean"))
+		fmt.Fprintln(w, guardMsg("guard.scan.clean"))
 	}
 	if len(rep.History) > 0 {
 		for _, h := range rep.History {
@@ -205,7 +205,7 @@ func printScan(env Env, rep scanReport, hook bool) {
 			}
 			fmt.Fprintf(w, "history %s (%s) [%s] %s\n", short, h.Where, h.Class, h.Text)
 		}
-		fmt.Fprintln(w, persona.Msg("guard.history.note", "n", strconv.Itoa(distinctCommits(rep.History))))
+		fmt.Fprintln(w, guardMsg("guard.history.note", "n", strconv.Itoa(distinctCommits(rep.History))))
 	}
 }
 
@@ -255,9 +255,9 @@ func runGuardFix(env Env, args []string) int {
 		nlines += len(f.Removed)
 	}
 	if len(plan.Fixes) == 0 {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.nothing"))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.fix.nothing"))
 	} else {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.plan", "n", strconv.Itoa(nlines), "files", strconv.Itoa(len(plan.Fixes))))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.fix.plan", "n", strconv.Itoa(nlines), "files", strconv.Itoa(len(plan.Fixes))))
 		for _, f := range plan.Fixes {
 			for _, r := range f.Removed {
 				fmt.Fprintf(env.Stdout, "  - %s:%d [%s] %s\n", f.Path, r.Line, r.Class, r.Text)
@@ -265,13 +265,13 @@ func runGuardFix(env Env, args []string) int {
 		}
 	}
 	if len(plan.Manual) > 0 {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.manual", "n", strconv.Itoa(len(plan.Manual))))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.fix.manual", "n", strconv.Itoa(len(plan.Manual))))
 		for _, m := range plan.Manual {
 			fmt.Fprintf(env.Stdout, "  ? %s:%d [%s] %s\n", m.File, m.Line, m.Class, m.Text)
 		}
 	}
 	if len(hist) > 0 {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.history.note", "n", strconv.Itoa(distinctCommits(hist))))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.history.note", "n", strconv.Itoa(distinctCommits(hist))))
 	}
 	if len(plan.Fixes) == 0 || *dry {
 		if len(plan.Manual) > 0 {
@@ -281,12 +281,12 @@ func runGuardFix(env Env, args []string) int {
 	}
 	if !*yes {
 		if !env.IsTTY {
-			fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.noconfirm"))
+			fmt.Fprintln(env.Stdout, guardMsg("guard.fix.noconfirm"))
 			return ExitError
 		}
 		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
-		if a := strings.ToLower(p.ask(persona.Msg("guard.fix.confirm"), "n")); a != "s" && a != "y" && a != "si" && a != "sí" && a != "yes" {
-			fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.noconfirm"))
+		if a := strings.ToLower(p.ask(guardMsg("guard.fix.confirm"), "n")); a != "s" && a != "y" && a != "si" && a != "sí" && a != "yes" {
+			fmt.Fprintln(env.Stdout, guardMsg("guard.fix.noconfirm"))
 			return ExitError
 		}
 	}
@@ -304,9 +304,9 @@ func runGuardFix(env Env, args []string) int {
 		return ExitError
 	}
 	for _, sk := range res.Skipped {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.skipped", "path", sk.Path, "reason", sk.Reason))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.fix.skipped", "path", sk.Path, "reason", sk.Reason))
 	}
-	fmt.Fprintln(env.Stdout, persona.Msg("guard.fix.done", "n", strconv.Itoa(nlines), "files", strconv.Itoa(len(res.Written)), "user", u, "snapshot", res.Snapshot))
+	fmt.Fprintln(env.Stdout, guardMsg("guard.fix.done", "n", strconv.Itoa(nlines), "files", strconv.Itoa(len(res.Written)), "user", u, "snapshot", res.Snapshot))
 	if len(plan.Manual) > 0 {
 		return ExitError
 	}
@@ -370,10 +370,10 @@ func installHooksTo(w io.Writer, root, dir string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, persona.Msg("guard.hooks.installed", "dir", dir))
+	fmt.Fprintln(w, guardMsg("guard.hooks.installed", "dir", dir))
 	for _, h := range st {
 		if h.Chained {
-			fmt.Fprintln(w, persona.Msg("guard.hooks.chained", "name", h.Name))
+			fmt.Fprintln(w, guardMsg("guard.hooks.chained", "name", h.Name))
 		}
 	}
 	rememberHooks(root, gabitotl.HooksInstalled)
@@ -423,7 +423,7 @@ func runGuardUninstallHooks(env Env, args []string) int {
 		fmt.Fprintf(env.Stderr, "gabitotl guard uninstall-hooks: %v\n", err)
 		return ExitError
 	}
-	fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.removed", "dir", dir))
+	fmt.Fprintln(env.Stdout, guardMsg("guard.hooks.removed", "dir", dir))
 	rememberHooks(r, gabitotl.HooksDeclined)
 	return ExitOK
 }
@@ -453,18 +453,18 @@ func runGuardStatus(env Env, args []string) int {
 		_ = enc.Encode(map[string]any{"mode": s.Mode, "hooks_dir": dir, "hooks": st})
 		return ExitOK
 	}
-	fmt.Fprintln(env.Stdout, persona.Msg("guard.mode", "mode", s.Mode))
+	fmt.Fprintln(env.Stdout, guardMsg("guard.mode", "mode", s.Mode))
 	for _, h := range st {
-		state := "no instalado"
+		state := guardMsg("guard.hook.state.none")
 		switch {
 		case h.Installed && h.Chained:
-			state = "instalado (con tu hook encadenado)"
+			state = guardMsg("guard.hook.state.chained")
 		case h.Installed:
-			state = "instalado"
+			state = guardMsg("guard.hook.state.installed")
 		case h.Foreign:
-			state = "hay un hook tuyo, sin el guard"
+			state = guardMsg("guard.hook.state.foreign")
 		}
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.state", "name", h.Name, "state", state))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.hooks.state", "name", h.Name, "state", state))
 	}
 	return ExitOK
 }
@@ -492,7 +492,7 @@ func runGuardCommitMsg(env Env, args []string) int {
 	}
 	out, removed, warned, err := vcs.Enforce(vcs.BrandingPolicy{Mode: s.Mode, ExtraTerms: s.ExtraTerms}, vcs.OpCommit, string(data))
 	if be, ok := vcs.IsBranding(err); ok {
-		fmt.Fprintln(env.Stderr, persona.Msg("guard.blocked", "where", persona.Msg("guard.where.commit")))
+		fmt.Fprintln(env.Stderr, guardMsg("guard.blocked", "where", guardMsg("guard.where.commit")))
 		printFindings(env, be.Findings)
 		return ExitError
 	}
@@ -508,4 +508,10 @@ func runGuardCommitMsg(env Env, args []string) int {
 		}
 	}
 	return ExitOK
+}
+
+// guardMsg formats a guard message in the persona language of the person running
+// the command (es-AR unless they chose English at install).
+func guardMsg(key string, pairs ...string) string {
+	return persona.MsgFor(gabitotl.ActivePersonaLang(""), key, pairs...)
 }

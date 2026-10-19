@@ -136,7 +136,7 @@ func readSavings(path string, since time.Duration, now time.Time) map[string]Sav
 }
 
 func fixedCost() AlwaysOn {
-	a := AlwaysOn{Persona: tokens.EstimateLegacy(persona.DefaultText())}
+	a := AlwaysOn{Persona: tokens.EstimateLegacy(persona.TextFor(gabitotl.ActivePersonaLang("")))}
 	for _, s := range skills.All() {
 		a.Skills += tokens.EstimateLegacy(s.Name + ": " + description(s.Content))
 	}

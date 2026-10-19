@@ -17,7 +17,10 @@ import (
 // normal; a missing, unreadable or invalid file reads as the next step.
 
 type personaFront struct {
-	Mode string `yaml:"mode"`
+	Mode string `yaml:"mode,omitempty"`
+	// Lang is the persona language (docs/DECISIONS.md D54). It only lives in the
+	// home file, next to the global persona it selects.
+	Lang string `yaml:"lang,omitempty"`
 }
 
 const bodyPersonaMode = `
@@ -89,5 +92,66 @@ func SavePersonaMode(root, user, home string, m persona.Mode) (string, error) {
 		}
 	}
 	p := HomePersonaPath(home)
-	return p, WriteDoc(p, personaFront{Mode: string(m)}, bodyPersonaMode)
+	front := personaFront{Mode: string(m)}
+	if d, err := ReadDoc(p); err == nil && d.HasFront {
+		var old personaFront
+		if d.Decode(&old) == nil {
+			front.Lang = old.Lang // changing the mode keeps the language
+		}
+	}
+	return p, WriteDoc(p, front, bodyPersonaMode)
+}
+
+// LoadPersonaLang returns the persona language saved in the home file and whether
+// one was saved. A missing, unreadable or invalid file reads as not saved.
+func LoadPersonaLang(home string) (persona.Lang, bool) {
+	if home == "" {
+		return persona.LangES, false
+	}
+	d, err := ReadDoc(HomePersonaPath(home))
+	if err != nil || !d.HasFront {
+		return persona.LangES, false
+	}
+	var f personaFront
+	if d.Decode(&f) != nil {
+		return persona.LangES, false
+	}
+	l, err := persona.ParseLang(f.Lang)
+	if err != nil {
+		return persona.LangES, false
+	}
+	return l, true
+}
+
+// SavePersonaLang stores the persona language in the home file, keeping its chat
+// mode, and returns the file written.
+func SavePersonaLang(home string, l persona.Lang) (string, error) {
+	if _, err := persona.ParseLang(string(l)); err != nil {
+		return "", err
+	}
+	if home == "" {
+		var err error
+		if home, err = os.UserHomeDir(); err != nil {
+			return "", err
+		}
+	}
+	p := HomePersonaPath(home)
+	front := personaFront{Lang: string(l)}
+	if d, err := ReadDoc(p); err == nil && d.HasFront {
+		var old personaFront
+		if d.Decode(&old) == nil {
+			front.Mode = old.Mode
+		}
+	}
+	return p, WriteDoc(p, front, bodyPersonaMode)
+}
+
+// ActivePersonaLang is the persona language of the person running the command:
+// the one saved in the home directory (os.UserHomeDir when home is empty), else es.
+func ActivePersonaLang(home string) persona.Lang {
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
+	l, _ := LoadPersonaLang(home)
+	return l
 }

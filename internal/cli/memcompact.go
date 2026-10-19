@@ -89,7 +89,7 @@ func runMemoryCompact(env Env, args []string) int {
 	if n == 0 {
 		return ExitOK
 	}
-	if ok, refused := confirmed(env, ui.Default(), *yes, fmt.Sprintf("Fold %d entries into digests? Originals are soft-deleted after a backup.", n)); !ok {
+	if ok, refused := confirmed(env, ui.Active(""), *yes, fmt.Sprintf("Fold %d entries into digests? Originals are soft-deleted after a backup.", n)); !ok {
 		if refused {
 			return ExitError
 		}

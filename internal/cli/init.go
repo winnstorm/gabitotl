@@ -13,7 +13,6 @@ import (
 	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
-	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
 type initFlags struct {
@@ -70,7 +69,7 @@ func doInit(env Env, f initFlags) error {
 	// --provider) answer it, and so does a project that already exists.
 	chain := false
 	if interactive && !existed && f.mode == "" && f.provider == "" {
-		chain = askWorksWithOthers(env, ui.Default())
+		chain = askWorksWithOthers(env, ui.Active(""))
 		if chain {
 			f.mode = gabitotl.ModeTeam
 		}
@@ -110,7 +109,7 @@ func doInit(env Env, f initFlags) error {
 		return chainInstall(env, root, "")
 	case interactive && existed && f.mode == "" && f.provider == "":
 		if cfg, err := gabitotl.LoadMemory(l); err == nil && cfg.Provider == gabitotl.MemoryEngram {
-			m := ui.Default()
+			m := ui.Active("")
 			if i, ok := ui.NewPrompter(env.Stdin, env.Stdout, m).Choose(m.Format("ask.change"),
 				[]string{m.Format("ask.change.no"), m.Format("ask.change.yes")}, 0); ok && i == 1 {
 				return chainInstall(env, root, gabitotl.MemoryMemoryMCP)
@@ -208,11 +207,11 @@ func offerHooks(env Env, root string, f initFlags) {
 	decline := f.noHooks
 	if !decline && env.IsTTY && !f.yes {
 		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
-		a := strings.ToLower(p.ask(persona.Msg("guard.hooks.ask"), "s"))
+		a := strings.ToLower(p.ask(guardMsg("guard.hooks.ask"), "s"))
 		decline = a == "n" || a == "no"
 	}
 	if decline {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.declined"))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.hooks.declined"))
 	}
 	installed, err := ensureHooks(env.Stdout, root, decline)
 	if err != nil {

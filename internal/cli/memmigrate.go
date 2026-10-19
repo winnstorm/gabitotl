@@ -38,7 +38,7 @@ func runMemoryMigrate(env Env, args []string) int {
 	if err := fs.Parse(args[1:]); err != nil {
 		return flagExit(err)
 	}
-	m := ui.Default()
+	m := ui.Active("")
 	if *project == "" && !*allProjects {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("migrate.refuse_scope"))
 		return ExitUsage

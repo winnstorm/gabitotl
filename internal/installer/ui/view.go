@@ -244,7 +244,7 @@ func RenderSnapshots(w io.Writer, m Messages, snaps []*installer.Snapshot) {
 	}
 	fmt.Fprintln(w, m.Format("restore.title"))
 	for _, s := range snaps {
-		detail := fmt.Sprintf("%s, %d archivo(s)", s.Manifest.Source, len(s.Manifest.Files))
+		detail := m.Format("restore.detail", "source", s.Manifest.Source, "count", strconv.Itoa(len(s.Manifest.Files)))
 		fmt.Fprintf(w, "  %s\n", m.Format("restore.line", "id", s.ID, "status", s.Manifest.Status, "detail", detail))
 	}
 	fmt.Fprintf(w, "\n%s\n", m.Format("restore.hint"))

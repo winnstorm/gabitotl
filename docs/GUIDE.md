@@ -10,7 +10,7 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 - [Authorship: no AI branding](#authorship-no-ai-branding)
 - [Team memory](#team-memory) and [Changing the provider](#changing-the-provider)
 - [Who is here](#who-is-here)
-- [The Gabito persona](#the-gabito-persona): [Saving tokens](#saving-tokens), [Kiro](#kiro), [Chat modes](#chat-modes)
+- [The Gabito persona](#the-gabito-persona): [Saving tokens](#saving-tokens), [Kiro](#kiro), [Chat modes](#chat-modes), [Persona language](#persona-language)
 - [Skills](#skills)
 - [Code index (optional)](#code-index-optional)
 - [Migrating from Gentle-AI](#migrating-from-gentle-ai)
@@ -20,7 +20,7 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 ## The installer screen (TUI)
 
 On a terminal, `gabitotl` and `gabitotl install` open a full-screen installer
-(Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish. It walks through:
+(Bubble Tea, Lip Gloss, Huh) in Rioplatense Spanish (or English, see [Persona language](#persona-language)). It walks through:
 
 1. what was detected (`✓` ready, `!` needs attention, `→` will be configured, `×` error);
 2. what to do (migrate Gentle-AI, install without touching it, review details, quit);
@@ -95,7 +95,7 @@ If memory contradicts the code, the code wins and the memory gets fixed.
 | `session start \| touch \| end` | Register an agent session's presence for any memory provider (`--task`, `--branch`, `--areas`, `--anchor-pid`). Silent outside a project. |
 | `runtime list \| detect \| plan \| apply \| verify \| remove \| set` | Per-runtime configuration and model choice. |
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
-| `persona print [--stats]` | Print the installed persona prompt. |
+| `persona print [--stats] [--lang es\|en]` | Print the persona prompt (the language chosen at install unless `--lang` is given). |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
 | `stats [--json] [--since 7d]` | Per person: context use and checkpoints, bytes and estimated tokens kept out of the context by `run` and `memory context`, the always-on cost per chat and the code index status. Missing data counts as zero; it never fails. |
@@ -223,7 +223,8 @@ from a `UserPromptSubmit` hook.
 
 ## The Gabito persona
 
-Gabito answers in short, natural Argentine Spanish. Long work ends with three blocks;
+Gabito answers in short, natural Argentine Spanish (or plain English, see [Persona language](#persona-language)).
+Long work ends with three blocks;
 `OJO` and `TIP` appear only when non-empty:
 
 ```text
@@ -303,6 +304,36 @@ injects the active mode at session start, so it costs no tool call; elsewhere th
 
 Only chat gets shorter. Code, comments, commits, PRs, docs and memory entries are never touched, and security
 warnings, confirmations of destructive actions and questions to you always stay in full sentences.
+
+### Persona language
+
+The chat voice comes in two languages with identical rules: `es` (Argentine Spanish, the default) and `en` (plain,
+pragmatic English). It is one persona template; only the voice lines and the replaceable messages differ
+(`internal/persona/messages_es-AR.txt` and `messages_en.txt`).
+
+| | `es` | `en` |
+|---|---|---|
+| Long-work blocks | Qué hice / Progreso / Qué sigue | What I did / Progress / Next |
+| Optional blocks | Ojo, TIP (the concept is called OJO) | Heads-up, TIP (the concept is called HEADS-UP) |
+| Small work | "Listo." | "Done." |
+
+- **Choose it at install.** The installer asks "Persona language" once (Español (Argentina) / English, default Spanish).
+  For non-interactive installs use `gabitotl install --yes --persona-lang en`.
+- **It is remembered.** The choice is stored as `lang: es|en` in `~/.gabitotl/persona.md` (personal, next to the global
+  persona it selects) after a successful install. Reinstalling or upgrading without the flag keeps it and never asks again.
+- **Change it** by re-running `gabitotl install --persona-lang es|en`: the persona section of every runtime is an owned
+  section, so it is replaced in place (no stale copy). `gabitotl runtime apply --runtime <name>` also uses the saved language.
+- **Where it shows.** `gabitotl doctor` prints the language and flags drift if an installed persona no longer matches it;
+  `persona mode` rules, the session-start hook, the overlap OJO and the long-chat TIP follow it too.
+- **Screens follow it.** The installer, the full-screen interface, `doctor`, `vcs` and the other CLI screens speak the
+  chosen language (`internal/installer/ui/messages_es-AR.txt` and `messages_en.txt`); in the interface the rest of the
+  screens switch as soon as you pick the language. The migration report in `.gabitotl/imports.md` is a shared project
+  file and stays in Spanish.
+  The authorship guard messages follow it too, and the `gabito-*` skills understand both languages (they are written in
+  English, accept the English equivalents of the Spanish user phrases, and call the block OJO or Heads-up by language).
+- The language only affects what Gabito says. Code, commits, PRs, docs and memory stay in English. Data formats keep
+  their Spanish names: the memory `ojo` field and the `Ojo` trailer, and the `## Falta` / `## Próximo paso` headings
+  of the active-work files.
 
 ## Skills
 

@@ -17,12 +17,12 @@ var tuiRunFn = tui.Run
 // flags and the injected Env into the TUI; detection, questions-to-ask, plan and
 // apply all come from internal/installer.
 func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths ui.Paths) int {
-	m := ui.Default()
+	m := installMessages(ienv.Home, f.personaLang)
 	ctx := context.Background()
 	before := projectProvider(root)
 	opts := installer.Options{
 		Runtimes: f.runtimes, Memory: f.memory, User: f.user, UserName: f.name,
-		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, NoGuardHooks: f.noGuardHooks,
+		MigratePersona: f.migratePersona, RetireGentleKiro: f.retireGentleKiro, RemoveGentleAI: f.removeGentle, PreserveEngram: f.preserveE, NoGuardHooks: f.noGuardHooks, PersonaLang: f.personaLang,
 	}
 	if opts.UserName == "" {
 		opts.UserName = f.user
@@ -31,7 +31,7 @@ func executeTUI(env Env, f installFlags, ienv installer.Env, root string, paths 
 	cfg := tui.Config{
 		Backend: tui.NewBackend(ienv), Messages: m, Paths: paths, Options: opts,
 		Need: func(inv installer.Inventory, o installer.Options) ui.Need {
-			return openQuestions(root, inv, o)
+			return openQuestions(root, ienv.Home, inv, o)
 		},
 		SuggestedName: suggestName(ctx, ienv, root),
 		NoColor:       tui.NoColor(os.Getenv),

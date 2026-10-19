@@ -146,7 +146,7 @@ func TestInstallAsksTheDeliveryOnceAndNeverAgain(t *testing.T) {
 		t.Fatal("init alone leaves the delivery unconfigured")
 	}
 	// keep local memory | platform, automation (everything), merge method, delete, draft | apply
-	r := f.run("1\n\n1\n1\n1\n1\ns\n", true, "install", "--no-tui")
+	r := f.run("\n1\n\n1\n1\n1\n1\ns\n", true, "install", "--no-tui")
 	if r.code != 0 || !strings.Contains(r.out, "¿Querés que Gabito haga solo commit, push, PR y merge?") {
 		t.Fatalf("%+v", r)
 	}
@@ -257,5 +257,65 @@ func TestVCSSetupQuestionsPrintWhatToAskAndChangeNothing(t *testing.T) {
 	}
 	if o := read("--shared"); o.Scope != "team" || len(o.Questions) != 5 {
 		t.Fatalf("--shared asks the team questions again: %+v", o)
+	}
+}
+
+func TestInstallPersonaLangFlagChoosesSavesAndKeepsTheLanguage(t *testing.T) {
+	f := engramProjectFix(t)
+	claude := f.home + "/.claude/CLAUDE.md"
+	if r := f.run("", false, "install", "--yes", "--persona-lang=fr"); r.code != ExitUsage {
+		t.Fatalf("an unknown language is a usage error: %+v", r)
+	}
+	if r := f.run("", false, "install", "--yes", "--persona-lang=en"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	md, _ := os.ReadFile(claude)
+	if !strings.Contains(string(md), "**What I did:**") || strings.Contains(string(md), "Argentine Spanish") {
+		t.Fatalf("English persona expected:\n%s", md)
+	}
+	if l, ok := gabitotl.LoadPersonaLang(f.home); !ok || l != "en" {
+		t.Fatalf("saved = %q %v", l, ok)
+	}
+	// Reinstalling without the flag keeps English and never asks again.
+	r := f.run("", false, "install", "--yes")
+	md, _ = os.ReadFile(claude)
+	if r.code != 0 || !strings.Contains(string(md), "**What I did:**") || strings.Contains(r.out, "idioma") {
+		t.Fatalf("the saved language must survive a reinstall: %+v", r)
+	}
+	// Going back to Spanish is one flag away and replaces the owned section.
+	if r := f.run("", false, "install", "--yes", "--persona-lang=es"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	md, _ = os.ReadFile(claude)
+	if !strings.Contains(string(md), "**Qué hice:**") || strings.Contains(string(md), "**What I did:**") {
+		t.Fatalf("Spanish persona expected after switching back:\n%s", md)
+	}
+}
+
+func TestInstallAsksThePersonaLanguageOnceAndEnglishWins(t *testing.T) {
+	f := engramProjectFix(t)
+	r := f.run("2\n1\n\n1\n1\n1\n1\ns\n", true, "install", "--no-tui")
+	if r.code != 0 || !strings.Contains(r.out, "¿En qué idioma querés que te hable Gabito en el chat?") {
+		t.Fatalf("%+v", r)
+	}
+	if l, ok := gabitotl.LoadPersonaLang(f.home); !ok || l != "en" {
+		t.Fatalf("saved = %q %v\n%s", l, ok, r.out)
+	}
+}
+
+func TestScreensSpeakEnglishWhenTheSavedPersonaLanguageIsEnglish(t *testing.T) {
+	f := engramProjectFix(t)
+	if r := f.run("", false, "install", "--yes", "--persona-lang=en"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if strings.Contains(f.run("", false, "install", "--dry-run").out, "Esto fue un ensayo") {
+		t.Fatal("the dry run must not speak Spanish with lang: en")
+	}
+	r := f.run("", false, "doctor")
+	if !strings.Contains(r.out, "GabitoTL doctor") || !strings.Contains(r.out, "Memory") || strings.Contains(r.out, "Memoria") || strings.Contains(r.out, "Proyecto") {
+		t.Fatalf("doctor must be English with lang: en:\n%s", r.out)
+	}
+	if r := f.run("", false, "install", "--dry-run", "--persona-lang=es"); !strings.Contains(r.out, "Esto fue un ensayo") {
+		t.Fatalf("--persona-lang=es must switch the screens back:\n%s", r.out)
 	}
 }

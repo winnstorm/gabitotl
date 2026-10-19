@@ -102,3 +102,31 @@ func TestPersonaModeInvalidFileReadsAsNormal(t *testing.T) {
 		t.Error("an invalid mode must not be saved")
 	}
 }
+
+func TestPersonaLangIsSavedInHomeAndSurvivesModeChanges(t *testing.T) {
+	home := t.TempDir()
+	if l, ok := gabitotl.LoadPersonaLang(home); ok || l != persona.LangES {
+		t.Fatalf("unset = %q %v", l, ok)
+	}
+	if _, err := gabitotl.SavePersonaLang(home, "fr"); err == nil {
+		t.Fatal("an unknown language must be refused")
+	}
+	if _, err := gabitotl.SavePersonaMode("", "", home, persona.ModeLite); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gabitotl.SavePersonaLang(home, persona.LangEN); err != nil {
+		t.Fatal(err)
+	}
+	if l, ok := gabitotl.LoadPersonaLang(home); !ok || l != persona.LangEN {
+		t.Fatalf("lang = %q %v", l, ok)
+	}
+	if m := gabitotl.LoadPersonaMode(gabitotl.Layout{}, "", home); m != persona.ModeLite {
+		t.Fatalf("saving the language must keep the mode, got %s", m)
+	}
+	if _, err := gabitotl.SavePersonaMode("", "", home, persona.ModeFull); err != nil {
+		t.Fatal(err)
+	}
+	if l, _ := gabitotl.LoadPersonaLang(home); l != persona.LangEN {
+		t.Fatalf("saving the mode must keep the language, got %s", l)
+	}
+}
