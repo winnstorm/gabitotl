@@ -94,6 +94,11 @@ func (l Layout) LocalGuardHistory(user string) (string, error) {
 	return l.localFile(user, "guard-history.json")
 }
 
+// LocalScanCache stores the last project map with the commit it was built from.
+func (l Layout) LocalScanCache(user string) (string, error) {
+	return l.localFile(user, "scan-cache.json")
+}
+
 // LocalSession is the per-person session state.
 func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
 

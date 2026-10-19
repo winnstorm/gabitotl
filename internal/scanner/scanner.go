@@ -125,7 +125,9 @@ type ProjectMap struct {
 	Name          string     `json:"name"`
 	Purpose       string     `json:"purpose,omitempty"`
 	FilesVisited  int        `json:"files_visited"`
+	DetailFiles   int        `json:"detail_files"` // files analysed one by one (the rest only counted)
 	Truncated     bool       `json:"truncated"`
+	Source        string     `json:"source"` // "git" (ls-files) or "walk"
 	TopDirs       []DirInfo  `json:"top_dirs"`
 	FileTypes     []ExtCount `json:"file_types"`
 	Docs          []Doc      `json:"docs"`
@@ -152,10 +154,14 @@ func Scan(ctx context.Context, opt Options) (*ProjectMap, error) {
 	}
 	pm := &ProjectMap{Root: root, Name: filepath.Base(root)}
 	w := newWalk(root, opt.maxFiles())
-	if err := w.run(ctx); err != nil {
+	pm.Source = "walk"
+	if files, ok := gitFiles(ctx, root); ok {
+		pm.Source = "git"
+		w.runList(files)
+	} else if err := w.run(ctx); err != nil {
 		return nil, err
 	}
-	pm.FilesVisited, pm.Truncated = w.visited, w.truncated
+	pm.FilesVisited, pm.Truncated, pm.DetailFiles = w.visited, w.truncated, w.detailed
 	pm.TopDirs = w.topDirs()
 	pm.FileTypes = w.fileTypes()
 	pm.Modules = w.modules()
@@ -181,6 +187,7 @@ type walk struct {
 	root      string
 	max       int
 	visited   int
+	detailed  int
 	truncated bool
 	ext       map[string]int
 	top       map[string]int // top-level dir -> files
@@ -239,7 +246,12 @@ func (w *walk) run(ctx context.Context) error {
 			return fs.SkipAll
 		}
 		w.visited++
-		w.record(rel, d)
+		w.detailed++
+		size := int64(0)
+		if info, err := d.Info(); err == nil {
+			size = info.Size()
+		}
+		w.record(rel, d.Name(), size)
 		return nil
 	})
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -248,8 +260,7 @@ func (w *walk) run(ctx context.Context) error {
 	return err
 }
 
-func (w *walk) record(rel string, d fs.DirEntry) {
-	name := d.Name()
+func (w *walk) record(rel, name string, size int64) {
 	parts := strings.Split(rel, "/")
 	ext := strings.ToLower(path.Ext(name))
 	if ext == "" {
@@ -282,7 +293,7 @@ func (w *walk) record(rel string, d fs.DirEntry) {
 		w.hasTests = true
 	}
 	if sourceExts[ext] {
-		w.countModule(parts, d)
+		w.countModule(parts, size)
 	}
 	if strings.HasSuffix(ext, "tf") {
 		w.flags["terraform"] = true
@@ -304,7 +315,7 @@ func isTestFile(rel, name string) bool {
 	return false
 }
 
-func (w *walk) countModule(parts []string, d fs.DirEntry) {
+func (w *walk) countModule(parts []string, size int64) {
 	if len(parts) < 2 {
 		return
 	}
@@ -318,9 +329,7 @@ func (w *walk) countModule(parts []string, d fs.DirEntry) {
 		w.modStats[key] = m
 	}
 	m.Files++
-	if info, err := d.Info(); err == nil {
-		m.Bytes += info.Size()
-	}
+	m.Bytes += size
 }
 
 func sizeClass(m Module) string {
