@@ -193,7 +193,7 @@ func TestInstallDryRunIdempotenceAndUninstall(t *testing.T) {
 	}
 	oc := read(t, filepath.Join(m.home, ".config/opencode/opencode.json"))
 	contains(t, "opencode.json", oc, "// keep me", `"anthropic"`, "gabitotl-persona.md", `"engram"`)
-	for _, f := range []string{".claude.json", ".kiro/steering/gabitotl.md", ".kiro/settings/mcp.json", ".config/opencode/gabitotl-persona.md"} {
+	for _, f := range []string{".claude.json", ".kiro/steering/gabitotl.md", ".kiro/settings/mcp.json", ".kiro/hooks/gabitotl.json", ".config/opencode/gabitotl-persona.md"} {
 		if !exists(filepath.Join(m.home, f)) {
 			t.Errorf("%s was not created", f)
 		}
@@ -235,7 +235,7 @@ func TestInstallDryRunIdempotenceAndUninstall(t *testing.T) {
 	if got := read(t, filepath.Join(m.home, ".config/opencode/opencode.json")); strings.Contains(got, "gabitotl") || !strings.Contains(got, "// keep me") {
 		t.Fatalf("opencode.json must lose only GabitoTL keys:\n%s", got)
 	}
-	for _, f := range []string{".kiro/steering/gabitotl.md", ".config/opencode/gabitotl-persona.md"} {
+	for _, f := range []string{".kiro/steering/gabitotl.md", ".kiro/hooks/gabitotl.json", ".config/opencode/gabitotl-persona.md"} {
 		if exists(filepath.Join(m.home, f)) {
 			t.Errorf("%s created by GabitoTL must be removed", f)
 		}

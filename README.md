@@ -323,6 +323,20 @@ context` bundles against the raw entries) with an estimated token count, and the
 and the skill descriptions. Token figures are estimates (about 3.6 characters per token; the always-on cost uses
 chars/4), not billing data. Real counts appear only when the runtime reports them (`context report`).
 
+### Kiro
+
+Kiro gets the steering file, the skills, the MCP entry and, per person, a hook file
+`~/.kiro/hooks/gabitotl.json` (or `$KIRO_HOME/hooks/`) for both CLI and IDE, at any scope, never in the shared
+project `.kiro/`. Two `SessionStart` hooks: one injects the active chat mode (`persona mode --hook --format text`),
+the other (`context hook --format text --event session --dump`) is silent and records the payload Kiro sends in
+`.gabitotl/tmp/hook-stdin-*.json` (newest 5 kept). No `PromptSubmit` hook is installed yet: a failing one can block the
+prompt in the IDE, and Kiro documents no token usage. Once a dump shows usage fields it will be added. Limits: Kiro has no
+pre-compaction event, so the 75% checkpoint stays a persona rule; the IDE loading `~/.kiro/hooks` is unconfirmed (documented
+for CLI V3), so check the dump file after a new session. If hooks do not load, the persona fallback line has the agent run
+`gabitotl persona mode` itself. Hook commands (Kiro and Claude Code) call gabitotl by the absolute path of the binary that
+ran `install` (plain `gabitotl` when run via `go run`), because GUI apps may not inherit your shell PATH; re-run `install`
+after moving the binary and the hooks are updated.
+
 ### Chat modes
 
 The 75% context rule is automatic where the runtime supports hooks: on Claude Code, `runtime apply` adds a
@@ -333,8 +347,8 @@ like the session example above: the chat mode then falls back to the agent runni
 At project scope these hooks go in the per-person `.claude/settings.local.json` (Claude Code ignores it in Git; add it
 to `.gitignore` if your setup does not), so teammates without gabitotl get no hook errors; user scope uses
 `~/.claude/settings.json`. Re-running `runtime apply` moves hooks an older version put in the shared
-`.claude/settings.json`. OpenCode and Kiro keep the prose rule
-(`gabitotl context check` shows where you stand). Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
+`.claude/settings.json`. OpenCode keeps the prose rule
+(`gabitotl context check` shows where you stand); Kiro is covered below. Limits: `context_limit_tokens`, `context_threshold` in workflow.md.
 
 To save tokens you can ask for shorter replies: `gabitotl persona mode lite` or `full` (back with `normal`,
 the default). With no argument it prints the active mode and its rules. The setting is personal: it is stored

@@ -1,10 +1,11 @@
 package cli
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"slices"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/persona"
@@ -34,21 +35,39 @@ func runPersonaPrint(env Env, args []string) int {
 func runPersonaMode(env Env, args []string) int {
 	fs := flag.NewFlagSet("persona mode", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
+	if slices.Contains(args, "--hook") || slices.Contains(args, "-hook") {
+		fs.SetOutput(io.Discard) // a hook never writes to stderr
+	}
 	rootFlag := fs.String("root", "", "project root (default: search upward from the current directory)")
-	hook := fs.Bool("hook", false, "print the active mode as SessionStart hook additionalContext JSON (never fails)")
+	hook := fs.Bool("hook", false, "print the active mode as SessionStart hook output (never fails)")
+	format := fs.String("format", formatClaude, "with --hook: claude (additionalContext JSON) or text")
 	if err := fs.Parse(args); err != nil {
+		if *hook {
+			return ExitOK // a hook never fails the host
+		}
 		return flagExit(err)
 	}
-	if *hook {
-		return runPersonaModeHook(env, *rootFlag)
+	// Go stops flag parsing at the first positional: accept flags after the mode too.
+	var pos []string
+	for rest := fs.Args(); len(rest) > 0; rest = fs.Args() {
+		pos = append(pos, rest[0])
+		if err := fs.Parse(rest[1:]); err != nil {
+			if *hook {
+				return ExitOK
+			}
+			return flagExit(err)
+		}
 	}
-	if fs.NArg() > 1 {
+	if *hook {
+		return runPersonaModeHook(env, *rootFlag, *format)
+	}
+	if len(pos) > 1 {
 		fmt.Fprintln(env.Stderr, "Usage: gabitotl persona mode [normal|lite|full] [--root DIR]")
 		return ExitUsage
 	}
 	var want persona.Mode
-	if fs.NArg() == 1 {
-		m, err := persona.ParseMode(fs.Arg(0))
+	if len(pos) == 1 {
+		m, err := persona.ParseMode(pos[0])
 		if err != nil {
 			fmt.Fprintf(env.Stderr, "gabitotl persona mode: %v\n", err)
 			return ExitUsage
@@ -81,15 +100,13 @@ func runPersonaMode(env Env, args []string) int {
 
 // runPersonaModeHook backs the Claude Code SessionStart hook: it injects the
 // active mode so the agent needs no tool call. Like every hook it exits 0.
-func runPersonaModeHook(env Env, rootFlag string) int {
+func runPersonaModeHook(env Env, rootFlag, format string) int {
 	root, err := resolveRoot(env, rootFlag)
 	if err != nil {
 		root = ""
 	}
 	home, _ := os.UserHomeDir()
 	m := gabitotl.LoadPersonaMode(gabitotl.NewLayout(root), gabitotl.ActiveUserID(), home)
-	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
-		"hookEventName": "SessionStart", "additionalContext": persona.HookContext(m)}})
-	fmt.Fprintln(env.Stdout, string(b))
+	emitHook(env, format, "SessionStart", persona.HookContext(m))
 	return ExitOK
 }

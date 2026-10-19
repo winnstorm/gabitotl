@@ -35,6 +35,39 @@ type Env struct {
 	LookPath    func(string) (string, error)
 	Exists      func(string) bool // app/dir presence probe; nil uses os.Stat
 	Now         func() time.Time
+	Exe         string // absolute path of the gabitotl binary for host hooks; "" means rely on PATH
+}
+
+// ResolveExe returns the absolute, symlink-free path of the running binary, or
+// "" when it cannot be resolved or lives in a temp or Go build directory (go
+// run, tests), where the path would not outlive the process.
+func ResolveExe() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil || !filepath.IsAbs(exe) {
+		return ""
+	}
+	low := strings.ToLower(filepath.ToSlash(exe))
+	tmp := strings.ToLower(filepath.ToSlash(os.TempDir()))
+	if strings.Contains(low, "/go-build") || (tmp != "" && strings.HasPrefix(low, strings.TrimRight(tmp, "/")+"/")) {
+		return ""
+	}
+	return exe
+}
+
+// Command returns the shell command that runs gabitotl with args from a host
+// hook: the absolute binary path (double-quoted when it has spaces) or plain
+// "gabitotl" when no path is known.
+func (e Env) Command(args string) string {
+	bin := e.Exe
+	if bin == "" {
+		bin = "gabitotl"
+	} else if strings.ContainsAny(bin, " \t") {
+		bin = `"` + bin + `"`
+	}
+	return bin + " " + args
 }
 
 // OSEnv builds the production Env for a project root.
@@ -45,7 +78,7 @@ func OSEnv(goos, projectRoot string) (Env, error) {
 	}
 	return Env{
 		Home: home, ProjectRoot: projectRoot, StateDir: filepath.Join(home, ".gabitotl"), GOOS: goos,
-		Getenv: os.Getenv, LookPath: exec.LookPath, Now: time.Now,
+		Getenv: os.Getenv, LookPath: exec.LookPath, Now: time.Now, Exe: ResolveExe(),
 	}, nil
 }
 

@@ -1,6 +1,7 @@
 package kiro
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -227,5 +228,145 @@ func TestSkillsFollowKiroHomeAndProjectScope(t *testing.T) {
 	p, _ = NewIDE().Plan(env, o)
 	if !has(p, filepath.Join(env.ProjectRoot, ".kiro", "skills", "gabito-terminal", "SKILL.md")) {
 		t.Fatalf("workspace skills dir: %v", p)
+	}
+}
+
+func TestHooksFileIsPerPersonAtKiroHome(t *testing.T) {
+	env, _ := setup(t)
+	custom := t.TempDir()
+	env.Getenv = func(k string) string {
+		if k == "KIRO_HOME" {
+			return custom
+		}
+		return ""
+	}
+	env.ProjectRoot = t.TempDir()
+	want := filepath.Join(custom, "hooks", "gabitotl.json")
+	count := func(plan []rt.Action) (n int) {
+		for _, a := range plan {
+			if a.Path == want {
+				n++
+			}
+			if strings.HasPrefix(a.Path, filepath.Join(env.ProjectRoot, ".kiro", "hooks")) {
+				t.Fatalf("hooks must never go in the shared project .kiro: %s", a.Path)
+			}
+		}
+		return
+	}
+	for _, scope := range []rt.Scope{rt.ScopeGlobal, rt.ScopeProject} {
+		o := opts
+		o.Scope = scope
+		p, _ := NewCLI().Plan(env, o)
+		if count(p) != 1 {
+			t.Fatalf("scope %s: hook file not planned once at %s", scope, want)
+		}
+	}
+}
+
+func TestHooksFileContentSharedAndRemoved(t *testing.T) {
+	env, kh := setup(t)
+	cli, ide := NewCLI(), NewIDE()
+	planC, _ := cli.Plan(env, opts)
+	planI, _ := ide.Plan(env, opts) // computed before the CLI applies, like the installer
+	if _, err := cli.Apply(env, planC); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ide.Apply(env, planI); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(kh, "hooks", "gabitotl.json")
+	var f struct {
+		Version string `json:"version"`
+		Hooks   []struct {
+			Name    string `json:"name"`
+			Trigger string `json:"trigger"`
+			Action  struct {
+				Type    string `json:"type"`
+				Command string `json:"command"`
+			} `json:"action"`
+			Timeout int `json:"timeout"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(read(t, path)), &f); err != nil || f.Version != "v1" || len(f.Hooks) != 2 {
+		t.Fatalf("invalid hook file: %v %+v", err, f)
+	}
+	wantCmd := map[string]bool{
+		"gabitotl persona mode --hook --format text":                 true,
+		"gabitotl context hook --format text --event session --dump": true,
+	}
+	for _, h := range f.Hooks {
+		// PromptSubmit can block a prompt in the IDE: it must not be installed.
+		if h.Trigger != "SessionStart" || h.Action.Type != "command" || !wantCmd[h.Action.Command] || h.Timeout != 10 || h.Name == "" {
+			t.Fatalf("unexpected hook: %+v", h)
+		}
+		delete(wantCmd, h.Action.Command)
+	}
+	if len(wantCmd) != 0 {
+		t.Fatalf("missing hooks: %v", wantCmd)
+	}
+	// A fresh plan finds the file in place for either variant.
+	again, _ := ide.Plan(env, opts)
+	for _, a := range again {
+		if a.Path == path && a.Kind != rt.NoAction {
+			t.Fatalf("IDE must not duplicate the hook file: %v", a)
+		}
+	}
+	if _, err := cli.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("shared hook file removed while the IDE needs it: %v", err)
+	}
+	if _, err := ide.RemoveGabitoConfig(env); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("hook file should be gone after the last owner is removed")
+	}
+}
+
+func TestHooksFileUserEditIsKept(t *testing.T) {
+	env, kh := setup(t)
+	path := filepath.Join(kh, "hooks", "gabitotl.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"version":"v1","hooks":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := NewCLI().Plan(env, opts)
+	for _, a := range p {
+		if a.Path == path && a.Kind != rt.Preserve {
+			t.Fatalf("a user file must be preserved: %v", a)
+		}
+	}
+}
+
+func TestHooksUseAbsoluteBinaryPathAndFollowMoves(t *testing.T) {
+	env, kh := setup(t)
+	path := filepath.Join(kh, "hooks", "gabitotl.json")
+	cli := NewCLI()
+	env.Exe = `/opt/my tools/gabitotl`
+	p, _ := cli.Plan(env, opts)
+	if _, err := cli.Apply(env, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, path); !strings.Contains(got, `\"/opt/my tools/gabitotl\" persona mode --hook --format text`) {
+		t.Fatalf("path with spaces must be quoted:\n%s", got)
+	}
+	env.Exe = "/usr/local/bin/gabitotl" // the binary moved: re-running install updates our file
+	p, _ = cli.Plan(env, opts)
+	if _, err := cli.Apply(env, p); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, path)
+	if strings.Contains(got, "my tools") || !strings.Contains(got, "/usr/local/bin/gabitotl context hook --format text --event session --dump") {
+		t.Fatalf("hook file not updated:\n%s", got)
+	}
+	again, _ := cli.Plan(env, opts)
+	for _, a := range again {
+		if a.Path == path && a.Kind != rt.NoAction {
+			t.Fatalf("not idempotent: %v", a)
+		}
 	}
 }

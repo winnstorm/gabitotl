@@ -90,6 +90,38 @@ func (c Core) steeringPath(env rt.Env, s rt.Scope) string {
 func (c Core) skillsDir(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "skills")
 }
+
+// hooksPath is the one owned hook file. It is per-person: it always lives under
+// the user's Kiro home, never in the shared project .kiro, because teammates
+// without gabitotl would get an error on every prompt.
+func (Core) hooksPath(env rt.Env) string {
+	return filepath.Join(home(env), "hooks", "gabitotl.json")
+}
+
+// hooksJSON is the Kiro IDE 1.0 / CLI V3 unified hook file (kiro.dev/docs/hooks).
+// Command hooks add STDOUT to the agent context on exit 0, so both commands
+// print nothing unless they have something to say.
+func hooksJSON(env rt.Env) string {
+	type action struct {
+		Type    string `json:"type"`
+		Command string `json:"command"`
+	}
+	type hook struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Trigger     string `json:"trigger"`
+		Action      action `json:"action"`
+		Timeout     int    `json:"timeout"`
+	}
+	b, _ := json.MarshalIndent(map[string]any{"version": "v1", "hooks": []hook{
+		{"gabitotl-persona-mode", "Tell the agent the active GabitoTL chat mode", "SessionStart",
+			action{"command", env.Command("persona mode --hook --format text")}, 10},
+		{"gabitotl-capture-hook-input", "Record the hook payload Kiro sends (silent) so context hooks can be enabled", "SessionStart",
+			action{"command", env.Command("context hook --format text --event session --dump")}, 10},
+	}}, "", "  ")
+	return string(b) + "\n"
+}
+
 func (c Core) mcpPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "settings", "mcp.json")
 }
@@ -172,6 +204,7 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, c.name, c.skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanFile(env, c.name, c.hooksPath(env), hooksJSON(env)))
 	return plan, nil
 }
 

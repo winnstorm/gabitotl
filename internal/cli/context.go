@@ -9,7 +9,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/winnstorm/gabitotl/internal/budget"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -228,17 +231,132 @@ func TranscriptTokens(path string) (int, string, error) {
 	return int(st.Size()+3) / 4, budget.SourceEstimated, nil
 }
 
+// hookFormat is the output flavor of a hook: Claude Code JSON or plain text.
+const (
+	formatClaude = "claude"
+	formatText   = "text"
+)
+
+// hookFlags parses the flags shared by the hook entry points. Hooks must never
+// fail the host, so parse problems are silent and reported through ok.
+func hookFlags(name string, args []string) (fs *flag.FlagSet, format, event *string, dump *bool, ok bool) {
+	fs = flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	format = fs.String("format", formatClaude, "output format: claude (JSON) or text")
+	event = fs.String("event", "", "free label for the dump file name")
+	dump = fs.Bool("dump", false, "write the raw stdin to .gabitotl/tmp for inspection")
+	fs.String("root", "", "project root (accepted, unused)")
+	ok = fs.Parse(args) == nil
+	return
+}
+
+// emitHook prints msg in the requested format; nothing when msg is empty.
+func emitHook(env Env, format, hookEvent, msg string) {
+	if msg == "" {
+		return
+	}
+	if format == formatText {
+		fmt.Fprintln(env.Stdout, strings.TrimRight(msg, "\n"))
+		return
+	}
+	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
+		"hookEventName": hookEvent, "additionalContext": msg}})
+	fmt.Fprintln(env.Stdout, string(b))
+}
+
+// stdinUsage looks for an obvious numeric usage field in hook JSON of an
+// unknown schema (the Kiro payload is undocumented).
+func stdinUsage(raw []byte) (int, bool) {
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return 0, false
+	}
+	num := func(v any) int {
+		if f, ok := v.(float64); ok && f > 0 {
+			return int(f)
+		}
+		return 0
+	}
+	if u, ok := m["usage"].(map[string]any); ok {
+		if n := num(u["input_tokens"]) + num(u["cache_read_input_tokens"]) + num(u["cache_creation_input_tokens"]); n > 0 {
+			return n, true
+		}
+	}
+	for _, k := range []string{"context_tokens", "tokens"} {
+		if n := num(m[k]); n > 0 {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+const keepDumps = 5
+
+// dumpHookInput writes raw to <cwd>/.gabitotl/tmp/hook-stdin-<event>-<ts>.json
+// and keeps the newest keepDumps. Best effort: errors are ignored.
+func dumpHookInput(dir, event string, raw []byte) {
+	if dir == "" {
+		return
+	}
+	event = strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, event)
+	if event == "" {
+		event = "hook"
+	}
+	tmp := gabitotl.NewLayout(dir).Tmp()
+	if os.MkdirAll(tmp, 0o755) != nil {
+		return
+	}
+	name := fmt.Sprintf("hook-stdin-%s-%s.json", event, time.Now().UTC().Format("20060102T150405.000000000"))
+	if os.WriteFile(filepath.Join(tmp, name), raw, 0o600) != nil {
+		return
+	}
+	matches, _ := filepath.Glob(filepath.Join(tmp, "hook-stdin-*.json"))
+	stamp := func(p string) string {
+		b := strings.TrimSuffix(filepath.Base(p), ".json")
+		return b[max(0, len(b)-25):]
+	}
+	sort.Slice(matches, func(i, j int) bool { return stamp(matches[i]) < stamp(matches[j]) })
+	for len(matches) > keepDumps {
+		_ = os.Remove(matches[0])
+		matches = matches[1:]
+	}
+}
+
 // runContextHook is the host hook entry: it reads the hook JSON, measures the
-// transcript, and when the threshold is crossed prints a tiny additionalContext
-// message. It never fails the host: every problem exits 0 silently.
+// context (transcript, else obvious usage fields), and when the threshold is
+// crossed prints a tiny message. It never fails the host: every problem exits 0
+// silently, and it never writes to stderr.
 func runContextHook(env Env, args []string) int {
-	raw, _ := io.ReadAll(io.LimitReader(env.Stdin, maxHookInput))
-	var in hookInput
-	if json.Unmarshal(raw, &in) != nil || in.TranscriptPath == "" {
+	_, format, event, dump, ok := hookFlags("context hook", args)
+	if !ok {
 		return ExitOK
 	}
-	used, src, err := TranscriptTokens(in.TranscriptPath)
-	if err != nil {
+	raw, _ := io.ReadAll(io.LimitReader(env.Stdin, maxHookInput))
+	var in hookInput
+	_ = json.Unmarshal(raw, &in)
+	if *dump {
+		dir := in.Cwd
+		if dir == "" && env.Getwd != nil {
+			dir, _ = env.Getwd()
+		}
+		dumpHookInput(dir, *event, raw)
+	}
+	var used int
+	var src string
+	if in.TranscriptPath != "" {
+		n, s, err := TranscriptTokens(in.TranscriptPath)
+		if err != nil {
+			return ExitOK
+		}
+		used, src = n, s
+	} else if n, found := stdinUsage(raw); found {
+		used, src = n, budget.SourceReported
+	} else {
 		return ExitOK
 	}
 	m, _, _, err := openMonitor(env, in.Cwd)
@@ -253,8 +371,6 @@ func runContextHook(env Env, args []string) int {
 		return ExitOK
 	}
 	msg := fmt.Sprintf("Context is at %.0f%% of its budget. Run `gabitotl context checkpoint --progress \"...\" --next \"...\"` now. %s", d.Percent, d.Message)
-	b, _ := json.Marshal(map[string]any{"hookSpecificOutput": map[string]any{
-		"hookEventName": "UserPromptSubmit", "additionalContext": msg}})
-	fmt.Fprintln(env.Stdout, string(b))
+	emitHook(env, *format, "UserPromptSubmit", msg)
 	return ExitOK
 }

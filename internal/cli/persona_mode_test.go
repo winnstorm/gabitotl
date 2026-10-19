@@ -109,14 +109,59 @@ func TestPersonaModeHookOutput(t *testing.T) {
 		t.Fatalf("normal must be a one-line confirmation: %q", c)
 	}
 	runIn(t, "", false, root, "persona", "mode", "lite")
-	if c := ctx(); !strings.Contains(c, "Mode lite") || !strings.Contains(c, "ONLY to what you say in chat") {
+	if c := ctx(); !strings.Contains(c, "mode lite") || !strings.Contains(c, "ONLY to what you say in chat") {
 		t.Fatalf("lite: %q", c)
 	}
 	runIn(t, "", false, root, "persona", "mode", "full")
-	if c := ctx(); !strings.Contains(c, "Mode full") {
+	if c := ctx(); !strings.Contains(c, "mode full") {
 		t.Fatalf("full: %q", c)
 	}
 	if r := runIn(t, "", false, t.TempDir(), "persona", "mode", "--hook"); r.code != 0 || !strings.Contains(r.out, "additionalContext") {
 		t.Fatalf("outside a project the hook must still succeed: %+v", r)
+	}
+}
+
+func TestPersonaModeHookTextFormat(t *testing.T) {
+	root := initProject(t)
+	r := runIn(t, "", false, root, "persona", "mode", "--hook", "--format", "text")
+	if r.code != 0 || r.err != "" || strings.Contains(r.out, "{") || !strings.Contains(r.out, "Persona mode normal") {
+		t.Fatalf("normal: %+v", r)
+	}
+	for _, m := range []string{"lite", "full"} {
+		if r := runIn(t, "", false, root, "persona", "mode", m); r.code != 0 {
+			t.Fatalf("%+v", r)
+		}
+		r := runIn(t, "", false, root, "persona", "mode", "--hook", "--format", "text")
+		if r.code != 0 || r.err != "" || strings.Contains(r.out, "additionalContext") || !strings.HasPrefix(r.out, "Persona ") || strings.Contains(r.out, "normal: no change") {
+			t.Fatalf("%s: %+v", m, r)
+		}
+	}
+	if r := runIn(t, "", false, root, "persona", "mode", "--hook", "--bogus"); r.code != 0 || r.err != "" {
+		t.Fatalf("bad flag in hook mode must be silent: %+v", r)
+	}
+}
+
+func TestPersonaModeFlagsAfterTheMode(t *testing.T) {
+	root := initProject(t)
+	r := runIn(t, "", false, t.TempDir(), "persona", "mode", "lite", "--root", root)
+	if r.code != 0 || !strings.Contains(r.out, "mode: lite") {
+		t.Fatalf("%+v", r)
+	}
+	if r := runIn(t, "", false, t.TempDir(), "persona", "mode", "--root", root); !strings.Contains(r.out, "mode: lite") {
+		t.Fatalf("%+v", r)
+	}
+	if r := runIn(t, "", false, root, "persona", "mode", "lite", "full"); r.code != ExitUsage {
+		t.Fatalf("two modes must be a usage error: %+v", r)
+	}
+}
+
+func TestPersonaHookTextStartsWithCleanHeader(t *testing.T) {
+	root := initProject(t)
+	runIn(t, "", false, root, "persona", "mode", "lite")
+	for _, f := range []string{"text", "claude"} {
+		r := runIn(t, "", false, root, "persona", "mode", "--hook", "--format", f)
+		if !strings.Contains(r.out, "Persona mode lite:") || strings.Contains(r.out, "Persona The") || strings.Count(r.out, "ode lite") != 1 {
+			t.Fatalf("%s: %q", f, r.out)
+		}
 	}
 }

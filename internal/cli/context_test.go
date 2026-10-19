@@ -95,3 +95,39 @@ func TestContextHookFiresOnceAndRearms(t *testing.T) {
 		}
 	}
 }
+
+func TestContextHookTextFormatAndUnknownInput(t *testing.T) {
+	root := initProject(t)
+	for _, bad := range []string{"", "not json", "[]", `{"hook_event_name":"promptSubmit","prompt":"hi"}`, `{"usage":"x"}`} {
+		r := runIn(t, bad, false, root, "context", "hook", "--format", "text")
+		if r.code != 0 || r.out != "" || r.err != "" {
+			t.Fatalf("input %q must be silent: %+v", bad, r)
+		}
+	}
+	if r := runIn(t, "", false, root, "context", "hook", "--bogus"); r.code != 0 || r.out != "" || r.err != "" {
+		t.Fatalf("bad flag must be silent: %+v", r)
+	}
+	// Kiro-like payload with an obvious numeric usage field.
+	r := runIn(t, `{"cwd":"`+root+`","usage":{"input_tokens":170000}}`, false, root, "context", "hook", "--format", "text")
+	if r.code != 0 || r.err != "" || strings.Contains(r.out, "additionalContext") || !strings.Contains(r.out, "gabitotl context checkpoint") {
+		t.Fatalf("text output expected: %+v", r)
+	}
+}
+
+func TestContextHookDumpWritesAndPrunes(t *testing.T) {
+	root := initProject(t)
+	for i := 0; i < 8; i++ {
+		r := runIn(t, `{"cwd":"`+root+`","n":`+strings.Repeat("1", i+1)+`}`, false, root, "context", "hook", "--dump", "--event", "prompt/x")
+		if r.code != 0 || r.out != "" || r.err != "" {
+			t.Fatalf("%+v", r)
+		}
+	}
+	files, _ := filepath.Glob(filepath.Join(root, ".gabitotl", "tmp", "hook-stdin-prompt-x-*.json"))
+	if len(files) != 5 {
+		t.Fatalf("want newest 5 dumps, got %v", files)
+	}
+	b, _ := os.ReadFile(files[len(files)-1])
+	if !strings.Contains(string(b), `"n":11111111`) {
+		t.Fatalf("newest dump missing: %s", b)
+	}
+}

@@ -128,6 +128,30 @@ func PlanKey(runtime, path string, key []string, value json.RawMessage, overwrit
 	return a
 }
 
+// PlanOwnedKey is PlanKey for a key GabitoTL manages whose value can change
+// between runs (a hook command that embeds the binary path). A different value
+// is replaced, not preserved, when the ownership state says GabitoTL wrote the
+// key and ours reports the current value as one of its own earlier forms; the
+// state keeps the user's original value for uninstall.
+func PlanOwnedKey(env rt.Env, runtime, path string, key []string, value json.RawMessage, ours func(json.RawMessage) bool) rt.Action {
+	a := PlanKey(runtime, path, key, value, false)
+	if a.Kind != rt.Preserve {
+		return a
+	}
+	st, err := env.Store().Load()
+	if err != nil {
+		return a
+	}
+	i, ok := st.Find(path)
+	data, _, _ := readFile(path)
+	cur, present, _ := ownership.Get(data, key)
+	if ok && present && hasKey(st.Entries[i], key, "") && ours(cur) {
+		a.Kind, a.Detail = rt.Modify, "update the hook GabitoTL wrote earlier"
+		a.Edit = rt.Edit{Op: rt.OpSetKey, Key: key, Value: value}
+	}
+	return a
+}
+
 // PlanServer plans an MCP server entry inside container without duplicating
 // one: if any existing member satisfies equivalent, nothing is written.
 func PlanServer(runtime, path string, container []string, name string, value json.RawMessage, equivalent func(json.RawMessage) bool) rt.Action {
