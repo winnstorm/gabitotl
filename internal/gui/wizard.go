@@ -308,6 +308,9 @@ func (s *Service) Install(ctx context.Context, a InstallAnswers, planID string, 
 	if err := checkPlan(planID, fresh); err != nil {
 		return InstallResult{}, err
 	}
+	// Hooks are installed after the desktop step, against the installed CLI;
+	// the first pass would point them at whatever executable is running.
+	pr.env.GuardHooks = nil
 	res, err := installer.Run(ctx, pr.env, pr.inv, pr.plan, observer(pr.m, p), installer.Hooks{})
 	out := resultOf(pr.m, res)
 	if err != nil {
@@ -350,9 +353,12 @@ func (s *Service) runExtras(ctx context.Context, a InstallAnswers, pr prep, p Pr
 			p.emit("desktop", "skipped", pr.m.Format("gui.desktop.unsupported"), 100)
 		}
 		out = append(out, r)
-		if r.Status == StatusOK && a.Windows.GuardHooks && pr.env.ProjectRoot != "" && s.d.GuardHooks != nil {
-			// The CLI now lives in the chosen folder: point the hooks there.
-			add("guard-hooks", s.d.GuardHooks(ctx, pr.env.ProjectRoot, true, s.installedCLI()))
+	}
+	if a.Windows.GuardHooks && pr.env.ProjectRoot != "" && s.d.GuardHooks != nil {
+		if cli := s.installedCLI(); cli != "" {
+			add("guard-hooks", s.d.GuardHooks(ctx, pr.env.ProjectRoot, true, cli))
+		} else {
+			out = append(out, StepResult{ID: "guard-hooks", Status: StatusSkipped, Message: pr.m.Format("gui.hooks.skipped")})
 		}
 	}
 	return out

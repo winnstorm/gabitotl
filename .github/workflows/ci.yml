@@ -66,3 +66,11 @@ jobs:
 
       - name: build the manager (windowsgui)
         run: go build -tags desktop,production -ldflags "-H windowsgui" -o gabitotl-manager.exe ./cmd/gabitotl-manager
+
+      - name: build the manager with the embedded CLI (dummy bundle)
+        shell: bash
+        run: |
+          mkdir -p cmd/gabitotl-manager/bundled
+          echo dummy > cmd/gabitotl-manager/bundled/gabitotl.exe
+          go vet -tags desktop,production,embedcli ./cmd/gabitotl-manager/...
+          go build -tags desktop,production,embedcli -ldflags "-H windowsgui" -o gabitotl-setup.exe ./cmd/gabitotl-manager

@@ -583,6 +583,7 @@ gui.step.code-index = Index the code with {tool}
 gui.step.memory-server = Remove the memory server {name}
 gui.step.memory-purge = Delete the data in volume {name} (cannot be recovered)
 gui.desktop.unsupported = The Windows integration does not apply on this system: skipped.
+gui.hooks.skipped = The guard hooks were not installed: the gabitotl CLI is not installed on this machine yet. Install them from the Manager once setup completes.
 gui.note.persona-reapply = The language changed: repair each agent so it uses the new text.
 
 # --- desktop app: wizard (frontend) -------------------------------------

@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -133,6 +134,8 @@ type memDesktop struct {
 	links map[string]bool
 	reg   *desktop.Registration
 	calls []string
+
+	failRegister bool
 }
 
 func (m *memDesktop) CopyFile(_, dst string) (int64, error) { m.files[dst] = true; return 10, nil }
@@ -157,6 +160,9 @@ func (m *memDesktop) Create(p string, _ desktop.Shortcut) error {
 }
 func (m *memDesktop) Remove(p string) error { delete(m.links, p); return nil }
 func (m *memDesktop) Register(r desktop.Registration) error {
+	if m.failRegister {
+		return errors.New("registry denied")
+	}
 	m.reg = &r
 	return nil
 }

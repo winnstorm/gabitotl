@@ -25,6 +25,9 @@ func GUIDeps(cliPath func() string) gui.Deps {
 			if cli == "" && cliPath != nil {
 				cli = cliPath()
 			}
+			if install && cli == "" {
+				return gui.ErrCLINotInstalled
+			}
 			return guiGuardHooks(ctx, root, install, cli)
 		},
 		Version: version.Version,
@@ -89,9 +92,7 @@ func guiGuardHooks(ctx context.Context, root string, install bool, bin string) e
 		return nil
 	}
 	if bin == "" {
-		if bin, err = executablePath(); err != nil {
-			return err
-		}
+		return gui.ErrCLINotInstalled
 	}
 	return installHooksBin(io.Discard, root, dir, bin)
 }

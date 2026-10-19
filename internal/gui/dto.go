@@ -16,6 +16,10 @@ var (
 	ErrPlanChanged = errors.New("the plan changed since it was shown: review it again")
 	// ErrDecisionPending means a choice that must be settled first is still open.
 	ErrDecisionPending = errors.New("a decision is still pending")
+	// ErrCLINotInstalled means the guard hooks cannot be installed because no
+	// installed gabitotl executable is known; the hooks must never call the
+	// setup executable or anything in Downloads.
+	ErrCLINotInstalled = errors.New("the gabitotl CLI is not installed yet")
 )
 
 // Event is one progress notification of a long operation. The shell forwards it

@@ -583,6 +583,7 @@ gui.step.code-index = Indexo el código con {tool}
 gui.step.memory-server = Saco el servidor de memoria {name}
 gui.step.memory-purge = Borro los datos del volumen {name} (no se recuperan)
 gui.desktop.unsupported = La integración con Windows no aplica en este sistema: la salteo.
+gui.hooks.skipped = No instalé los hooks del guardián: el CLI gabitotl todavía no está instalado en tu equipo. Instalalos desde el Manager cuando termine la instalación.
 gui.note.persona-reapply = Cambió el idioma: reparo cada agente para que use el texto nuevo.
 
 # --- app de escritorio: asistente (frontend) -------------------------------

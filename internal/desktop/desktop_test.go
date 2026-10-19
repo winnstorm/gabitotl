@@ -524,7 +524,7 @@ func TestApplyWritesEmbeddedCLIWhenNoSibling(t *testing.T) {
 	}
 }
 
-func TestApplyPrefersSiblingCLIOverEmbedded(t *testing.T) {
+func TestApplyPrefersEmbeddedCLIOverStaleSibling(t *testing.T) {
 	f := newFake()
 	in := newInstaller(f)
 	in.EmbeddedCLI = []byte("cli")
@@ -532,9 +532,150 @@ func TestApplyPrefersSiblingCLIOverEmbedded(t *testing.T) {
 	if err := in.Apply(Options{}, nil); err != nil {
 		t.Fatal(err)
 	}
+	wrote := false
 	for _, c := range f.calls {
-		if c == "write" {
-			t.Fatal("embedded CLI written although a sibling exists")
+		wrote = wrote || c == "write"
+	}
+	if !wrote {
+		t.Fatalf("the embedded CLI must win over a sibling: %v", f.calls)
+	}
+}
+
+func TestApplyUsesSiblingCLIWhenNothingIsEmbedded(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	f.files[filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe)] = true
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !f.files[filepath.Join(in.Env.DefaultInstallDir, CLIExe)] {
+		t.Fatalf("sibling CLI was not copied: %v", f.calls)
+	}
+}
+
+// diskInstaller runs the real file adapter in a temp tree; the other ports are fakes.
+type failingFS struct {
+	osFS
+	failWrite bool
+}
+
+func (f failingFS) WriteFile(dst string, data []byte) (int64, error) {
+	if f.failWrite {
+		return 0, errors.New("disk full")
+	}
+	return f.osFS.WriteFile(dst, data)
+}
+func (failingFS) ScheduleRemoval(string, []string) error { return nil }
+
+func diskInstaller(t *testing.T, fs FileSystem) (*Installer, string, string) {
+	t.Helper()
+	root := t.TempDir()
+	src := filepath.Join(root, "dl")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, ManagerExe), []byte("new-manager"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := newFake()
+	dir := filepath.Join(root, "Programs", "GabitoTL")
+	return &Installer{
+		Env: Env{
+			ExePath: filepath.Join(src, ManagerExe), DefaultInstallDir: dir,
+			StartMenuPrograms: filepath.Join(root, "start"), DesktopDir: filepath.Join(root, "desk"),
+			Protected: []string{filepath.Join(root, "home")},
+		},
+		FS: fs, Path: f, Links: f, Reg: f, EmbeddedCLI: []byte("new-cli"),
+	}, dir, root
+}
+
+func TestEmbeddedCLIBytesAreWrittenExactly(t *testing.T) {
+	in, dir, _ := diskInstaller(t, failingFS{})
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, CLIExe))
+	if err != nil || string(got) != "new-cli" {
+		t.Fatalf("cli = %q (%v)", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, CLIExe+".bak")); err == nil {
+		t.Fatal("no backup may remain after a successful install")
+	}
+}
+
+func TestUpgradeFailureRestoresThePreviousFiles(t *testing.T) {
+	in, dir, _ := diskInstaller(t, failingFS{failWrite: true})
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{ManagerExe: "old-manager", CLIExe: "old-cli"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
 		}
+	}
+	if err := in.Apply(Options{}, nil); err == nil {
+		t.Fatal("want the write error")
+	}
+	for name, want := range map[string]string{ManagerExe: "old-manager", CLIExe: "old-cli"} {
+		got, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(got) != want {
+			t.Fatalf("%s = %q (%v), want %q", name, got, err, want)
+		}
+		if _, err := os.Stat(filepath.Join(dir, name+".bak")); err == nil {
+			t.Fatalf("%s.bak must be cleaned up", name)
+		}
+	}
+}
+
+func TestFreshInstallFailureRemovesTheDir(t *testing.T) {
+	in, dir, _ := diskInstaller(t, failingFS{failWrite: true})
+	if err := in.Apply(Options{}, nil); err == nil {
+		t.Fatal("want the write error")
+	}
+	if _, err := os.Stat(dir); err == nil {
+		t.Fatal("a failed first install must not leave the directory behind")
+	}
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+
+func TestWriteAtomicLeavesNoTempFile(t *testing.T) {
+	d := t.TempDir()
+	dst := filepath.Join(d, "x.exe")
+	if _, err := writeAtomic(dst, strings.NewReader("ok")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writeAtomic(filepath.Join(d, "y.exe"), errReader{}); err == nil {
+		t.Fatal("want the read error")
+	}
+	blocked := filepath.Join(d, "blocked")
+	if err := os.MkdirAll(filepath.Join(blocked, "inner"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writeAtomic(blocked, strings.NewReader("z")); err == nil {
+		t.Fatal("renaming over a non-empty directory must fail")
+	}
+	ents, _ := os.ReadDir(d)
+	for _, e := range ents {
+		if strings.Contains(e.Name(), ".tmp") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestUninstallOwnsTheCLIToo(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	if err := in.Uninstall(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range f.sched {
+		found = found || filepath.Base(p) == CLIExe
+	}
+	if !found {
+		t.Fatalf("scheduled removal %v must include %s", f.sched, CLIExe)
 	}
 }

@@ -211,6 +211,8 @@ type action struct {
 	Step
 	do   func() error
 	undo func()
+	// commit runs once every step succeeded (drops the upgrade backups).
+	commit func()
 }
 
 // Plan lists, in order, what Apply will do.
@@ -258,6 +260,11 @@ func (in *Installer) Apply(o Options, progress func(Step)) error {
 			return fmt.Errorf("%s: %w", a.Title, err)
 		}
 	}
+	for _, a := range as {
+		if a.commit != nil {
+			a.commit()
+		}
+	}
 	return nil
 }
 
@@ -268,31 +275,31 @@ func (in *Installer) installActions(o Options) []action {
 	var as []action
 
 	var existed bool
+	var b backups
 	as = append(as, action{
 		Step: Step{StepCopy, "Copy the app to " + dir},
 		do: func() error {
 			existed = in.FS.Exists(dir)
-			if err := in.copyOne(in.Env.ExePath, manager, &size); err != nil {
-				return err
-			}
-			cliDst := filepath.Join(dir, CLIExe)
-			if cli := filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe); in.FS.Exists(cli) {
-				return in.copyOne(cli, cliDst, &size)
-			}
-			if len(in.EmbeddedCLI) > 0 {
-				n, err := in.FS.WriteFile(cliDst, in.EmbeddedCLI)
-				if err != nil {
-					return err
+			b = backups{fs: in.FS, saved: map[string]string{}}
+			if err := in.copyApp(dir, manager, &size, &b); err != nil {
+				b.restore() // a failed step is not undone by Apply
+				b.discard()
+				if !existed {
+					_ = in.FS.RemoveAll(dir)
 				}
-				size += n
+				return err
 			}
 			return nil
 		},
 		undo: func() {
-			if !existed {
+			if existed {
+				b.restore()
+			} else {
 				_ = in.FS.RemoveAll(dir)
 			}
+			b.discard()
 		},
+		commit: func() { b.discard() },
 	})
 
 	if o.AddToPath {
@@ -364,6 +371,85 @@ func (in *Installer) installActions(o Options) []action {
 		undo: func() { _ = in.Reg.Unregister() },
 	})
 	return as
+}
+
+// copyApp writes the manager and the CLI into dir. The bundled CLI wins over
+// a gabitotl.exe next to the setup, which may be stale.
+func (in *Installer) copyApp(dir, manager string, size *int64, b *backups) error {
+	cliDst := filepath.Join(dir, CLIExe)
+	if err := b.save(manager, in.Env.ExePath); err != nil {
+		return err
+	}
+	if err := in.copyOne(in.Env.ExePath, manager, size); err != nil {
+		return err
+	}
+	if len(in.EmbeddedCLI) > 0 {
+		if err := b.save(cliDst, ""); err != nil {
+			return err
+		}
+		n, err := in.FS.WriteFile(cliDst, in.EmbeddedCLI)
+		if err != nil {
+			return err
+		}
+		*size += n
+		return nil
+	}
+	if cli := filepath.Join(filepath.Dir(in.Env.ExePath), CLIExe); in.FS.Exists(cli) {
+		if err := b.save(cliDst, cli); err != nil {
+			return err
+		}
+		return in.copyOne(cli, cliDst, size)
+	}
+	return nil
+}
+
+// backups keeps the previous version of files an upgrade overwrites, so a
+// failure leaves the earlier install working.
+type backups struct {
+	fs    FileSystem
+	saved map[string]string // dst -> backup path ("" = did not exist before)
+}
+
+// save remembers dst before it is overwritten. src is the file about to be
+// copied there (so running from the install dir needs no backup).
+func (b *backups) save(dst, src string) error {
+	if _, done := b.saved[dst]; done {
+		return nil
+	}
+	if src != "" && filepath.Clean(src) == filepath.Clean(dst) {
+		return nil
+	}
+	if !b.fs.Exists(dst) {
+		b.saved[dst] = ""
+		return nil
+	}
+	bak := dst + ".bak"
+	if _, err := b.fs.CopyFile(dst, bak); err != nil {
+		return fmt.Errorf("back up %s: %w", filepath.Base(dst), err)
+	}
+	b.saved[dst] = bak
+	return nil
+}
+
+// restore puts the previous files back (and removes new ones), best effort.
+func (b *backups) restore() {
+	for dst, bak := range b.saved {
+		if bak == "" {
+			_ = b.fs.RemoveAll(dst)
+			continue
+		}
+		_, _ = b.fs.CopyFile(bak, dst)
+	}
+}
+
+// discard deletes the backup copies.
+func (b *backups) discard() {
+	for _, bak := range b.saved {
+		if bak != "" {
+			_ = b.fs.RemoveAll(bak)
+		}
+	}
+	b.saved = map[string]string{}
 }
 
 // CLITarget is where Apply puts gabitotl.exe for o, or "" when it will not be

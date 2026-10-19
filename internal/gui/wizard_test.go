@@ -279,3 +279,42 @@ func TestHooksPointAtTheCLIInTheChosenInstallDir(t *testing.T) {
 		t.Fatalf("later hooks CLI = %q (%v)", r.hooksCLI, err)
 	}
 }
+
+func stepStatus(res InstallResult, id string) string {
+	for _, s := range res.Steps {
+		if s.ID == id {
+			return s.Status
+		}
+	}
+	return ""
+}
+
+func TestHooksSkippedWithoutWindowsOptions(t *testing.T) {
+	r := newRig(t)
+	r.withDesktop()
+	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
+	a := r.answers()
+	a.Windows.GuardHooks = true
+	res := r.install(a)
+	if r.hooksOn != nil || stepStatus(res, "guard-hooks") != StatusSkipped {
+		t.Fatalf("hooks must be skipped: on=%v steps=%+v", r.hooksOn, res.Steps)
+	}
+	for _, s := range res.Steps {
+		if s.ID == "guard-hooks" && s.Message == "" {
+			t.Fatal("the skip must explain why")
+		}
+	}
+}
+
+func TestHooksSkippedWhenTheDesktopStepFails(t *testing.T) {
+	r := newRig(t)
+	m := r.withDesktop()
+	m.failRegister = true
+	r.svc.d.Desktop.EmbeddedCLI = []byte("cli")
+	a := r.answers()
+	a.Windows.StartMenu, a.Windows.GuardHooks = true, true
+	res := r.install(a)
+	if stepStatus(res, "desktop") != StatusError || stepStatus(res, "guard-hooks") != StatusSkipped || r.hooksOn != nil {
+		t.Fatalf("steps=%+v hooks=%v", res.Steps, r.hooksOn)
+	}
+}
