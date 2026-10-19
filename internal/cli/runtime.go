@@ -1,16 +1,15 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"path/filepath"
 	goruntime "runtime"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
-	"github.com/winnstorm/gabitotl/internal/persona"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/runtime/all"
 )
@@ -55,18 +54,6 @@ func projectRoot(env Env, flagRoot string) string {
 	return ""
 }
 
-// memoryMCP resolves the memory MCP entries to configure. The provider of the
-// project only validates the choice: both providers are served by the same
-// bridge entry. Engram's own entry is added when its binary is on PATH.
-func memoryMCP(root, choice string, engramPresent bool) (rt.MemoryMCP, []rt.MemoryMCP, []string) {
-	if choice == "" && root != "" {
-		if m, err := gabitotl.LoadMemory(gabitotl.NewLayout(root)); err == nil {
-			choice = m.Provider
-		}
-	}
-	return rt.MemoryFor(choice, engramPresent)
-}
-
 // pick returns the adapters named in csv, or (when empty and detected is true)
 // every adapter that detects something on this machine.
 func pick(reg *rt.Registry, renv rt.Env, csv string, detected bool) ([]rt.Adapter, error) {
@@ -102,10 +89,7 @@ func (f *rtFlags) setup(env Env, name string) (rt.Env, rt.Options, string, error
 	if err != nil {
 		return rt.Env{}, rt.Options{}, "", err
 	}
-	_, engramPresent := renv.Look("engram")
-	mem, extra, retire := memoryMCP(root, f.memory, engramPresent)
-	opts := rt.Options{Scope: rt.Scope(f.scope), PersonaText: persona.TextFor(gabitotl.ActivePersonaLang(renv.Home)), Skills: installer.SkillAssets(), Memory: mem, MemoryExtra: extra, RetireMemory: retire, MigrateGentleman: f.migrate}
-	return renv, opts, root, nil
+	return renv, installer.RuntimeOptions(renv, root, rt.Scope(f.scope), f.memory, f.migrate), root, nil
 }
 
 // modelFor returns the project model only for the runtime it was chosen for.
@@ -252,15 +236,15 @@ func okMark(ok bool) string {
 }
 
 func applyOne(w io.Writer, renv rt.Env, a rt.Adapter, plan []rt.Action) int {
-	snap := &rt.Snapshot{Dir: filepath.Join(renv.StateDir, "backups", renv.Clock().Format("20060102-150405"), a.Name())}
-	if err := a.Backup(renv, snap, plan); err != nil {
-		fmt.Fprintf(w, "  backup failed: %v (nothing was changed)\n", err)
+	snap, res, err := rt.BackupAndApply(renv, a, plan)
+	var berr *rt.BackupError
+	if errors.As(err, &berr) {
+		fmt.Fprintf(w, "  backup failed: %v (nothing was changed)\n", berr.Err)
 		return ExitError
 	}
 	if len(snap.Files) > 0 {
 		fmt.Fprintf(w, "  backup: %d file(s) in %s\n", len(snap.Files), snap.Dir)
 	}
-	res, err := a.Apply(renv, plan)
 	for _, ac := range res.Applied {
 		fmt.Fprintf(w, "  applied %s\n", ac)
 	}
