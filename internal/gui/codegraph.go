@@ -25,8 +25,9 @@ type CodeGraphStatus struct {
 	Path      string           `json:"path,omitempty"`
 	Pinned    string           `json:"pinned"`
 	OnPath    bool             `json:"onPath"`
-	NeedsWork bool             `json:"needsWork"`      // missing, older than pinned, or an agent lacks the MCP server
-	Hint      string           `json:"hint,omitempty"` // how to install it where there is no managed install
+	Shadow    string           `json:"shadow,omitempty"` // another codegraph ahead on PATH (never modified)
+	NeedsWork bool             `json:"needsWork"`        // missing, older than pinned, or an agent lacks the MCP server
+	Hint      string           `json:"hint,omitempty"`   // how to install it where there is no managed install
 	Agents    []CodeGraphAgent `json:"agents"`
 }
 
@@ -74,7 +75,7 @@ func (s *Service) CodeGraph(ctx context.Context) (CodeGraphStatus, error) {
 	st := s.codegraph().Status(ctx)
 	out := CodeGraphStatus{
 		Supported: st.Supported, Installed: st.Installed, Version: st.Version, Path: st.Path, Pinned: st.Pinned,
-		OnPath: st.OnPath, Agents: []CodeGraphAgent{},
+		OnPath: st.OnPath, Shadow: st.Shadow, Agents: []CodeGraphAgent{},
 	}
 	if !st.Supported {
 		out.Hint = codegraph.Hint

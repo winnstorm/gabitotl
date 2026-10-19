@@ -3,8 +3,6 @@ package codegraph
 import (
 	"archive/zip"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -83,37 +81,20 @@ func (d httpDownloader) Download(ctx context.Context, url string, dst io.Writer,
 	return nil
 }
 
-// verifySHA256 compares the file with the pinned hash. It fails closed.
-func verifySHA256(file, want string) error {
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return err
-	}
-	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), want) {
-		return ErrChecksum
-	}
-	return nil
-}
-
 // extractZip unpacks the archive into dst, dropping its single top-level
 // directory. Entries that would land outside dst (absolute, drive letter, ..),
 // symlinks and archives that unpack to more than maxUnpacked are refused.
-func extractZip(archive, dst string) error {
-	zr, err := zip.OpenReader(archive)
+func extractZip(r io.ReaderAt, size int64, dst string) error {
+	zr, err := zip.NewReader(r, size)
 	if err != nil {
 		return fmt.Errorf("codegraph: bad archive: %w", err)
 	}
-	defer zr.Close()
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
 	}
 	var total int64
 	top := ""
+	seen := map[string]bool{}
 	for _, f := range zr.File {
 		name := strings.ReplaceAll(f.Name, "\\", "/")
 		if strings.HasPrefix(name, "/") || strings.Contains(name, ":") {
@@ -137,6 +118,16 @@ func extractZip(archive, dst string) error {
 		if rel == "" || rel == "." {
 			continue
 		}
+		for _, seg := range parts[1:] {
+			if badSegment(seg) {
+				return fmt.Errorf("codegraph: unsafe name in archive: %q", f.Name)
+			}
+		}
+		if key := strings.ToLower(rel); seen[key] {
+			return fmt.Errorf("codegraph: duplicate entry (case-insensitive) in archive: %q", f.Name)
+		} else {
+			seen[key] = true
+		}
 		target := filepath.Join(dst, filepath.FromSlash(rel))
 		if r, err := filepath.Rel(dst, target); err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("codegraph: unsafe path in archive: %q", f.Name)
@@ -159,6 +150,27 @@ func extractZip(archive, dst string) error {
 		}
 	}
 	return nil
+}
+
+// badSegment refuses names Windows treats specially: reserved device names
+// (with any extension) and trailing dots or spaces.
+func badSegment(seg string) bool {
+	if seg != strings.TrimRight(seg, ". ") {
+		return true
+	}
+	base := strings.ToLower(seg)
+	if i := strings.IndexByte(base, '.'); i >= 0 {
+		base = base[:i]
+	}
+	base = strings.TrimRight(base, " ")
+	switch base {
+	case "con", "prn", "aux", "nul", "conin$", "conout$":
+		return true
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "com") || strings.HasPrefix(base, "lpt")) && base[3] >= '1' && base[3] <= '9' {
+		return true
+	}
+	return false
 }
 
 func writeEntry(f *zip.File, target string) error {
@@ -186,6 +198,8 @@ func lookPath(name string) (string, error) { return exec.LookPath(name) }
 func runCmd(ctx context.Context, bin string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.WaitDelay = 2 * time.Second // a hung grandchild must not hold the pipe open
+	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

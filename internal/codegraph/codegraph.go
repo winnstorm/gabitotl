@@ -16,14 +16,19 @@ package codegraph
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/winnstorm/gabitotl/internal/desktop"
 )
@@ -86,6 +91,9 @@ type Status struct {
 	OnPath    bool   `json:"onPath"`         // the bin directory is on the user PATH
 	Pinned    string `json:"pinned"`
 	Supported bool   `json:"supported"`
+	// Shadow is another codegraph on PATH next to the managed one (for example
+	// an npm install); it is reported, never modified.
+	Shadow string `json:"shadow,omitempty"`
 }
 
 // Plan is what Install would do.
@@ -150,15 +158,25 @@ func (in *Installer) BinDir() string { return filepath.Join(in.Current(), "bin")
 // Launcher is the codegraph.cmd of the managed install.
 func (in *Installer) Launcher() string { return filepath.Join(in.BinDir(), "codegraph.cmd") }
 
-var semverRe = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
+var (
+	semverRe = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?`)
+	bareRe   = regexp.MustCompile(`^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$`)
+)
 
-// ParseVersion extracts the first x.y.z of a `--version` output.
+// ParseVersion extracts the version of a `--version` output: the first token
+// that is a bare version ("1.6.2", "v1.6.2-rc.1"), else the first x.y.z found.
 func ParseVersion(out string) (string, bool) {
+	for _, f := range strings.Fields(out) {
+		if m := bareRe.FindStringSubmatch(f); m != nil {
+			return m[1], true
+		}
+	}
 	m := semverRe.FindString(out)
 	return m, m != ""
 }
 
-// Compare orders two x.y.z versions: -1, 0 or 1.
+// Compare orders two versions: -1, 0 or 1. A prerelease ("-rc.1") is lower
+// than its release.
 func Compare(a, b string) int {
 	pa, pb := semverRe.FindStringSubmatch(a), semverRe.FindStringSubmatch(b)
 	if pa == nil || pb == nil {
@@ -174,34 +192,52 @@ func Compare(a, b string) int {
 			return 1
 		}
 	}
-	return 0
+	switch {
+	case pa[4] == pb[4]:
+		return 0
+	case pa[4] == "":
+		return 1
+	case pb[4] == "":
+		return -1
+	}
+	return strings.Compare(pa[4], pb[4])
 }
 
-// Status detects an existing install: `codegraph` on PATH first, then the
-// managed location.
+// Status detects an existing install. It always probes both the first
+// `codegraph` on PATH and the managed launcher, so an older npm install ahead
+// of the managed bin directory cannot hide the managed one. The newest answer
+// wins; Shadow names a PATH entry that is not the managed one (never touched).
 func (in *Installer) Status(ctx context.Context) Status {
 	st := Status{Pinned: Version, Supported: in.Supported()}
 	if !st.Supported || in.Look == nil || in.Run == nil {
 		return st
 	}
-	var cands []string
-	if p, err := in.Look("codegraph"); err == nil {
-		cands = append(cands, p)
-	}
-	if in.Root != "" {
-		if _, err := os.Stat(in.Launcher()); err == nil {
-			cands = append(cands, in.Launcher())
-		}
-	}
-	for _, c := range cands {
-		out, err := in.Run(ctx, c, "--version")
+	probe := func(bin string) (string, bool) {
+		out, err := in.Run(ctx, bin, "--version")
 		if err != nil {
-			continue
+			return "", false
 		}
-		if v, ok := ParseVersion(out); ok {
-			st.Installed, st.Version, st.Path = true, v, c
-			break
+		return ParseVersion(out)
+	}
+	var pathBin, pathVer, mgdVer string
+	if p, err := in.Look("codegraph"); err == nil {
+		if v, ok := probe(p); ok {
+			pathBin, pathVer = p, v
 		}
+	}
+	if _, err := os.Stat(in.Launcher()); err == nil {
+		if v, ok := probe(in.Launcher()); ok {
+			mgdVer = v
+		}
+	}
+	switch {
+	case mgdVer != "" && (pathVer == "" || Compare(mgdVer, pathVer) >= 0):
+		st.Installed, st.Version, st.Path = true, mgdVer, in.Launcher()
+	case pathVer != "":
+		st.Installed, st.Version, st.Path = true, pathVer, pathBin
+	}
+	if mgdVer != "" && pathBin != "" && !samePath(pathBin, in.Launcher()) {
+		st.Shadow = pathBin
 	}
 	if in.Root != "" && in.Path != nil {
 		if p, err := in.Path.Get(); err == nil {
@@ -210,6 +246,8 @@ func (in *Installer) Status(ctx context.Context) Status {
 	}
 	return st
 }
+
+func samePath(a, b string) bool { return strings.EqualFold(filepath.Clean(a), filepath.Clean(b)) }
 
 // Plan reports what Install would do. It changes nothing.
 func (in *Installer) Plan(ctx context.Context) Plan {
@@ -223,7 +261,7 @@ func (in *Installer) Plan(ctx context.Context) Plan {
 	switch {
 	case st.Installed && Compare(st.Version, Version) >= 0:
 		pl.Action = ActionSkip
-		if !st.OnPath && st.Path == in.Launcher() {
+		if !st.OnPath && samePath(st.Path, in.Launcher()) {
 			pl.Steps = []string{StepPath}
 		}
 	case st.Installed:
@@ -271,23 +309,29 @@ func (in *Installer) Install(ctx context.Context, step func(id string)) (Result,
 	}
 	defer os.Remove(tmp.Name())
 	step(StepDownload)
-	dlErr := in.Download.Download(ctx, BaseURL+asset.Name, tmp, MaxDownload)
-	if cerr := tmp.Close(); dlErr == nil {
-		dlErr = cerr
-	}
+	h := sha256.New()
+	dlErr := in.Download.Download(ctx, BaseURL+asset.Name, io.MultiWriter(tmp, h), MaxDownload)
 	if dlErr != nil {
+		tmp.Close()
 		return Result{}, fmt.Errorf("codegraph: download: %w", dlErr)
 	}
 	step(StepVerify)
-	if err := verifySHA256(tmp.Name(), asset.SHA256); err != nil {
-		return Result{}, err
+	if !strings.EqualFold(hex.EncodeToString(h.Sum(nil)), asset.SHA256) {
+		tmp.Close()
+		return Result{}, ErrChecksum
 	}
 	step(StepExtract)
 	stage := filepath.Join(in.Root, Version)
 	if err := os.RemoveAll(stage); err != nil {
 		return Result{}, fmt.Errorf("codegraph: %w", err)
 	}
-	if err := extractZip(tmp.Name(), stage); err != nil {
+	// Extract from the very handle that was hashed: no reopen window.
+	size, err := tmp.Seek(0, io.SeekEnd)
+	if err == nil {
+		err = extractZip(tmp, size, stage)
+	}
+	tmp.Close()
+	if err != nil {
 		os.RemoveAll(stage)
 		return Result{}, err
 	}
@@ -333,7 +377,9 @@ func (in *Installer) token() string {
 	if in.Token != nil {
 		return in.Token()
 	}
-	return strconv.FormatInt(int64(os.Getpid()), 36)
+	var r [4]byte
+	_, _ = rand.Read(r[:])
+	return strconv.FormatInt(time.Now().UnixNano(), 36) + "-" + strconv.Itoa(os.Getpid()) + "-" + hex.EncodeToString(r[:])
 }
 
 // swap makes stage the new current. A running MCP server locks files inside
@@ -341,6 +387,7 @@ func (in *Installer) token() string {
 // renamed aside one by one (*.old-<token>) like install.ps1 does, and the new
 // ones are moved in; the aside files are removed on a best-effort basis.
 func (in *Installer) swap(stage, current string) error {
+	in.sweep(current)
 	if _, err := os.Stat(current); errors.Is(err, os.ErrNotExist) {
 		return in.mv(stage, current)
 	}
@@ -358,9 +405,31 @@ func (in *Installer) swap(stage, current string) error {
 	return in.mergeAside(stage, current, tok)
 }
 
+// sweep removes aside leftovers of earlier upgrades (best effort: a file that
+// is still locked stays until the next run).
+func (in *Installer) sweep(current string) {
+	if ents, err := os.ReadDir(in.Root); err == nil {
+		for _, e := range ents {
+			if strings.Contains(e.Name(), ".old-") {
+				os.RemoveAll(filepath.Join(in.Root, e.Name()))
+			}
+		}
+	}
+	_ = filepath.WalkDir(current, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.Contains(d.Name(), ".old-") {
+			os.Remove(p)
+		}
+		return nil
+	})
+}
+
 func (in *Installer) mergeAside(stage, current, tok string) error {
 	var moved [][2]string // aside -> original, for rollback
+	var created []string  // new files moved in
 	rollback := func() {
+		for _, c := range created {
+			os.Remove(c)
+		}
 		for i := len(moved) - 1; i >= 0; i-- {
 			os.Remove(moved[i][1])
 			_ = in.mv(moved[i][0], moved[i][1])
@@ -392,7 +461,11 @@ func (in *Installer) mergeAside(stage, current, tok string) error {
 		if d.IsDir() {
 			return os.MkdirAll(dst, 0o755)
 		}
-		return in.mv(p, dst)
+		if err := in.mv(p, dst); err != nil {
+			return err
+		}
+		created = append(created, dst)
+		return nil
 	})
 	if err != nil {
 		rollback()

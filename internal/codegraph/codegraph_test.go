@@ -322,3 +322,90 @@ func TestHTTPDownloader(t *testing.T) {
 		t.Error("plain http must be refused")
 	}
 }
+
+func TestManagedInstallWinsOverOlderNpmOnPath(t *testing.T) {
+	r := newRig(t, goodBundle(t))
+	os.MkdirAll(filepath.Dir(r.in.Launcher()), 0o755)
+	os.WriteFile(r.in.Launcher(), []byte("x"), 0o755)
+	npm := `C:\npm\codegraph.cmd`
+	r.in.Look = func(string) (string, error) { return npm, nil }
+	r.in.Run = func(_ context.Context, bin string, _ ...string) (string, error) {
+		if bin == npm {
+			return "codegraph 1.0.0", nil
+		}
+		return "1.6.2", nil
+	}
+	st := r.in.Status(context.Background())
+	if st.Version != "1.6.2" || st.Path != r.in.Launcher() || st.Shadow != npm {
+		t.Fatalf("%+v", st)
+	}
+	if pl := r.in.Plan(context.Background()); pl.Action != ActionSkip {
+		t.Fatalf("plan %+v", pl)
+	}
+}
+
+func TestVersionParsingAndPrerelease(t *testing.T) {
+	if v, _ := ParseVersion("node v24.1.0 bundled\ncodegraph 1.6.2\n"); v != "24.1.0" && v != "1.6.2" {
+		t.Errorf("v=%q", v)
+	}
+	if v, _ := ParseVersion("CodeGraph (build 2.3.4.5) 1.6.2"); v != "1.6.2" {
+		t.Errorf("bare token should win, got %q", v)
+	}
+	if Compare("1.6.2-rc.1", "1.6.2") != -1 || Compare("1.6.2", "1.6.2-rc.1") != 1 || Compare("1.6.2-rc.1", "1.6.2-rc.1") != 0 {
+		t.Error("prerelease must be lower than its release")
+	}
+}
+
+func TestExtractRejectsWindowsTraps(t *testing.T) {
+	cases := []map[string]string{
+		{"top/bin/codegraph.cmd": "x", "top/CON.txt": "x"},
+		{"top/bin/codegraph.cmd": "x", "top/lpt1": "x"},
+		{"top/bin/codegraph.cmd": "x", "top/trail.": "x"},
+		{"top/bin/codegraph.cmd": "x", "top/a.TXT ": "x"},
+		{"top/bin/codegraph.cmd": "x", "top/Dup.js": "1", "top/dup.JS": "2"},
+	}
+	for i, c := range cases {
+		r := newRig(t, makeZip(t, c))
+		if _, err := r.in.Install(context.Background(), nil); err == nil || errors.Is(err, ErrChecksum) {
+			t.Errorf("case %d: err=%v", i, err)
+		}
+		if _, e := os.Stat(r.in.Current()); !os.IsNotExist(e) {
+			t.Errorf("case %d: installed", i)
+		}
+	}
+}
+
+func TestSweepAndRollbackLeaveNoStrays(t *testing.T) {
+	r := newRig(t, goodBundle(t))
+	cur := r.in.Current()
+	os.MkdirAll(cur, 0o755)
+	os.WriteFile(filepath.Join(cur, "keep.txt"), []byte("old"), 0o755)
+	os.WriteFile(filepath.Join(cur, "locked.dll.old-zzz"), []byte("x"), 0o755)
+	os.MkdirAll(r.root+"/current.old-prev", 0o755)
+	r.ver = "1.0.0"
+	moved := 0
+	r.in.rename = func(a, b string) error {
+		if a == cur {
+			return errors.New("locked") // force the merge path
+		}
+		if strings.Contains(a, Version) && !strings.Contains(b, ".old-") {
+			moved++
+			if moved == 2 { // fail midway through moving the new files in
+				return errors.New("boom")
+			}
+		}
+		return os.Rename(a, b)
+	}
+	if _, err := r.in.Install(context.Background(), nil); err == nil {
+		t.Fatal("expected failure")
+	}
+	if b, _ := os.ReadFile(filepath.Join(cur, "keep.txt")); string(b) != "old" {
+		t.Error("previous file not restored")
+	}
+	if _, err := os.Stat(r.root + "/current.old-prev"); !os.IsNotExist(err) {
+		t.Error("old aside dir not swept")
+	}
+	if _, err := os.Stat(filepath.Join(cur, "node.exe")); !os.IsNotExist(err) {
+		t.Error("stray new file left after rollback")
+	}
+}
