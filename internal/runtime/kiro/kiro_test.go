@@ -287,16 +287,17 @@ func TestHooksFileContentSharedAndRemoved(t *testing.T) {
 			Timeout int `json:"timeout"`
 		} `json:"hooks"`
 	}
-	if err := json.Unmarshal([]byte(read(t, path)), &f); err != nil || f.Version != "v1" || len(f.Hooks) != 2 {
+	if err := json.Unmarshal([]byte(read(t, path)), &f); err != nil || f.Version != "v1" || len(f.Hooks) != 3 {
 		t.Fatalf("invalid hook file: %v %+v", err, f)
 	}
 	wantCmd := map[string]bool{
-		"gabitotl persona mode --hook --format text":                 true,
-		"gabitotl context hook --format text --event session --dump": true,
+		"gabitotl persona mode --hook --format text":                       true,
+		"gabitotl context hook --format text --event session --dump":       true,
+		"gabitotl context hook --format text --source kiro --event prompt": true,
 	}
 	for _, h := range f.Hooks {
-		// PromptSubmit can block a prompt in the IDE: it must not be installed.
-		if h.Trigger != "SessionStart" || h.Action.Type != "command" || !wantCmd[h.Action.Command] || h.Timeout != 10 || h.Name == "" {
+		okTrigger := h.Trigger == "SessionStart" && h.Timeout == 10 || h.Trigger == "PromptSubmit" && h.Timeout == 5
+		if !okTrigger || h.Action.Type != "command" || !wantCmd[h.Action.Command] || h.Name == "" {
 			t.Fatalf("unexpected hook: %+v", h)
 		}
 		delete(wantCmd, h.Action.Command)
@@ -368,5 +369,13 @@ func TestHooksUseAbsoluteBinaryPathAndFollowMoves(t *testing.T) {
 		if a.Path == path && a.Kind != rt.NoAction {
 			t.Fatalf("not idempotent: %v", a)
 		}
+	}
+}
+
+func TestPromptHookUsesAbsolutePath(t *testing.T) {
+	env, _ := setup(t)
+	env.Exe = "/opt/bin/gabitotl"
+	if got := hooksJSON(env); !strings.Contains(got, `"command": "/opt/bin/gabitotl context hook --format text --source kiro --event prompt"`) {
+		t.Fatalf("per-message hook must use the absolute path:\n%s", got)
 	}
 }

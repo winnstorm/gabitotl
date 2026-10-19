@@ -88,18 +88,23 @@ func runContextAdd(env Env, args []string) int {
 func runContextReport(env Env, args []string) int {
 	fs, root, js := ctxFlags("report", env)
 	tokens := fs.Int("tokens", -1, "real token count reported by the runtime")
+	source := fs.String("source", "", "measure from a runtime's own usage figure instead of --tokens: "+sourceKiro)
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	if *tokens < 0 {
-		fmt.Fprintln(env.Stderr, "Usage: gabitotl context report --tokens N [--root DIR] [--json]")
+	if *tokens < 0 && *source == "" {
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl context report (--tokens N | --source kiro) [--root DIR] [--json]")
 		return ExitUsage
 	}
-	m, _, _, err := openMonitor(env, *root)
+	m, _, rootDir, err := openMonitor(env, *root)
 	if err != nil {
 		return ctxFail(env, "report", err)
 	}
-	if err := m.ReportTokens(*tokens); err != nil {
+	if *source != "" {
+		if err := measureFromSource(*source, m, rootDir); err != nil {
+			return ctxFail(env, "report", err)
+		}
+	} else if err := m.ReportTokens(*tokens); err != nil {
 		return ctxFail(env, "report", err)
 	}
 	return printContext(env, m, *js)
@@ -109,12 +114,18 @@ func runContextReport(env Env, args []string) int {
 // not consume the one-shot checkpoint signal.
 func runContextCheck(env Env, args []string) int {
 	fs, root, js := ctxFlags("check", env)
+	source := fs.String("source", "", "measure from a runtime's own usage figure: "+sourceKiro)
 	if err := fs.Parse(args); err != nil {
 		return flagExit(err)
 	}
-	m, _, _, err := openMonitor(env, *root)
+	m, _, rootDir, err := openMonitor(env, *root)
 	if err != nil {
 		return ctxFail(env, "check", err)
+	}
+	if *source != "" {
+		if err := measureFromSource(*source, m, rootDir); err != nil {
+			return ctxFail(env, "check", err)
+		}
 	}
 	return printContext(env, m, *js)
 }
@@ -129,6 +140,10 @@ func printContext(env Env, m *budget.Monitor, js bool) int {
 	status := "ok"
 	if d.ShouldSave {
 		status = "save-now"
+	}
+	if d.Source == budget.SourcePercent {
+		fmt.Fprintf(env.Stdout, "context: %.0f%% (from the runtime's own figure) %s\n", d.Percent, status)
+		return ExitOK
 	}
 	fmt.Fprintf(env.Stdout, "context: ~%s/%s (%.0f%%) %s\n", kTokens(d.Used), kTokens(d.Limit), d.Percent, status)
 	return ExitOK
@@ -239,11 +254,12 @@ const (
 
 // hookFlags parses the flags shared by the hook entry points. Hooks must never
 // fail the host, so parse problems are silent and reported through ok.
-func hookFlags(name string, args []string) (fs *flag.FlagSet, format, event *string, dump *bool, ok bool) {
+func hookFlags(name string, args []string) (fs *flag.FlagSet, format, event, source *string, dump *bool, ok bool) {
 	fs = flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	format = fs.String("format", formatClaude, "output format: claude (JSON) or text")
 	event = fs.String("event", "", "free label for the dump file name")
+	source = fs.String("source", "", "measure from a runtime's own usage figure: "+sourceKiro)
 	dump = fs.Bool("dump", false, "write the raw stdin to .gabitotl/tmp for inspection")
 	fs.String("root", "", "project root (accepted, unused)")
 	ok = fs.Parse(args) == nil
@@ -332,7 +348,7 @@ func dumpHookInput(dir, event string, raw []byte) {
 // crossed prints a tiny message. It never fails the host: every problem exits 0
 // silently, and it never writes to stderr.
 func runContextHook(env Env, args []string) int {
-	_, format, event, dump, ok := hookFlags("context hook", args)
+	_, format, event, source, dump, ok := hookFlags("context hook", args)
 	if !ok {
 		return ExitOK
 	}
@@ -345,6 +361,9 @@ func runContextHook(env Env, args []string) int {
 			dir, _ = env.Getwd()
 		}
 		dumpHookInput(dir, *event, raw)
+	}
+	if *source != "" {
+		return runSourceHook(env, *format, *source, in.Cwd)
 	}
 	var used int
 	var src string
@@ -370,7 +389,10 @@ func runContextHook(env Env, args []string) int {
 	if err != nil || !d.ShouldSave {
 		return ExitOK
 	}
-	msg := fmt.Sprintf("Context is at %.0f%% of its budget. Run `gabitotl context checkpoint --progress \"...\" --next \"...\"` now. %s", d.Percent, d.Message)
-	emitHook(env, *format, "UserPromptSubmit", msg)
+	emitHook(env, *format, "UserPromptSubmit", checkpointMessage(d))
 	return ExitOK
+}
+
+func checkpointMessage(d budget.Decision) string {
+	return fmt.Sprintf("Context is at %.0f%% of its budget. Run `gabitotl context checkpoint --progress \"...\" --next \"...\"` now. %s", d.Percent, d.Message)
 }

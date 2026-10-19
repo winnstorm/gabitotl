@@ -708,3 +708,19 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   rollback point.
 - **Consequences:** the rule lives in the skill, not the persona (no budget left there), and is behavioral: the CLI
   still pushes when told to, so `vcs ship` keeps its no-prompt contract.
+
+## D52. Kiro context is measured from Kiro's own usage percentage
+
+- **Decision:** Kiro writes `contextUsage` records (`usagePercentage`) into `<KIRO_HOME or ~/.kiro>/sessions/*/sess_*/messages.jsonl`.
+  `context check|report|hook --source kiro` finds the newest session whose `workspacePaths` or `rootPaths` contain the
+  project root, reads the last such record (the last 256 KB first, the whole file only as a fallback, malformed lines
+  skipped) and stores it as a share of the limit (`budget.SetPercent`), so the existing threshold, one-shot warning and
+  re-arm after a drop work unchanged. The Kiro adapter installs a third hook, `PromptSubmit`
+  (`context hook --format text --source kiro --event prompt`, timeout 5), which always exits 0 and prints nothing under
+  the threshold. Past it, it prints the usual checkpoint instruction and TIP once per crossing.
+- **Why:** Kiro auto-summarizes at about 80-88%, so the warning must come before that, and Kiro does measure usage itself.
+  The source is a flag value, not a runtime name in core (D3).
+- **Consequences:** this reverses the D48 removal of `PromptSubmit`, now justified because the hook cannot fail or print
+  noise. The session format is undocumented and may change; an unreadable one just means no warning. OJO: deleting the
+  gabitotl binary without `gabitotl uninstall` leaves a hook pointing at a missing file, and Kiro may then show an error
+  on every prompt. Real IDE stdin and trigger behavior are unverified; the hook relies on cwd or the working directory.
