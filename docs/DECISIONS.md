@@ -578,3 +578,14 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 - **Consequences:** packing lives in `internal/memory` and repeats the chars/3.6 estimate because `budget` imports
   `memory`. With no provider the command prints one notice and exits 0. Omitted entries are counted, not listed;
   `memory search` still reads one in full.
+
+## D41. History scan is incremental
+
+- **Decision:** `guard scan --history` remembers, per person, the ref tips it scanned, the findings in that history and
+  a fingerprint of the rules (`historyRulesVersion` + sorted extra terms) in `.gabitotl/local/users/<id>/guard-history.json`.
+  Next time it runs `git log --all --not <tips>` (at most 500 tips) and reports cached plus new findings. `--full`
+  forces the old full read.
+- **Why:** the scan read the full body of every commit on every ref each time. History is never rewritten (D10), so an
+  old finding must not defeat the cache.
+- **Consequences:** a rules change, an unreadable cache or a git failure (a tip object gone) means one full scan.
+  Bump `historyRulesVersion` whenever branding detection changes. `guard fix` and `doctor` still scan fully.

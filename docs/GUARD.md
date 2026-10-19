@@ -112,14 +112,19 @@ once in `workflow.md` (`guard_hooks`), so nobody is asked twice.
 ## `guard scan` and `guard fix`
 
 ```bash
-gabitotl guard scan [--staged | --diff REF | --all] [--history] [--json]   # read-only, exit 1 on findings
+gabitotl guard scan [--staged | --diff REF | --all] [--history [--full]] [--json]   # read-only, exit 1 on findings
 gabitotl guard fix  [--dry-run | --yes]
 ```
 
 `scan` defaults to `--all`: tracked and untracked-but-not-ignored files (a plain walk
 outside Git). It never reads `.git/`, binary files, files over 2 MiB, `node_modules`,
 `vendor` or `.gabitotl/.bak`. `--history` also audits existing commits (messages and
-author/committer identities).
+author/committer identities). The history scan is incremental: the ref tips already scanned, plus the findings in that
+history, are remembered per person in `.gabitotl/local/users/<id>/guard-history.json`
+(git-ignored). The next scan reads only commits not reachable from those tips and reports
+cached plus new findings. The cache is ignored (one full scan) when the detection rules or
+`branding_extra_terms` change, or when it is unreadable. `--full` rescans everything; with
+no active identity every scan is full.
 
 `fix` removes only the lines that are pure attribution, after a backup under
 `.gabitotl/.bak/<user>/<timestamp>_guard-fix/`. It refuses to rewrite anything ambiguous

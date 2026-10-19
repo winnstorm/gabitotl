@@ -89,6 +89,11 @@ func (l Layout) LocalVCS(user string) (string, error) { return l.localFile(user,
 // LocalPersona holds the per-person chat concision mode (front matter `mode`).
 func (l Layout) LocalPersona(user string) (string, error) { return l.localFile(user, "persona.md") }
 
+// LocalGuardHistory remembers the ref tips whose history the guard scanned clean.
+func (l Layout) LocalGuardHistory(user string) (string, error) {
+	return l.localFile(user, "guard-history.json")
+}
+
 // LocalSession is the per-person session state.
 func (l Layout) LocalSession(user string) (string, error) { return l.localFile(user, "session.md") }
 

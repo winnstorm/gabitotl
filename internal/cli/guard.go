@@ -88,6 +88,7 @@ func runGuardScan(env Env, args []string) int {
 	diff := fs.String("diff", "", "scan only the lines added in the work tree since REF")
 	all := fs.Bool("all", false, "scan every project file (default)")
 	history := fs.Bool("history", false, "also audit existing commits (read-only, history is never rewritten)")
+	full := fs.Bool("full", false, "with --history: rescan every commit instead of only the new ones")
 	asJSON := fs.Bool("json", false, "print as JSON")
 	hook := fs.Bool("hook", false, "run as the pre-commit hook: obey branding_guard")
 	if err := fs.Parse(args); err != nil {
@@ -100,7 +101,7 @@ func runGuardScan(env Env, args []string) int {
 		}
 	}
 	if n > 1 {
-		fmt.Fprintln(env.Stderr, "Usage: gabitotl guard scan [--staged | --diff REF | --all] [--history] [--json]")
+		fmt.Fprintln(env.Stderr, "Usage: gabitotl guard scan [--staged | --diff REF | --all] [--history [--full]] [--json]")
 		return ExitUsage
 	}
 	dir, err := resolveRoot(env, *root)
@@ -137,10 +138,12 @@ func runGuardScan(env Env, args []string) int {
 		rep.Findings = []branding.Finding{}
 	}
 	if *history {
-		if rep.History, err = guard.ScanHistory(ctx, gitRunner(), dir, s); err != nil {
-			fmt.Fprintf(env.Stderr, "gabitotl guard scan: history: %v\n", err)
+		res, herr := guard.ScanHistoryIncremental(ctx, gitRunner(), dir, s, historyStore(dir), *full)
+		if herr != nil {
+			fmt.Fprintf(env.Stderr, "gabitotl guard scan: history: %v\n", herr)
 			return ExitError
 		}
+		rep.History = res.Findings
 	}
 	if *asJSON {
 		enc := json.NewEncoder(env.Stdout)
@@ -159,6 +162,20 @@ func runGuardScan(env Env, args []string) int {
 		return ExitOK // history is informational in a hook
 	}
 	return ExitError
+}
+
+// historyStore is where this person remembers which history was scanned clean;
+// "" (no active identity) means every history scan is a full one.
+func historyStore(root string) string {
+	a, err := identity.Active(root)
+	if err != nil {
+		return ""
+	}
+	p, err := layoutOf(root).LocalGuardHistory(a.ID)
+	if err != nil {
+		return ""
+	}
+	return p
 }
 
 func printScan(env Env, rep scanReport, hook bool) {

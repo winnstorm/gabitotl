@@ -152,7 +152,7 @@ optional: GabitoTL detects what exists and never installs a missing tool behind 
 | `memory mcp` | The stdio memory entry every runtime registers: it reads the `memory.md` of the project it runs in and forwards to the team server (`memory-mcp`) or serves Engram. |
 | `memory use <engram\|memory-mcp> [--migrate] [--yes] [--dry-run] [--role host\|client --url URL]` | Change the memory provider of this project (see [Changing the provider](#changing-the-provider)). |
 | `memory migrate engram` | Import an Engram export into the team memory (idempotent, verified, Engram untouched). |
-| `guard scan [--staged \| --diff REF \| --all] [--history] [--json]` | Read-only authorship scan: LLM branding that credits a tool as author. Exit 1 on findings. |
+| `guard scan [--staged \| --diff REF \| --all] [--history [--full]] [--json]` | Read-only authorship scan (`--history` only reads commits not yet scanned clean): LLM branding that credits a tool as author. Exit 1 on findings. |
 | `guard fix [--dry-run \| --yes]` | Remove only the attribution lines, after a backup in `.gabitotl/.bak/`. Ambiguous cases are listed for manual review; history is never rewritten. |
 | `guard install-hooks \| uninstall-hooks \| status` | `commit-msg` and `pre-commit` Git hooks (chained after any hook you already have). Installed by `init`/`install` unless you decline. |
 | `vcs status \| branch --task ID \| setup \| login` | Git state, provider, delivery settings, login state (`auth:`) and which file each comes from; task branch `feature/<id>`; `setup` runs the delivery questions on demand (see [Delivery settings](#-delivery-settings)); `login` checks and helps with the login to your Git platform (see [Platforms and login](#platforms-and-login)). |
