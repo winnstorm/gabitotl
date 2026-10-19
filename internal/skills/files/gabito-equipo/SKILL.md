@@ -47,10 +47,10 @@ Declare areas honestly and narrowly. Wide areas create noise for everyone.
 
 ## When there is overlap
 
-Overlap is information, not a verdict. Raise an OJO with: who, which area or file, which branch, and what
+Overlap is information, not a verdict. Raise an OJO (the Heads-up block when the persona speaks English) with: who, which area or file, which branch, and what
 you suggest. Keep it to two or three lines:
 
-> OJO: ana is working on `internal/auth` (branch `feature/mfa`, active 10 min ago) and you are about to
+> OJO (Heads-up in English): ana is working on `internal/auth` (branch `feature/mfa`, active 10 min ago) and you are about to
 > change `internal/auth/session.go`. Suggest syncing with her first, or I keep to `internal/api`.
 
 Then:

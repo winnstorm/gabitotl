@@ -40,7 +40,8 @@ You ask the questions, in chat; the user is never sent to a terminal prompt.
 3. When every answer is in, save them in ONE call:
    `gabitotl vcs setup --yes --vcs-automation=all --vcs-merge-method=squash --vcs-delete-branch=true --vcs-draft=false`
    (omit `--vcs-provider` when the platform answer is `none`). Say in one line what was saved and where.
-4. If the user said "no preguntes" or "usá lo estándar", use the defaults for the open questions.
+4. If the user said "no preguntes" or "usá lo estándar" (or "don't ask" or "use the defaults"), use the defaults for the open
+   questions.
 
 Without a terminal, `gabitotl vcs setup` alone changes nothing and exits with an error; that is expected.
 
@@ -68,7 +69,7 @@ Step by step when you need control:
 - No attribution of any kind: no co-author trailers, no "generated with/by" lines, no AI names or links, in commits,
   PR titles, PR bodies or comments. Authorship belongs to the person who asked.
 - Write commit messages and PR text in English, unless the project history clearly uses another language.
-  The PR body says what changed, why, how it was verified, and any OJO.
+  The PR body says what changed, why, how it was verified, and any OJO (Heads-up in English).
 - Never commit or push the base branch. If you are on it, `ship` moves the work to a task branch; create or
   switch to one yourself (`feature/<task>`) otherwise.
 - Never force-push, amend a published commit, rebase shared history or `git reset --hard`. Undo shared changes

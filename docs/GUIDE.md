@@ -329,8 +329,11 @@ pragmatic English). It is one persona template; only the voice lines and the rep
   chosen language (`internal/installer/ui/messages_es-AR.txt` and `messages_en.txt`); in the interface the rest of the
   screens switch as soon as you pick the language. The migration report in `.gabitotl/imports.md` is a shared project
   file and stays in Spanish.
-- The language only affects what Gabito says. Code, commits, PRs, docs and memory stay in English. The guard messages
-  and the `gabito-*` skills are still Spanish-first.
+  The authorship guard messages follow it too, and the `gabito-*` skills understand both languages (they are written in
+  English, accept the English equivalents of the Spanish user phrases, and call the block OJO or Heads-up by language).
+- The language only affects what Gabito says. Code, commits, PRs, docs and memory stay in English. Data formats keep
+  their Spanish names: the memory `ojo` field and the `Ojo` trailer, and the `## Falta` / `## Próximo paso` headings
+  of the active-work files.
 
 ## Skills
 
