@@ -21,6 +21,9 @@ button,input,select{font-family:inherit}
 .step.cur .dot{border-color:var(--sky);color:var(--sky)}
 .railfoot{margin-top:auto;font-size:11px;color:#94a3b8;padding:0 10px}
 .pane{flex:1;padding:28px 40px;display:flex;flex-direction:column;gap:16px;min-width:0;overflow-y:auto}
+/* Blocks keep their height and the pane scrolls; a box with overflow:hidden
+   would otherwise shrink to a sliver. Later rules (.log) may still flex. */
+.pane>*{flex-shrink:0}
 h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em}
 .lead{margin:0;color:var(--text2);font-size:14px;line-height:1.5}
 .lead.sm{font-size:12px}
