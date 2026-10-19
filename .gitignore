@@ -22,14 +22,26 @@ coverage.*
 
 # OS / editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
+*~
+*.log
+
+# Local sample data (copies of real agent sessions)
+ejemplo/
 
 # Secrets
 .env
 .env.*
 *.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.kdbx
 .atl/
 internal/e2e/zz-scratch-*/
 engram-export*.json
