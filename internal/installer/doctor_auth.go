@@ -38,7 +38,11 @@ func gitAuthLines(ctx context.Context, env Env, cfg gabitotl.VCSConfig, inferred
 	case "github", "gitlab":
 		ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
-		h, err := vcs.HostFor(provider, vcs.HostOptions{Runner: vcsRunner{env}})
+		var run vcs.Runner = vcsRunner{env}
+		if _, real := env.Runner.(ExecRunner); real {
+			run = vcs.ExecRunner{} // lets a stored token reach gh and glab (D56)
+		}
+		h, err := vcs.HostFor(provider, vcs.HostOptions{Runner: run})
 		if err != nil {
 			return nil
 		}
@@ -49,7 +53,8 @@ func gitAuthLines(ctx context.Context, env Env, cfg gabitotl.VCSConfig, inferred
 		return authLine(st)
 	case "bitbucket":
 		lookup := mcp.Resolver{Getenv: env.Getenv, Home: env.Home}.Lookup
-		if _, err := vcs.ResolveCredential(cfg.Auth, lookup); err != nil {
+		_, err := vcs.ResolveCredential(cfg.Auth, lookup)
+		if _, stored := storedVCSToken("bitbucket.org"); err != nil && !stored {
 			return []Line{{LineWarn, DocGitAuthTodo, "gabitotl vcs login"}}
 		}
 		return []Line{{LineOK, DocGitAuth, "bitbucket"}}
@@ -67,4 +72,11 @@ func authLine(st vcs.AuthState) []Line {
 		return []Line{{LineWarn, DocGitAuthTodo, st.Command}}
 	}
 	return nil
+}
+
+func storedVCSToken(host string) (string, bool) {
+	if vcs.DefaultTokens == nil {
+		return "", false
+	}
+	return vcs.DefaultTokens(host)
 }

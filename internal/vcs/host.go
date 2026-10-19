@@ -82,16 +82,23 @@ type HostOptions struct {
 	BitbucketAPI string
 	// Credentials returns the Bitbucket credential; nil means not logged in.
 	Credentials func() (Credential, error)
+	// Tokens returns the stored token of a host, handed to gh and glab in their own
+	// child environment when the person has not set one; nil uses DefaultTokens.
+	Tokens func(host string) (string, bool)
 }
 
 // HostFor returns the host of a vcs.md provider value: github, gitlab or
 // bitbucket (Bitbucket Cloud). Anything else fails with ErrUnsupported.
 func HostFor(name string, o HostOptions) (Host, error) {
+	tokens := o.Tokens
+	if tokens == nil {
+		tokens = DefaultTokens
+	}
 	switch name {
 	case "github":
-		return GitHub{Runner: o.Runner}, nil
+		return GitHub{Runner: withStoredTokens(o.Runner, tokens)}, nil
 	case "gitlab":
-		return GitLab{Runner: o.Runner}, nil
+		return GitLab{Runner: withStoredTokens(o.Runner, tokens)}, nil
 	case "bitbucket":
 		return Bitbucket{Runner: o.Runner, HTTP: o.HTTP, BaseURL: o.BitbucketAPI, Creds: o.Credentials}, nil
 	}

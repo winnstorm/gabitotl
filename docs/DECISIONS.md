@@ -786,6 +786,6 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   one implementation of the delivery settings; env-first keeps CI and existing setups working unchanged.
 - **Consequences:** `vcs login --store-token` now stores into the credential store (not the memory secrets file).
   Tokens never appear in any `.md` file, log or Manager return value. GitHub and GitLab operations still go through
-  `gh` / `glab`, which do not read this store yet (OJO: only Bitbucket Cloud consumes a stored token for delivery);
+  `gh` / `glab`, which do not read this store yet (resolved: `vcs.HostFor` hands the stored token of the remote's host to `gh` / `glab` in that child's environment only, `GH_TOKEN` / `GH_ENTERPRISE_TOKEN`+`GH_HOST` / `GITLAB_TOKEN`+`GITLAB_HOST`, and never when the person already set one);
   custom hosts can be stored and verified but the Manager lists only the three public hosts. The Windows adapter is
   compile-checked only and has not run on a real Windows machine.

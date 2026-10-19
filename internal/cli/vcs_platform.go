@@ -119,3 +119,11 @@ func loadVCSOrDefault(layout gabitotl.Layout, user string) (gabitotl.VCSConfig, 
 	}
 	return cfg, err
 }
+
+func init() {
+	// Hand the stored token of the remote's host to gh and glab (D56).
+	vcs.DefaultTokens = func(host string) (string, bool) {
+		tok, ok, err := credStoreFn(userHome()).Get(host)
+		return tok, ok && err == nil
+	}
+}
