@@ -7,7 +7,7 @@ type unsupported struct{}
 func (unsupported) CopyFile(string, string) (int64, error) { return 0, ErrUnsupported }
 func (unsupported) Exists(string) bool                     { return false }
 func (unsupported) RemoveAll(string) error                 { return ErrUnsupported }
-func (unsupported) ScheduleRemoval(string) error           { return ErrUnsupported }
+func (unsupported) ScheduleRemoval(string, []string) error { return ErrUnsupported }
 func (unsupported) Get() (string, error)                   { return "", ErrUnsupported }
 func (unsupported) Set(string) error                       { return ErrUnsupported }
 func (unsupported) Create(string, Shortcut) error          { return ErrUnsupported }

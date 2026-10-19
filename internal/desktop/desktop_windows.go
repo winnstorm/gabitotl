@@ -43,10 +43,22 @@ func New() *Installer {
 			DefaultInstallDir: filepath.Join(local, "Programs", "GabitoTL"),
 			StartMenuPrograms: knownFolder(windows.FOLDERID_Programs, filepath.Join(roaming, "Microsoft", "Windows", "Start Menu", "Programs")),
 			DesktopDir:        knownFolder(windows.FOLDERID_Desktop, filepath.Join(home, "Desktop")),
+			Protected:         protectedDirs(home, local, roaming),
 			Today:             func() string { return time.Now().Format("20060102") },
 		},
 		FS: fs, Path: userPath{}, Links: wshShortcuts{}, Reg: appsRegistry{},
 	}
+}
+
+// protectedDirs are folders an install directory may never be or contain.
+func protectedDirs(home, local, roaming string) []string {
+	ps := []string{home, local, roaming, os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"),
+		os.Getenv("ProgramW6432"), os.Getenv("SystemRoot")}
+	for _, id := range []*windows.KNOWNFOLDERID{windows.FOLDERID_Desktop, windows.FOLDERID_Documents,
+		windows.FOLDERID_Downloads, windows.FOLDERID_Programs} {
+		ps = append(ps, knownFolder(id, ""))
+	}
+	return ps
 }
 
 // knownFolder resolves a shell folder the way Explorer does, so a Desktop
@@ -59,18 +71,20 @@ func knownFolder(id *windows.KNOWNFOLDERID, fallback string) string {
 	return fallback
 }
 
-// winFS adds the delayed directory removal to the portable file adapter.
+// winFS adds the delayed file removal to the portable file adapter.
 type winFS struct{ osFS }
 
-// ScheduleRemoval starts a detached, windowless
-//
-//	cmd /c ping -n 3 127.0.0.1 >nul & rmdir /s /q "<dir>"
-//
-// The ping is a ~2 second sleep that lets this process exit and release the
-// lock on its own executable before rmdir runs. The child outlives the parent.
-func (winFS) ScheduleRemoval(dir string) error {
-	cmd := exec.Command("cmd", "/c", fmt.Sprintf(`ping -n 3 127.0.0.1 >nul & rmdir /s /q "%s"`, dir))
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow | windows.CREATE_NEW_PROCESS_GROUP, HideWindow: true}
+// ScheduleRemoval starts a detached, windowless cleanup process (see
+// RemovalCommandLine). It outlives this process, which is the point: our own
+// exe is locked until we exit. The command line is passed verbatim through
+// SysProcAttr.CmdLine so Go does not re-escape the quotes.
+func (winFS) ScheduleRemoval(dir string, files []string) error {
+	cmd := exec.Command("cmd.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CmdLine:       RemovalCommandLine(dir, files),
+		CreationFlags: createNoWindow | windows.CREATE_NEW_PROCESS_GROUP,
+		HideWindow:    true,
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -134,9 +148,14 @@ func (wshShortcuts) Create(lnk string, s Shortcut) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if err := ole.CoInitialize(0); err != nil {
-		return err
+		// S_FALSE (1) means COM was already initialized on this thread.
+		var oe *ole.OleError
+		if !errors.As(err, &oe) || oe.Code() != 1 {
+			return err
+		}
+	} else {
+		defer ole.CoUninitialize()
 	}
-	defer ole.CoUninitialize()
 	if err := os.MkdirAll(filepath.Dir(lnk), 0o755); err != nil {
 		return err
 	}

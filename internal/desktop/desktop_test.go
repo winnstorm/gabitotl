@@ -17,6 +17,7 @@ type fake struct {
 	reg     *Registration
 	links   map[string]Shortcut
 	failOn  string // call name that returns an error
+	sched   []string
 	copied  int64
 	removed []string
 }
@@ -56,8 +57,11 @@ func (f *fake) RemoveAll(p string) error {
 	}
 	return f.rec("removeall")
 }
-func (f *fake) ScheduleRemoval(string) error { return f.rec("schedule") }
-func (f *fake) Get() (string, error)         { return f.path, f.rec("path.get") }
+func (f *fake) ScheduleRemoval(_ string, files []string) error {
+	f.sched = files
+	return f.rec("schedule")
+}
+func (f *fake) Get() (string, error) { return f.path, f.rec("path.get") }
 func (f *fake) Set(v string) error {
 	if err := f.rec("path.set"); err != nil {
 		return err
@@ -96,13 +100,37 @@ func (f *fake) Registered() (string, bool) {
 	return f.reg.DisplayVersion, true
 }
 
+func abs(p string) string {
+	a, _ := filepath.Abs(p)
+	return a
+}
+
+func mustPlan(t *testing.T, in *Installer, o Options) []Step {
+	t.Helper()
+	ss, err := in.Plan(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ss
+}
+
+func mustUPlan(t *testing.T, in *Installer) []Step {
+	t.Helper()
+	ss, err := in.UninstallPlan(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ss
+}
+
 func newInstaller(f *fake) *Installer {
 	return &Installer{
 		Env: Env{
-			ExePath:           filepath.Join("src", ManagerExe),
-			DefaultInstallDir: filepath.Join("local", "Programs", "GabitoTL"),
-			StartMenuPrograms: "start",
-			DesktopDir:        "desk",
+			ExePath:           abs(filepath.Join("src", ManagerExe)),
+			DefaultInstallDir: abs(filepath.Join("local", "Programs", "GabitoTL")),
+			StartMenuPrograms: abs("start"),
+			DesktopDir:        abs("desk"),
+			Protected:         []string{abs("home"), abs("local")},
 			Today:             func() string { return "20261019" },
 		},
 		FS: f, Path: f, Links: f, Reg: f,
@@ -131,11 +159,11 @@ func TestPlanContents(t *testing.T) {
 			[]string{StepCopy, StepPath, StepStartMenu, StepDesktop, StepRegister}},
 	}
 	for _, c := range cases {
-		if got := ids(in.Plan(c.o)); !reflect.DeepEqual(got, c.want) {
+		if got := ids(mustPlan(t, in, c.o)); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: plan %v, want %v", c.name, got, c.want)
 		}
 	}
-	for _, s := range in.Plan(Options{}) {
+	for _, s := range mustPlan(t, in, Options{}) {
 		if s.Title == "" {
 			t.Errorf("step %s has no title", s.ID)
 		}
@@ -150,7 +178,7 @@ func TestApplyOrderAndRegistration(t *testing.T) {
 	if err := in.Apply(o, func(s Step) { seen = append(seen, s.ID) }); err != nil {
 		t.Fatal(err)
 	}
-	if want := ids(in.Plan(o)); !reflect.DeepEqual(seen, want) {
+	if want := ids(mustPlan(t, in, o)); !reflect.DeepEqual(seen, want) {
 		t.Fatalf("progress %v, want %v", seen, want)
 	}
 	dir := in.Env.DefaultInstallDir
@@ -167,18 +195,18 @@ func TestApplyOrderAndRegistration(t *testing.T) {
 	if r.InstallLocation != dir || r.DisplayIcon != filepath.Join(dir, ManagerExe) {
 		t.Fatalf("bad paths: %+v", r)
 	}
-	sc := f.links[filepath.Join("start", "GabitoTL", "GabitoTL Manager.lnk")]
+	sc := f.links[abs(filepath.Join("start", "GabitoTL", "GabitoTL Manager.lnk"))]
 	if sc.Target != filepath.Join(dir, ManagerExe) || sc.WorkDir != dir {
 		t.Fatalf("bad start menu shortcut: %+v", sc)
 	}
-	if _, ok := f.links[filepath.Join("desk", "GabitoTL Manager.lnk")]; !ok {
+	if _, ok := f.links[abs(filepath.Join("desk", "GabitoTL Manager.lnk"))]; !ok {
 		t.Fatal("desktop shortcut missing")
 	}
 }
 
 func TestApplyCopiesCLIWhenPresent(t *testing.T) {
 	f := newFake()
-	f.files[filepath.Join("src", CLIExe)] = true
+	f.files[abs(filepath.Join("src", CLIExe))] = true
 	in := newInstaller(f)
 	if err := in.Apply(Options{}, nil); err != nil {
 		t.Fatal(err)
@@ -272,7 +300,7 @@ func TestUninstall(t *testing.T) {
 	if err := in.Uninstall(Options{}, func(s Step) { seen = append(seen, s.ID) }); err != nil {
 		t.Fatal(err)
 	}
-	if want := ids(in.UninstallPlan(Options{})); !reflect.DeepEqual(seen, want) {
+	if want := ids(mustUPlan(t, in)); !reflect.DeepEqual(seen, want) {
 		t.Fatalf("progress %v, want %v", seen, want)
 	}
 	if HasPathEntry(f.path, in.Env.DefaultInstallDir) || f.reg != nil || len(f.links) != 0 {
@@ -356,5 +384,123 @@ func TestOSFSCopyAtomicAndReplace(t *testing.T) {
 	}
 	if _, err := fs.CopyFile(filepath.Join(d, "missing"), dst); err == nil {
 		t.Fatal("want error for a missing source")
+	}
+}
+
+func TestPathRollbackSkippedWhenNothingChanged(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	f.path = in.Env.DefaultInstallDir // already on PATH: add is a no-op
+	f.failOn = "register"
+	if err := in.Apply(Options{AddToPath: true}, nil); err == nil {
+		t.Fatal("want error")
+	}
+	for _, c := range f.calls {
+		if c == "path.set" {
+			t.Fatalf("PATH was written although nothing changed: %v", f.calls)
+		}
+	}
+}
+
+func TestUninstallLeavesForeignFilesAlone(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := in.Uninstall(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	dir := in.Env.DefaultInstallDir
+	want := []string{filepath.Join(dir, ManagerExe), filepath.Join(dir, CLIExe)}
+	if !reflect.DeepEqual(f.sched, want) {
+		t.Fatalf("scheduled %v, want only %v", f.sched, want)
+	}
+	for _, r := range f.removed {
+		if r == dir {
+			t.Fatal("uninstall must not RemoveAll the install dir")
+		}
+	}
+}
+
+func TestUnsafeDirsAreRefused(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	cases := map[string]string{
+		"empty-ish":     "  ",
+		"relative":      "rel/dir",
+		"root":          abs(string(filepath.Separator)),
+		"home":          abs("home"),
+		"home case":     strings.ToUpper(abs("home")),
+		"home trailing": abs("home") + string(filepath.Separator),
+		"local":         abs("local"),
+		"ancestor":      filepath.Dir(abs("home")),
+		"quote":         abs(`x"y`),
+		"percent":       abs("x%PATH%"),
+		"ampersand":     abs("a&b"),
+		"pipe":          abs("a|b"),
+		"lt":            abs("a<b"),
+		"gt":            abs("a>b"),
+		"caret":         abs("a^b"),
+	}
+	for name, dir := range cases {
+		o := Options{InstallDir: dir}
+		var ue *UnsafeDirError
+		if err := in.Apply(o, nil); !errors.As(err, &ue) {
+			t.Errorf("%s: Apply err %v, want UnsafeDirError", name, err)
+		}
+		if err := in.Uninstall(o, nil); !errors.As(err, &ue) {
+			t.Errorf("%s: Uninstall err %v, want UnsafeDirError", name, err)
+		}
+		if _, err := in.Plan(o); err == nil {
+			t.Errorf("%s: Plan accepted", name)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("an unsafe dir touched the system: %v", f.calls)
+	}
+	if err := in.Apply(Options{InstallDir: abs("home/GabitoTL")}, nil); err != nil {
+		t.Fatalf("a subfolder of a protected dir must be allowed: %v", err)
+	}
+}
+
+func TestEnvValidate(t *testing.T) {
+	in := newInstaller(newFake())
+	in.Env.DefaultInstallDir = filepath.Join("Programs", "GabitoTL") // empty LOCALAPPDATA
+	if _, err := in.Plan(Options{}); err == nil {
+		t.Fatal("Plan accepted a relative default dir")
+	}
+	if err := in.Apply(Options{}, nil); err == nil {
+		t.Fatal("Apply accepted a relative default dir")
+	}
+	if err := in.Uninstall(Options{}, nil); err == nil {
+		t.Fatal("Uninstall accepted a relative default dir")
+	}
+	in = newInstaller(newFake())
+	in.Env.DesktopDir = ""
+	if _, err := in.Plan(Options{}); err == nil {
+		t.Fatal("Plan accepted an empty desktop dir")
+	}
+}
+
+func TestRemovalCommandLine(t *testing.T) {
+	dir := `C:\Users\Ana Perez\AppData\Local\Programs\GabitoTL`
+	files := []string{dir + `\gabitotl-manager.exe`, dir + `\gabitotl.exe`}
+	got := RemovalCommandLine(dir, files)
+	for _, want := range []string{
+		`cmd /d /s /c "`,
+		`del /f /q "` + files[0] + `" "` + files[1] + `"`,
+		`rmdir "` + dir + `"`,
+		`for /l %i in (1,1,5)`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "rmdir /s") || strings.Contains(got, "rd /s") {
+		t.Fatalf("must not recurse: %s", got)
+	}
+	if !strings.HasSuffix(got, `"`) || strings.Count(got, `"`)%2 != 0 {
+		t.Fatalf("unbalanced quotes: %s", got)
 	}
 }

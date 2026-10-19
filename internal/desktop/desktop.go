@@ -100,9 +100,11 @@ type FileSystem interface {
 	CopyFile(src, dst string) (int64, error)
 	Exists(path string) bool
 	RemoveAll(path string) error
-	// ScheduleRemoval deletes dir after this process has exited (a running
+	// ScheduleRemoval deletes files after this process has exited (a running
 	// executable cannot delete itself on Windows).
-	ScheduleRemoval(dir string) error
+	// Only the listed files are deleted, then dir itself if it is empty;
+	// anything else the user keeps there survives.
+	ScheduleRemoval(dir string, files []string) error
 }
 
 // PathEnv is the per-user PATH port.
@@ -134,7 +136,10 @@ type Env struct {
 	DefaultInstallDir string // %LOCALAPPDATA%\Programs\GabitoTL
 	StartMenuPrograms string // %APPDATA%\Microsoft\Windows\Start Menu\Programs
 	DesktopDir        string
-	Today             func() string // yyyymmdd; nil means the empty string
+	// Protected lists directories an install dir may never be, nor contain
+	// (home, Documents, %LOCALAPPDATA%, Program Files, ...).
+	Protected []string
+	Today     func() string // yyyymmdd; nil means the empty string
 }
 
 // Installer orchestrates the install and uninstall through the ports.
@@ -144,6 +149,20 @@ type Installer struct {
 	Path  PathEnv
 	Links Shortcuts
 	Reg   Registry
+}
+
+// validate refuses to run with unresolved locations: an empty
+// %LOCALAPPDATA% would otherwise yield relative paths under the working dir.
+func (e Env) validate() error {
+	for name, p := range map[string]string{
+		"executable": e.ExePath, "default install dir": e.DefaultInstallDir,
+		"Start menu folder": e.StartMenuPrograms, "desktop folder": e.DesktopDir,
+	} {
+		if !filepath.IsAbs(p) {
+			return fmt.Errorf("cannot locate the %s (got %q)", name, p)
+		}
+	}
+	return nil
 }
 
 func (in *Installer) dir(o Options) string {
@@ -165,6 +184,11 @@ func (in *Installer) desktopLink() string {
 	return filepath.Join(in.Env.DesktopDir, AppName+".lnk")
 }
 
+// ownedFiles are the only files the installer writes into the install dir.
+func ownedFiles(dir string) []string {
+	return []string{filepath.Join(dir, ManagerExe), filepath.Join(dir, CLIExe)}
+}
+
 // UninstallString is the command Windows runs from Apps & features. The path
 // is always quoted because the install dir may contain spaces.
 func UninstallString(dir string) string {
@@ -184,8 +208,19 @@ type action struct {
 }
 
 // Plan lists, in order, what Apply will do.
-func (in *Installer) Plan(o Options) []Step {
-	return steps(in.installActions(o))
+func (in *Installer) Plan(o Options) ([]Step, error) {
+	if err := in.check(o); err != nil {
+		return nil, err
+	}
+	return steps(in.installActions(o)), nil
+}
+
+// check validates the environment and the chosen install directory.
+func (in *Installer) check(o Options) error {
+	if err := in.Env.validate(); err != nil {
+		return err
+	}
+	return safeInstallDir(in.dir(o), in.Env.Protected)
 }
 
 func steps(as []action) []Step {
@@ -200,8 +235,8 @@ func steps(as []action) []Step {
 // steps already applied are rolled back (best effort) and the error is
 // returned wrapped with the failing step.
 func (in *Installer) Apply(o Options, progress func(Step)) error {
-	if in.dir(o) == "" {
-		return errors.New("no install directory")
+	if err := in.check(o); err != nil {
+		return err
 	}
 	as := in.installActions(o)
 	for i, a := range as {
@@ -260,6 +295,7 @@ func (in *Installer) installActions(o Options) []action {
 
 	if o.AddToPath {
 		var before string
+		var changed bool
 		as = append(as, action{
 			Step: Step{StepPath, "Add " + dir + " to your PATH"},
 			do: func() error {
@@ -268,13 +304,18 @@ func (in *Installer) installActions(o Options) []action {
 					return err
 				}
 				before = cur
-				next, changed := AddPathEntry(cur, dir)
-				if !changed {
+				next, ch := AddPathEntry(cur, dir)
+				if !ch {
 					return nil
 				}
+				changed = true
 				return in.Path.Set(next)
 			},
-			undo: func() { _ = in.Path.Set(before) },
+			undo: func() {
+				if changed {
+					_ = in.Path.Set(before)
+				}
+			},
 		})
 	}
 
@@ -324,25 +365,32 @@ func (in *Installer) installActions(o Options) []action {
 }
 
 // UninstallPlan lists what Uninstall will do.
-func (in *Installer) UninstallPlan(o Options) []Step {
+func (in *Installer) UninstallPlan(o Options) ([]Step, error) {
+	if err := in.check(o); err != nil {
+		return nil, err
+	}
+	return in.uninstallSteps(o), nil
+}
+
+func (in *Installer) uninstallSteps(o Options) []Step {
 	return []Step{
 		{StepUnlink, "Remove the shortcuts"},
 		{StepUnpath, "Remove " + in.dir(o) + " from your PATH"},
 		{StepUnreg, "Remove the Apps & features entry"},
-		{StepRemove, "Delete " + in.dir(o) + " once this window closes"},
+		{StepRemove, "Delete the GabitoTL files in " + in.dir(o) + " once this window closes"},
 	}
 }
 
-// Uninstall removes everything Install created. It is best effort: every step
-// runs, and the failures are joined. The install directory is removed by a
-// detached process after this one exits, since the running executable lives
-// there.
+// Uninstall removes everything Apply created. It is best effort: every step
+// runs, and the failures are joined. Only the files GabitoTL installed are
+// deleted, by a detached process after this one exits (the running executable
+// lives there); the directory goes only if that leaves it empty.
 func (in *Installer) Uninstall(o Options, progress func(Step)) error {
-	dir := in.dir(o)
-	if dir == "" {
-		return errors.New("no install directory")
+	if err := in.check(o); err != nil {
+		return err
 	}
-	ss := in.UninstallPlan(o)
+	dir := in.dir(o)
+	ss := in.uninstallSteps(o)
 	var errs []error
 	run := func(i int, f func() error) {
 		if progress != nil {
@@ -367,7 +415,7 @@ func (in *Installer) Uninstall(o Options, progress func(Step)) error {
 		return in.Path.Set(next)
 	})
 	run(2, in.Reg.Unregister)
-	run(3, func() error { return in.FS.ScheduleRemoval(dir) })
+	run(3, func() error { return in.FS.ScheduleRemoval(dir, ownedFiles(dir)) })
 	return errors.Join(errs...)
 }
 
