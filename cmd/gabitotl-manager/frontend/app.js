@@ -65,8 +65,8 @@ var LOGO = '<svg width="%s" height="%s" viewBox="0 0 64 64" aria-hidden="true"><
 
 function logo(size) { return LOGO.replace(/%s/g, size); }
 
-function titlebar() {
-  return '<div class="tb">' + logo(16) + '<span>' + esc(t('gui.app.title')) + '</span><span class="sp"></span>' +
+function titlebar(titleKey) {
+  return '<div class="tb">' + logo(16) + '<span>' + esc(t(titleKey || 'gui.app.title')) + '</span><span class="sp"></span>' +
     '<div class="langsw" role="group" aria-label="' + esc(t('gui.lang.switch')) + '">' +
     ['es', 'en'].map(function (l) {
       return '<button type="button" data-act="lang" data-val="' + l + '" data-k="lang-' + l + '" aria-pressed="' + (S.lang === l) + '">' + l.toUpperCase() + '</button>';
@@ -80,8 +80,8 @@ function render() {
   var html;
   switch (S.info && S.info.route) {
     case 'wizard': html = renderWizard(); break;
-    case 'manage': html = placeholder('gui.manager.placeholder'); break;
-    case 'uninstall': html = placeholder('gui.uninstall.placeholder'); break;
+    case 'manage':
+    case 'uninstall': html = renderManager(); break;
     default: html = titlebar() + '<div class="body"><main class="pane center" id="pane">' + esc(t('gui.loading')) + '</main></div>';
   }
   document.getElementById('app').innerHTML = html;
@@ -93,12 +93,7 @@ function render() {
     var el = document.querySelector('[data-k="' + active.replace(/"/g, '\\"') + '"]');
     if (el && !el.disabled) el.focus();
   }
-}
-
-function placeholder(key) {
-  return titlebar() + '<div class="body"><main class="pane center" id="pane">' + logo(64) +
-    '<h1>' + esc(t('gui.app.name')) + '</h1><p class="lead">' + esc(t(key)) + '</p></main></div>' +
-    '<div class="ft"><span class="sp"></span><button type="button" class="btn pri" data-act="quit">' + esc(t('gui.btn.close')) + '</button></div>';
+  if (S.info && S.info.route !== 'wizard') managerAfterRender();
 }
 
 // ---- small view helpers -----------------------------------------------------
@@ -180,6 +175,7 @@ async function switchLang(l) {
     I18n.set(await api().Messages(l));
     S.lang = l;
     S.error = '';
+    if (S.info && S.info.route !== 'wizard') { S.langBusy = false; await managerReload(); }
   } catch (e) {
     S.error = t('gui.error.generic', { detail: errText(e) });
   }
@@ -194,7 +190,8 @@ async function boot() {
     I18n.set(await api().Messages(S.lang));
     S.a.win.installDir = S.info.installDir;
     S.root = '';
-    if (window.runtime && window.runtime.EventsOn) window.runtime.EventsOn('install:progress', onProgress);
+    if (S.info.route !== 'wizard') await managerBoot();
+    if (window.runtime && window.runtime.EventsOn) { window.runtime.EventsOn('install:progress', onProgress); window.runtime.EventsOn('op:progress', onOpProgress); }
     render();
   } catch (e) {
     document.getElementById('app').textContent = errText(e);

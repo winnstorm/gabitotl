@@ -65,7 +65,7 @@ func TestEveryKeyUsedByThePagesExistsInBothCatalogues(t *testing.T) {
 }
 
 func TestEmbeddedPagesAreComplete(t *testing.T) {
-	for _, f := range []string{"index.html", "app.css", "app.js", "i18n.js", "wizard.js"} {
+	for _, f := range []string{"index.html", "app.css", "app.js", "i18n.js", "wizard.js", "manager.js"} {
 		if b, err := fs.ReadFile(Assets, f); err != nil || len(b) == 0 {
 			t.Errorf("%s is not embedded or empty: %v", f, err)
 		}

@@ -54,7 +54,7 @@ function stepWelcome() {
       return '<label class="opt' + (S.lang === o[0] ? ' sel' : '') + '"><input type="radio" name="lang" data-act="lang" data-val="' + o[0] + '" data-k="welcome-lang-' + o[0] + '"' + attr('checked', true, S.lang === o[0]) + '><div><b>' + esc(t(o[1])) + '</b><span>' + esc(t(o[2])) + '</span></div></label>';
     }).join('') + '</div>' +
     '<p class="lead sm">' + esc(t('gui.welcome.lang.note')) + '</p>' +
-    '<div style="margin-top:auto" class="chk"><input type="checkbox" id="lic" data-bind="a.license" data-k="a.license"' + attr('checked', true, S.a.license) + '><label for="lic">' + esc(t('gui.welcome.license')) + ' <a href="#" data-act="license">' + esc(t('gui.welcome.license.link')) + '</a></label></div>';
+    '<div style="margin-top:auto" class="chk"><input type="checkbox" id="lic" data-bind="a.license" data-k="a.license"' + attr('checked', true, S.a.license) + '><label for="lic">' + esc(t('gui.welcome.license')) + '</label> <a href="#" data-act="license">' + esc(t('gui.welcome.license.link')) + '</a></div>';
 }
 
 function runtimeBadge(state) {
