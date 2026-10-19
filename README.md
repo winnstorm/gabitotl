@@ -42,7 +42,7 @@ parts that chats and models do not keep.
 
 <table>
   <tr>
-    <td width="33%" valign="top">🎭 <b>Persona and chat modes</b><br>Gabito, a pragmatic Technical Leader. Chats in 🇦🇷 Argentine Spanish or 🇬🇧 English (chosen at install); <code>normal</code>, <code>lite</code> and <code>full</code> chat modes.</td>
+    <td width="33%" valign="top">🎭 <b>Persona and chat modes</b><br>Gabito, a pragmatic Technical Leader. Chats in 🇦🇷 Argentine Spanish or 🇺🇸 English (chosen at install); <code>normal</code>, <code>lite</code> and <code>full</code> chat modes.</td>
     <td width="33%" valign="top">🧠 <b>Project memory</b><br>Engram for one person, or GabitoTL's own Memory MCP server over PostgreSQL for a team. Chosen per project.</td>
     <td width="33%" valign="top">💸 <b>Token savings</b><br>75% context warning (also from Kiro's own usage %), <code>memory context</code>, <code>run</code> digests, scan cache and <code>stats</code>.</td>
   </tr>
@@ -136,7 +136,7 @@ Every flag and subcommand: [User guide, Commands](docs/GUIDE.md#commands) or `ga
 | Language | How to get it | Long-work blocks |
 |---|---|---|
 | 🇦🇷 Español (Argentina) — default | `gabitotl install` | *Qué hice / Progreso / Qué sigue* · `OJO` · `TIP` |
-| 🇬🇧 English | `gabitotl install --persona-lang en`, or pick it when the installer asks | *What I did / Progress / Next* · *Heads-up* · `TIP` |
+| 🇺🇸 English | `gabitotl install --persona-lang en`, or pick it when the installer asks | *What I did / Progress / Next* · *Heads-up* · `TIP` |
 
 Your choice is saved in `~/.gabitotl/persona.md` and kept on reinstall; run `install --persona-lang es|en` again to switch.
 
