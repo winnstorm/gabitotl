@@ -564,3 +564,23 @@ deliver.plan.oversized = A commit has {lines} lines and would go alone in its PR
 deliver.plan.push = I would push {branch}.
 deliver.plan.pr = I would open the PR from {branch} to {base}.
 deliver.plan.merge = I would merge once the checks pass, with the {method} method.
+
+# Desktop app (GabitoTL Manager): GUI-only texts.
+doctor.section.desktop = Desktop app
+doctor.desktop.ok = The app is installed in {detail}
+doctor.desktop.partial = The app is installed in {detail}, but something is missing (PATH or Start menu)
+doctor.desktop.none = The desktop app is not installed for this user
+fix.runtime.repair = Repair
+fix.runtime.connect = Connect
+fix.vcs.login-check = Check the login
+fix.guard.scan-history = Audit the history
+fix.guard.install-hooks = Install the hooks
+fix.cleanup.legacy = Clean up expired items
+fix.desktop.reapply = Repair the integration
+gui.step.persona-mode = Save the chat mode: {mode}
+gui.step.delivery-auth = Save the token variable: {name}
+gui.step.code-index = Index the code with {tool}
+gui.step.memory-server = Remove the memory server {name}
+gui.step.memory-purge = Delete the data in volume {name} (cannot be recovered)
+gui.desktop.unsupported = The Windows integration does not apply on this system: skipped.
+gui.note.persona-reapply = The language changed: repair each agent so it uses the new text.
