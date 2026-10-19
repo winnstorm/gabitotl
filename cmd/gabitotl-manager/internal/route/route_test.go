@@ -1,6 +1,9 @@
 package route
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestResolve(t *testing.T) {
 	cases := []struct {
@@ -20,5 +23,14 @@ func TestResolve(t *testing.T) {
 		if got := Resolve(c.args, c.installed); got != c.want {
 			t.Errorf("%s: Resolve(%v, %v) = %q, want %q", c.name, c.args, c.installed, got, c.want)
 		}
+	}
+}
+
+func TestRelaunchTarget(t *testing.T) {
+	if got := RelaunchTarget("", "m.exe"); got != "" {
+		t.Errorf("empty dir gave %q", got)
+	}
+	if got, want := RelaunchTarget("dir", "m.exe"), filepath.Join("dir", "m.exe"); got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }

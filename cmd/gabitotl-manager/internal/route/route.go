@@ -2,6 +2,8 @@
 // the rule is tested on every platform.
 package route
 
+import "path/filepath"
+
 // Screens the page can open.
 const (
 	Wizard    = "wizard"
@@ -27,4 +29,13 @@ func Resolve(args []string, installed bool) string {
 		return Manage
 	}
 	return Wizard
+}
+
+// RelaunchTarget is the manager executable inside the install folder, the copy
+// the wizard opens when it finishes. It is empty when there is no install folder.
+func RelaunchTarget(installDir, managerExe string) string {
+	if installDir == "" {
+		return ""
+	}
+	return filepath.Join(installDir, managerExe)
 }

@@ -87,6 +87,8 @@ function render() {
   document.getElementById('app').innerHTML = html;
   pane = document.getElementById('pane');
   if (pane) pane.scrollTop = scroll;
+  var log = document.querySelector && document.querySelector('.log');
+  if (log) log.scrollTop = log.scrollHeight;
   if (active) {
     var el = document.querySelector('[data-k="' + active.replace(/"/g, '\\"') + '"]');
     if (el && !el.disabled) el.focus();
@@ -171,6 +173,8 @@ actions.quit = function () { api().Quit(); };
 actions.lang = function (el) { switchLang(el.getAttribute('data-val')); };
 
 async function switchLang(l) {
+  if (l === S.lang || S.langBusy) return;
+  S.langBusy = true;
   try {
     await api().SetLanguage(l);
     I18n.set(await api().Messages(l));
@@ -179,6 +183,7 @@ async function switchLang(l) {
   } catch (e) {
     S.error = t('gui.error.generic', { detail: errText(e) });
   }
+  S.langBusy = false;
   render();
 }
 

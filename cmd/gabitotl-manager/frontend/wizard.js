@@ -54,7 +54,7 @@ function stepWelcome() {
       return '<label class="opt' + (S.lang === o[0] ? ' sel' : '') + '"><input type="radio" name="lang" data-act="lang" data-val="' + o[0] + '" data-k="welcome-lang-' + o[0] + '"' + attr('checked', true, S.lang === o[0]) + '><div><b>' + esc(t(o[1])) + '</b><span>' + esc(t(o[2])) + '</span></div></label>';
     }).join('') + '</div>' +
     '<p class="lead sm">' + esc(t('gui.welcome.lang.note')) + '</p>' +
-    '<div style="margin-top:auto" class="chk"><input type="checkbox" id="lic" data-bind="a.license" data-k="a.license"' + attr('checked', true, S.a.license) + '><label for="lic">' + esc(t('gui.welcome.license')) + ' <a href="https://github.com/winnstorm/gabitotl/blob/main/LICENSE" target="_blank" rel="noopener">' + esc(t('gui.welcome.license.link')) + '</a></label></div>';
+    '<div style="margin-top:auto" class="chk"><input type="checkbox" id="lic" data-bind="a.license" data-k="a.license"' + attr('checked', true, S.a.license) + '><label for="lic">' + esc(t('gui.welcome.license')) + ' <a href="#" data-act="license">' + esc(t('gui.welcome.license.link')) + '</a></label></div>';
 }
 
 function runtimeBadge(state) {
@@ -80,7 +80,7 @@ function stepDetect() {
   var out = head + '<div class="box">' + rows.join('') + '</div>';
   if (d.gentleAI.found) {
     out += '<div class="call" role="group" aria-label="Gentle AI"><b>' + esc(t('gui.detect.gentle')) + '</b><div class="opts">' +
-      [['migrate', 'gui.detect.gentle.migrate'], ['keep', 'gui.detect.gentle.keep'], ['review', 'gui.detect.gentle.review']].map(function (o) {
+      [['migrate', 'gui.detect.gentle.migrate'], ['keep', 'gui.detect.gentle.keep']].map(function (o) {
         return '<label class="chk"><input type="radio" name="g" value="' + o[0] + '" data-bind="a.gentleAction" data-k="gentle-' + o[0] + '"' + attr('checked', true, S.a.gentleAction === o[0]) + '>' + esc(t(o[1])) + '</label>';
       }).join('') + '</div></div>';
   }
@@ -249,6 +249,8 @@ function resultBlock() {
   if (S.installErr) html += '<p class="alert" style="text-align:left" role="alert">' + esc(S.installErr) + '</p>' + (r && r.rolledBack ? '<p class="lead">' + esc(t('gui.install.rolledback')) + '</p>' : '');
   if (r) {
     var bad = (r.steps || []).filter(function (s) { return s.status === 'error'; });
+    var badChecks = (r.checks || []).filter(function (c) { return !c.ok; });
+    if (badChecks.length) html += '<ul>' + badChecks.map(function (c) { return '<li class="mono">' + esc(c.group + ' ' + c.name + (c.detail ? ': ' + c.detail : '')) + '</li>'; }).join('') + '</ul>';
     if (bad.length) html += '<p class="lead">' + esc(t('gui.install.step.warn')) + '</p><ul>' + bad.map(function (s) { return '<li class="mono">' + esc(s.id + ': ' + s.message) + '</li>'; }).join('') + '</ul>';
     if ((r.tokens || []).length) html += '<p class="lbl">' + esc(t('gui.install.tokens')) + '</p><ul>' + r.tokens.map(function (k) { return '<li class="mono">' + esc(k.user + ': ' + k.token) + '</li>'; }).join('') + '</ul>';
   }
@@ -267,13 +269,18 @@ function validate(step) {
     case 2: return a.name.trim() ? '' : t('gui.profile.name.required');
     case 3:
       if (a.memory.mode === 'team' && a.memory.role === 'client' && !a.memory.url.trim()) return t('gui.memory.url.required');
-      if (a.memory.mode === 'team' && a.memory.tokenEnv && !ENV_NAME.test(a.memory.tokenEnv)) return t('gui.memory.token.invalid');
+      if (a.memory.mode === 'team' && a.memory.role === 'client' && a.memory.tokenEnv && !ENV_NAME.test(a.memory.tokenEnv)) return t('gui.memory.token.invalid');
       return '';
-    case 4: return !a.delivery.tokenEnv || ENV_NAME.test(a.delivery.tokenEnv) ? '' : t('gui.delivery.token.invalid');
+    case 4: return a.delivery.provider === 'none' || !a.delivery.tokenEnv || ENV_NAME.test(a.delivery.tokenEnv) ? '' : t('gui.delivery.token.invalid');
     case 5: return S.info.installDir && !a.win.installDir.trim() ? t('gui.windows.dir.required') : '';
   }
   return '';
 }
+
+actions.license = function (el, ev) {
+  ev.preventDefault();
+  if (window.runtime && window.runtime.BrowserOpenURL) api().OpenLicense();
+};
 
 actions.cancel = function () {
   if (window.confirm(t('gui.confirm.cancel'))) api().Quit();
@@ -371,6 +378,9 @@ actions.signin = async function () {
 function buildAnswers() {
   var a = S.a;
   var m = a.memory;
+  var team = m.mode === 'team';
+  var host = team && m.role === 'host';
+  var client = team && m.role === 'client';
   var all = a.delivery.automation === 'all';
   var d = S.detect || { gentleAI: {} };
   return {
@@ -385,13 +395,13 @@ function buildAnswers() {
     migratePersona: !!a.migratePersona && !!d.gentleAI.found,
     retireGentleKiro: !!a.retireGentleKiro && !!d.gentleAI.gentleKiroPresent,
     memory: {
-      mode: m.mode, role: m.mode === 'team' ? m.role : '', engine: m.mode === 'team' && m.role === 'host' ? m.engine : '',
-      port: parseInt(m.port, 10) || 0, instance: m.instance.trim(), url: m.url.trim(), tokenEnv: m.tokenEnv.trim(),
+      mode: m.mode, role: team ? m.role : '', engine: host ? m.engine : '',
+      port: host ? parseInt(m.port, 10) || 0 : 0, instance: host ? m.instance.trim() : '', url: team ? m.url.trim() : '', tokenEnv: client ? m.tokenEnv.trim() : '',
       storeToken: false, importEngram: m.mode === 'team' && !!m.importEngram, invites: [],
     },
     delivery: {
       provider: a.delivery.provider, automation: a.delivery.automation, mergeMethod: all ? a.delivery.mergeMethod : '',
-      deleteBranch: all ? !!a.delivery.deleteBranch : null, draft: !!a.delivery.draft, tokenEnv: a.delivery.tokenEnv.trim(),
+      deleteBranch: all ? !!a.delivery.deleteBranch : null, draft: !!a.delivery.draft, tokenEnv: a.delivery.provider === 'none' ? '' : a.delivery.tokenEnv.trim(),
     },
     windows: {
       installDir: a.win.installDir.trim(), startMenu: !!a.win.startMenu, desktopShortcut: !!a.win.desktopShortcut,
@@ -440,7 +450,8 @@ actions.install = async function () {
   render();
   try {
     S.result = await api().Install(buildAnswers(), S.plan.id);
-    S.pct = 100;
+    if (S.result && S.result.error) S.installErr = t('gui.error.generic', { detail: S.result.error });
+    else S.pct = 100;
   } catch (e) {
     S.installErr = t('gui.error.generic', { detail: errText(e) });
   }

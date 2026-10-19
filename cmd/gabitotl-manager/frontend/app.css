@@ -1,7 +1,7 @@
 :root{--navy:#0f172a;--sky:#38bdf8;--amber:#fbbf24;--accent:#0284c7;--line:#e2e8f0;--line2:#cbd5e1;--muted:#64748b;--text2:#475569;--text3:#334155;--bg2:#f8fafc}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{font-family:'Plus Jakarta Sans','Segoe UI',system-ui,sans-serif;color:var(--navy);background:#fff;overflow:hidden}
+body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;color:var(--navy);background:#fff;overflow:hidden}
 a{color:#0369a1}a:hover{color:#075985}
 button,input,select{font-family:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -25,7 +25,7 @@ h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em}
 .lead{margin:0;color:var(--text2);font-size:14px;line-height:1.5}
 .lead.sm{font-size:12px}
 .lbl{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
-.mono{font-family:'JetBrains Mono',Consolas,monospace;font-size:12px}
+.mono{font-family:'Cascadia Mono',Consolas,monospace;font-size:12px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .hrow{display:flex;align-items:flex-end;gap:12px}

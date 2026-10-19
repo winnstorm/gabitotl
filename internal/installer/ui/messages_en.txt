@@ -639,7 +639,6 @@ gui.detect.scanning = Looking around…
 gui.detect.gentle = Gentle AI is installed on this PC. What should GabitoTL do with it?
 gui.detect.gentle.migrate = Migrate to GabitoTL (backup first)
 gui.detect.gentle.keep = Keep both
-gui.detect.gentle.review = Let me review the files first
 gui.detect.gentle.required = Choose what to do with Gentle AI to continue.
 gui.profile.title = You and your agents
 gui.profile.lead = Pick which agents GabitoTL should lead. You can add or remove them later from the Manager.

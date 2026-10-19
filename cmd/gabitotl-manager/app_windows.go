@@ -6,12 +6,13 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	goruntime "runtime"
 	"syscall"
 
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/winnstorm/gabitotl/cmd/gabitotl-manager/internal/route"
+	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gui"
 )
 
@@ -77,10 +78,21 @@ func (a *App) PlanInstall(ans gui.InstallAnswers) (gui.Plan, error) {
 // Install runs the wizard and streams progress to the page as "install:progress"
 // events (gui.Event).
 func (a *App) Install(ans gui.InstallAnswers, planID string) (gui.InstallResult, error) {
-	return a.svc.Install(a.ctx, ans, planID, func(e gui.Event) {
+	res, err := a.svc.Install(a.ctx, ans, planID, func(e gui.Event) {
 		wr.EventsEmit(a.ctx, "install:progress", e)
 	})
+	if err != nil {
+		// Return the result with the error inside so the page can show the
+		// rollback and the failed steps instead of a bare message.
+		res.Error = err.Error()
+	}
+	return res, nil
 }
+
+const licenseURL = "https://github.com/winnstorm/gabitotl/blob/main/LICENSE"
+
+// OpenLicense opens the license in the default browser.
+func (a *App) OpenLicense() { wr.BrowserOpenURL(a.ctx, licenseURL) }
 
 // ChooseFolder opens the native folder picker; "" means the person cancelled.
 func (a *App) ChooseFolder(title, start string) (string, error) {
@@ -90,8 +102,8 @@ func (a *App) ChooseFolder(title, start string) (string, error) {
 // Finish opens the installed copy of the app on the Manager and closes this
 // window. When this already is the installed copy it only closes.
 func (a *App) Finish(installDir string) error {
-	target := filepath.Join(installDir, filepath.Base(a.exe))
-	if installDir != "" && !sameFile(target, a.exe) {
+	target := route.RelaunchTarget(installDir, desktop.ManagerExe)
+	if target != "" && !sameFile(target, a.exe) {
 		cmd := exec.Command(target, "--manage")
 		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000008 | 0x00000200} // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
 		if err := cmd.Start(); err != nil {
