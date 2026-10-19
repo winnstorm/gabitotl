@@ -48,3 +48,7 @@ guard.hooks.state = {name}: {state}
 guard.hooks.ask = ¿Instalo los hooks de Git que cuidan la autoría (commit-msg y pre-commit)? (S/n)
 guard.hooks.declined = Dale, no instalo los hooks. Podés hacerlo cuando quieras con: gabitotl guard install-hooks
 guard.mode = Modo del guard: {mode}
+guard.hook.state.none = no instalado
+guard.hook.state.installed = instalado
+guard.hook.state.chained = instalado (con tu hook encadenado)
+guard.hook.state.foreign = hay un hook tuyo, sin el guard

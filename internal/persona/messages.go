@@ -85,9 +85,14 @@ func MessagesFor(lang Lang) Messages {
 
 // Msg formats a template of the embedded es-AR file by key. Keys that are not
 // required (the authorship guard texts) are looked up here, so a custom messages
-// file written before they existed still works.
+// file written before they existed still works. Use MsgFor for the active language.
 func Msg(key string, pairs ...string) string {
 	return DefaultMessages().Format(key, pairs...)
+}
+
+// MsgFor is Msg in the persona language lang (es-AR for an unknown one).
+func MsgFor(lang Lang, key string, pairs ...string) string {
+	return MessagesFor(lang).Format(key, pairs...)
 }
 
 // Format returns the template for key with {name} placeholders replaced by the

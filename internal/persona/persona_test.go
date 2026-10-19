@@ -2,6 +2,8 @@ package persona_test
 
 import (
 	"errors"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -292,5 +294,38 @@ func TestParseLangAndModeRules(t *testing.T) {
 	}
 	if h := persona.HookContextFor(persona.ModeFull, persona.LangEN); !strings.Contains(h, "Heads-up") {
 		t.Fatalf("hook context:\n%s", h)
+	}
+}
+
+var placeholderRe = regexp.MustCompile(`\{[a-z_]+\}`)
+
+func placeholders(s string) []string {
+	p := placeholderRe.FindAllString(s, -1)
+	slices.Sort(p)
+	return p
+}
+
+func TestEnglishCatalogueHasEveryKeyAndPlaceholderOfSpanish(t *testing.T) {
+	es, en := persona.MessagesFor(persona.LangES), persona.MessagesFor(persona.LangEN)
+	for k, v := range es {
+		w, ok := en[k]
+		if !ok || w == "" {
+			t.Errorf("messages_en.txt is missing %s", k)
+			continue
+		}
+		if !slices.Equal(placeholders(v), placeholders(w)) {
+			t.Errorf("%s: placeholders differ: es %v, en %v", k, placeholders(v), placeholders(w))
+		}
+	}
+	for k := range en {
+		if _, ok := es[k]; !ok {
+			t.Errorf("messages_en.txt has %s, which es-AR does not", k)
+		}
+	}
+	if got := persona.MsgFor(persona.LangEN, "guard.where.commit"); got != "the commit" {
+		t.Fatalf("MsgFor en = %q", got)
+	}
+	if got := persona.MsgFor("fr", "guard.where.commit"); got != "el commit" || persona.Msg("guard.where.commit") != got {
+		t.Fatalf("es must stay the default, got %q", got)
 	}
 }

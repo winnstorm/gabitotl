@@ -13,7 +13,6 @@ import (
 	"github.com/winnstorm/gabitotl/internal/identity"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
-	"github.com/winnstorm/gabitotl/internal/persona"
 )
 
 type initFlags struct {
@@ -208,11 +207,11 @@ func offerHooks(env Env, root string, f initFlags) {
 	decline := f.noHooks
 	if !decline && env.IsTTY && !f.yes {
 		p := &prompter{r: bufio.NewReader(env.Stdin), w: env.Stdout}
-		a := strings.ToLower(p.ask(persona.Msg("guard.hooks.ask"), "s"))
+		a := strings.ToLower(p.ask(guardMsg("guard.hooks.ask"), "s"))
 		decline = a == "n" || a == "no"
 	}
 	if decline {
-		fmt.Fprintln(env.Stdout, persona.Msg("guard.hooks.declined"))
+		fmt.Fprintln(env.Stdout, guardMsg("guard.hooks.declined"))
 	}
 	installed, err := ensureHooks(env.Stdout, root, decline)
 	if err != nil {
