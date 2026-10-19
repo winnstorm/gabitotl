@@ -10,7 +10,8 @@ metadata:
 # Gabito delivery: commit, push, PR, merge from saved settings
 
 Delivery settings are asked once and saved. After that you act without prompting.
-Never ask the user again what `vcs.md` already answers.
+Never ask the user again what `vcs.md` already answers. The one exception is publishing to GitHub or GitLab
+(see "Save CI minutes").
 
 ## 1. Check state
 
@@ -50,7 +51,8 @@ Preferred path, one command:
 `gabitotl vcs ship --title "feat(scope): summary" [--body "..."] [-m "feat(scope): summary"]`
 
 It commits pending changes, pushes the task branch, opens the PR/MR and merges when the settings allow and the
-checks pass. It never asks. Use `--dry-run` to preview the plan, `--json` for machine output.
+checks pass. It never asks, so on GitHub or GitLab get the user's OK before running it (see "Save CI minutes").
+Use `--dry-run` to preview the plan, `--json` for machine output.
 
 Step by step when you need control:
 
@@ -74,6 +76,23 @@ Step by step when you need control:
 - Never run `git push`, `gh` or `glab` yourself to bypass `gabitotl vcs`; the guard and settings live there.
 - Merge only when the checks pass. If checks are failing or pending past the wait, report it. Do not merge by hand.
 - Keep secrets out of `.gabitotl/`. Only references (`env:NAME`, `keychain:NAME`, `native`).
+
+## Save CI minutes: push by milestone (GitHub and GitLab)
+
+On GitHub and GitLab every push, PR update and merge can start paid CI runs (Actions minutes, CI/CD minutes).
+`gabitotl vcs status` shows the platform. There:
+
+- Work locally. Commit each work unit on the task branch; local commits are already the rollback point.
+  Do not push after every commit.
+- Publish only when an important milestone is done (a feature or fix ready for review, the end of a stacked series).
+  Ask the user first in one short question, even when the saved automation is `all`. This is the one question the
+  saved settings never answer. Then publish everything in one go with `gabitotl vcs ship`.
+- Never push to "see if CI passes": run the same checks locally first (build, tests, vet, lint).
+- After a review comment or a failed check, fix everything, verify locally and push once, not fix by fix.
+- On Bitbucket and other hosts the saved settings decide, as usual.
+- If the project's CI wastes minutes, propose (never apply unasked) with an everyday example: `concurrency` with
+  `cancel-in-progress: true` so a new push cancels the outdated run, `paths-ignore` for docs-only changes, and not
+  running heavy jobs on draft PRs.
 
 ## Big work: stacked PRs, automatically
 

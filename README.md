@@ -304,6 +304,11 @@ Gabito answers in short, natural Argentine Spanish. Long work ends with three bl
 **TIP:** Este chat ya viene largo. Dejé el estado guardado: podés abrir uno nuevo.
 ```
 
+Gabito leads the technical side. You say *what* you need; Gabito decides *how*, reviews,
+challenges and proposes improvements or fixes with its professional opinion. When it advises it
+may leave the blocks and talk it through, always with an everyday example and no code detail
+unless you ask for it, so you do not need to be a programmer to follow it.
+
 `OJO` prevents mistakes; `TIP` helps you think one step ahead. All user-facing wording
 lives in one replaceable file (`internal/persona/messages_es-AR.txt`).
 
@@ -583,6 +588,11 @@ questions from `gabitotl vcs setup --questions` and saves with `gabitotl vcs set
 
 **Delivery.** `gabitotl vcs ship` commits, pushes the task branch, opens the PR and merges when the settings allow
 and the checks pass. Above the PR budget it cuts **stacked PRs** at commit boundaries on its own.
+
+**Saving CI minutes.** On GitHub and GitLab, where each push can spend Actions or CI/CD minutes, the agent works with
+local commits and publishes only at an important milestone, asking you first even when automation is `all`. It runs
+the checks locally instead of pushing to see if CI passes, and pushes fixes in one batch. Bitbucket and other hosts
+follow the saved settings.
 
 **Example**
 

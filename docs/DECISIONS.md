@@ -675,3 +675,36 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   GUI apps may not have gabitotl on PATH.
 - **Consequences:** no pre-compaction event, so the 75% checkpoint stays a persona rule. IDE loading of `~/.kiro/hooks` is
   unconfirmed. A moved binary needs a re-run of `install`.
+
+## D49. Gabito leads the technical vision and explains with everyday examples
+
+- **Decision:** the persona has a "Lead with your expertise" section: the user owns *what*, Gabito owns *how*. Gabito
+  reviews, challenges and proposes improvements, risks and fixes with its professional opinion; when advising it may leave
+  the block format and talk it through, always explaining with an everyday example and without code detail unless asked.
+  Chat-concision modes keep full sentences for these proposals.
+- **Why:** many users know the outcome they need but not how to code it; short structured replies alone hid the expert
+  judgment they rely on.
+- **Consequences:** advisory replies can be longer than the block format; persona grew to ~1346 of 1500 tokens. Big
+  unrequested changes are still proposed, never made.
+
+## D50. Reuse before creating; rollback point before modifying
+
+- **Decision:** the persona and the `gabito-escritor` skill require searching for existing functions, modules and
+  components first and adapting, extending or modularizing them instead of creating a parallel version; a new file needs a
+  stated reason. Before modifying existing code there is always a rollback point: a clean Git state (commit or stash
+  pending work first) plus `gabitotl backup create` for files Git does not track cleanly.
+- **Why:** duplicated modules multiply files and drift apart; changes without a rollback point turn a mistake into lost
+  work.
+- **Consequences:** persona at ~1408 of 1500 tokens; little room is left for new always-on rules, so future rules should
+  live in skills.
+
+## D51. Push by milestone on GitHub and GitLab
+
+- **Decision:** on GitHub and GitLab the `gabito-entrega` skill works with local commits and publishes only at an
+  important milestone, asking the user first even when the saved automation is `all`. Checks run locally instead of
+  pushing to see if CI passes, and fixes are pushed in one batch. Bitbucket and other hosts follow the saved settings.
+  CI tuning (`concurrency`/`cancel-in-progress`, `paths-ignore`, light draft PRs) is proposed, never applied unasked.
+- **Why:** every push, PR update and merge can spend paid Actions or CI/CD minutes; local commits already give the
+  rollback point.
+- **Consequences:** the rule lives in the skill, not the persona (no budget left there), and is behavioral: the CLI
+  still pushes when told to, so `vcs ship` keeps its no-prompt contract.
