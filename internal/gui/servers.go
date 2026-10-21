@@ -18,6 +18,8 @@ type ServerInfo struct {
 	Platform string `json:"platform"` // bitbucket-server | github | gitlab
 	URL      string `json:"url"`
 	Stored   bool   `json:"stored"`
+	// SSHHosts are the other host names the server's Git remotes use.
+	SSHHosts []string `json:"sshHosts,omitempty"`
 }
 
 func (s *Service) registry() (vcshosts.Registry, error) {
@@ -31,13 +33,18 @@ func (s *Service) registry() (vcshosts.Registry, error) {
 	return s.d.Servers(home), nil
 }
 
-// serverEntry is the registry entry of host; a missing or unreadable registry is "none".
-func (s *Service) serverEntry(host string) (vcshosts.Entry, bool) {
+// serverEntry is the registry entry whose host (not an SSH alias: the credential
+// key) is host; a missing registry is "none", a corrupt one is an error.
+func (s *Service) serverEntry(host string) (vcshosts.Entry, bool, error) {
 	reg, err := s.registry()
 	if err != nil {
-		return vcshosts.Entry{}, false
+		return vcshosts.Entry{}, false, nil
 	}
-	return vcshosts.Lookup(reg, host)
+	e, ok, err := vcshosts.LookupErr(reg, host)
+	if !ok || e.Host != credstore.NormalizeHost(host) {
+		return vcshosts.Entry{}, false, err
+	}
+	return e, true, nil
 }
 
 // Servers lists the registered self-hosted servers and whether a token is stored for each.
@@ -60,7 +67,7 @@ func (s *Service) Servers() ([]ServerInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, ServerInfo{Host: e.Host, Platform: e.Platform, URL: e.URL, Stored: ok})
+		out = append(out, ServerInfo{Host: e.Host, Platform: e.Platform, URL: e.URL, Stored: ok, SSHHosts: e.SSHHosts})
 	}
 	return out, nil
 }
@@ -68,7 +75,11 @@ func (s *Service) Servers() ([]ServerInfo, error) {
 // SaveServer verifies token against the server at url and, only when it is
 // accepted, registers the server and stores the token. An empty token re-checks the
 // one already stored for that host. A rejected or unreachable check writes nothing.
-func (s *Service) SaveServer(ctx context.Context, platform, url, token string) (CredentialResult, error) {
+// sshHosts are other host names the server's Git remotes use. A host name that
+// already belongs to a different server (credentials are keyed by host name, without
+// the port) answers CredConflict until replace is true; a replacement never reuses
+// the old server's token. Plain http is refused unless the host is loopback.
+func (s *Service) SaveServer(ctx context.Context, platform, url, token string, sshHosts []string, replace bool) (CredentialResult, error) {
 	reg, err := s.registry()
 	if err != nil {
 		return CredentialResult{}, err
@@ -87,16 +98,34 @@ func (s *Service) SaveServer(ctx context.Context, platform, url, token string) (
 	}
 	base, host, err := vcshosts.ParseBaseURL(url)
 	if err != nil {
-		res.Detail = "the server URL is not valid"
+		res.Detail, res.Code = "the server URL is not valid", "invalid_url"
+		if errors.Is(err, vcshosts.ErrInsecureHTTP) {
+			res.Detail, res.Code = "plain http is not allowed: use https://", "insecure_http"
+		}
 		return res, nil
 	}
 	res.Host = host
+	entry, nerr := vcshosts.Normalize(vcshosts.Entry{Platform: platform, URL: base, SSHHosts: sshHosts})
+	if nerr != nil {
+		res.Detail, res.Code = "the SSH host name is not valid", "invalid_url"
+		return res, nil
+	}
+	existing, rerr := reg.List()
+	if rerr != nil {
+		return res, rerr
+	}
+	conflict := vcshosts.HasConflict(existing, entry)
+	if conflict && !replace {
+		res.Status, res.Code = CredConflict, "host_conflict"
+		res.Detail = "this host name already belongs to a different server"
+		return res, nil
+	}
 	reused := false
 	switch {
 	case strings.TrimSpace(token) == "":
 		stored, ok, gerr := st.Get(host)
-		if gerr != nil || !ok {
-			res.Detail = "there is no token to check: paste one"
+		if gerr != nil || !ok || conflict { // the old server's token must not go to a new one
+			res.Detail, res.Code = "there is no token to check: paste one", "not_stored"
 			return res, nil
 		}
 		token, reused = stored, true
@@ -117,9 +146,13 @@ func (s *Service) SaveServer(ctx context.Context, platform, url, token string) (
 			return res, err
 		}
 	}
-	if err := reg.Put(vcshosts.Entry{Host: host, Platform: platform, URL: base}); err != nil {
+	if err := reg.Put(entry, vcshosts.PutOptions{Replace: replace}); err != nil {
 		if !reused {
 			_ = st.Delete(host)
+		}
+		if errors.Is(err, vcshosts.ErrHostConflict) { // another process registered it meanwhile
+			res.Status, res.Code, res.Detail = CredConflict, "host_conflict", "this host name already belongs to a different server"
+			return res, nil
 		}
 		return res, err
 	}
@@ -164,9 +197,13 @@ func (s *Service) TestCredential(ctx context.Context, platform, host string) (Cr
 	}
 	res := CredentialResult{Platform: platform, Host: h, Status: CredInvalid}
 	base := ""
-	if e, ok := s.serverEntry(h); ok {
+	e, ok, serr := s.serverEntry(h)
+	if serr != nil {
+		return res, serr
+	}
+	if ok {
 		if e.Platform != platform {
-			res.Detail = "unknown platform"
+			res.Detail, res.Code = "unknown platform", "unknown_host"
 			return res, nil
 		}
 		base = e.URL
@@ -176,7 +213,7 @@ func (s *Service) TestCredential(ctx context.Context, platform, host string) (Cr
 			public = public || p.Platform == platform && p.Host == h
 		}
 		if !public {
-			res.Detail = "unknown server"
+			res.Detail, res.Code = "unknown server", "unknown_host"
 			return res, nil
 		}
 	}
@@ -185,7 +222,7 @@ func (s *Service) TestCredential(ctx context.Context, platform, host string) (Cr
 		return res, err
 	}
 	if !ok {
-		res.Detail = "no token stored for this host"
+		res.Detail, res.Code = "no token stored for this host", "not_stored"
 		return res, nil
 	}
 	res.Stored = true

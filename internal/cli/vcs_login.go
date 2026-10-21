@@ -30,6 +30,10 @@ func runVCSLogin(env Env, args []string) int {
 	serverURL := fl.String("url", "", "self-hosted server: its web URL (for example https://bitbucket.corp:8443); registers it and stores the token")
 	serverPlatform := fl.String("platform", "", "with --url: bitbucket-server (default), github or gitlab")
 	tokenStdin := fl.Bool("token-stdin", false, "with --url: read the token from standard input (one line) instead of an environment variable")
+	var sshHosts stringList
+	fl.Var(&sshHosts, "ssh-host", "with --url: a host name the server's Git remotes use when it differs from the web host (repeatable)")
+	allowHTTP := fl.Bool("allow-insecure-http", false, "with --url: accept plain http:// for a host that is not loopback; the token then travels in CLEAR TEXT")
+	replace := fl.Bool("replace", false, "with --url: replace a different server already registered under the same host name")
 	check := fl.Bool("check", false, "only verify the login; never log in or change anything")
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
@@ -38,7 +42,8 @@ func runVCSLogin(env Env, args []string) int {
 	if *serverURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), vcsServerTimeout)
 		defer cancel()
-		return loginServer(ctx, env, m, *serverURL, *serverPlatform, *tokenEnv, *tokenStdin, *check)
+		return loginServer(ctx, env, m, serverLogin{url: *serverURL, platform: *serverPlatform, tokenEnv: *tokenEnv,
+			fromStdin: *tokenStdin, check: *check, sshHosts: sshHosts, allowHTTP: *allowHTTP, replace: *replace})
 	}
 	dir, err := resolveRoot(env, *root)
 	if err != nil {
@@ -213,3 +218,9 @@ func authWithToken(ctx context.Context, dir string, cfg gabitotl.VCSConfig, valu
 	}
 	return st, true
 }
+
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (l *stringList) String() string     { return strings.Join(*l, ",") }
+func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }

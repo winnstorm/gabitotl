@@ -107,7 +107,7 @@ func TestLoginServerUnreachableAndCertificateMessage(t *testing.T) {
 	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer tlsSrv.Close()
 	r := runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", tlsSrv.URL)
-	if r.code == 0 || !strings.Contains(r.err, "certificate not trusted by this system") || strings.Contains(r.err, dcToken) {
+	if r.code == 0 || !strings.Contains(r.err, "no considera confiable") || strings.Contains(r.err, dcToken) {
 		t.Fatalf("%+v", r)
 	}
 }
@@ -116,7 +116,7 @@ func TestVCSTestChecksTheStoredToken(t *testing.T) {
 	srv := dataCenter(t)
 	reg, creds := fakeServers(t), fakeCreds(t)
 	withPlatform(t, &platformFake{}, nil)
-	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/bitbucket"})
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/bitbucket"}, vcshosts.PutOptions{})
 	if r := runIn(t, "", false, t.TempDir(), "vcs", "test", "--host", "127.0.0.1:7999"); r.code == 0 || !strings.Contains(r.err, "No hay un token guardado") {
 		t.Fatalf("no token: %+v", r)
 	}
@@ -136,7 +136,7 @@ func TestVCSTestChecksTheStoredToken(t *testing.T) {
 func TestProjectOnARegisteredServerUsesBitbucketServer(t *testing.T) {
 	srv := dataCenter(t)
 	reg, creds := fakeServers(t), fakeCreds(t)
-	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/bitbucket"})
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/bitbucket"}, vcshosts.PutOptions{})
 	_ = creds.Set("127.0.0.1", dcToken)
 	withPlatform(t, &platformFake{}, nil)
 	root := project(t)
@@ -154,4 +154,42 @@ func TestProjectOnARegisteredServerUsesBitbucketServer(t *testing.T) {
 	if r := runIn(t, "", false, root, "vcs", "login"); r.code == 0 || !strings.Contains(r.err, "--url") {
 		t.Fatalf("%+v", r)
 	}
+}
+
+func TestLoginServerPlainHTTPNeedsTheExplicitFlag(t *testing.T) {
+	reg, creds := fakeServers(t), fakeCreds(t)
+	withPlatform(t, &platformFake{}, map[string]string{"BITBUCKET_SERVER_TOKEN": dcToken})
+	r := runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", "http://10.0.0.5:7990")
+	if r.code == 0 || !strings.Contains(r.err, "http sin cifrar") || strings.Contains(r.err, "texto plano: ") {
+		t.Fatalf("%+v", r)
+	}
+	// With the override it warns about clear text and goes on to verify (the host does not resolve).
+	r = runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", "http://bb.invalid:7990", "--allow-insecure-http")
+	if r.code == 0 || !strings.Contains(r.err, "texto plano") || strings.Contains(r.err, "Usar https://") {
+		t.Fatalf("%+v", r)
+	}
+	if len(reg.Entries) != 0 || len(creds.M) != 0 {
+		t.Fatal("nothing may be written")
+	}
+}
+
+func TestLoginServerHostConflictNeedsReplaceAndSSHHostIsKept(t *testing.T) {
+	srv := dataCenter(t)
+	reg, creds := fakeServers(t), fakeCreds(t)
+	withPlatform(t, &platformFake{}, map[string]string{"BITBUCKET_SERVER_TOKEN": dcToken})
+	if r := runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", srv.URL+"/bitbucket", "--ssh-host", "git-ssh.corp", "--ssh-host", "git2.corp"); r.code != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if e, ok := vcshosts.Lookup(reg, "git-ssh.corp"); !ok || e.Host != "127.0.0.1" || len(e.SSHHosts) != 2 {
+		t.Fatalf("ssh alias: %+v", reg.Entries)
+	}
+	// Same host name, another context path: a different server.
+	r := runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", srv.URL+"/other")
+	if r.code == 0 || !strings.Contains(r.err, "--replace") || reg.Entries[0].URL != srv.URL+"/bitbucket" {
+		t.Fatalf("%+v %+v", r, reg.Entries)
+	}
+	if r := runIn(t, "", false, t.TempDir(), "vcs", "login", "--url", srv.URL+"/bitbucket", "--ssh-host", "bad/host"); r.code == 0 || !strings.Contains(r.err, "SSH") {
+		t.Fatalf("bad ssh host: %+v", r)
+	}
+	_ = creds
 }

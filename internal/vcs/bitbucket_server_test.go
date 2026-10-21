@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,7 +61,7 @@ func bsFixture(t *testing.T, handle func(r bsRec, w http.ResponseWriter)) (Bitbu
 	}))
 	t.Cleanup(srv.Close)
 	reg := &vcshosts.Fake{}
-	if err := reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/ctx"}); err != nil {
+	if err := reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL + "/ctx"}, vcshosts.PutOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	run := &scripted{handle: func(name string, args []string) (string, error) {
@@ -283,7 +285,7 @@ func TestBitbucketServerNeverFollowsRedirects(t *testing.T) {
 	}))
 	defer redir.Close()
 	reg := &vcshosts.Fake{}
-	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: redir.URL})
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: redir.URL}, vcshosts.PutOptions{})
 	h.Servers = reg
 	if _, err := h.CreatePR(context.Background(), "", PRRequest{Title: "t"}); err == nil || !strings.Contains(err.Error(), "HTTP 302") {
 		t.Fatalf("got %v", err)
@@ -333,7 +335,7 @@ func TestVerifyTokenBitbucketServerCertificateMessage(t *testing.T) {
 	defer srv.Close()
 	// The default client trusts only the OS store, not the httptest certificate.
 	_, err := VerifyToken(context.Background(), "bitbucket-server", "bb.corp", bsToken, VerifyOptions{BaseURL: srv.URL})
-	if err == nil || !strings.Contains(err.Error(), "certificate not trusted by this system") || strings.Contains(err.Error(), bsToken) {
+	if !errors.Is(err, ErrCertificate) || !strings.Contains(err.Error(), "certificate not trusted by this system") || strings.Contains(err.Error(), bsToken) {
 		t.Fatalf("got %v", err)
 	}
 	// A client that trusts the server certificate reaches it (anonymous answer: not accepted).
@@ -345,8 +347,8 @@ func TestVerifyTokenBitbucketServerCertificateMessage(t *testing.T) {
 
 func TestInferProviderWithRegistry(t *testing.T) {
 	reg := &vcshosts.Fake{}
-	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: "https://bitbucket.personal.corp:8443"})
-	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.GitHub, URL: "https://ghe.corp"})
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: "https://bitbucket.personal.corp:8443"}, vcshosts.PutOptions{})
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.GitHub, URL: "https://ghe.corp"}, vcshosts.PutOptions{})
 	cases := map[string]string{
 		"ssh://git@bitbucket.personal.corp:7999/p/r.git":   "bitbucket-server",
 		"https://bitbucket.personal.corp:8443/scm/p/r.git": "bitbucket-server",
@@ -369,5 +371,141 @@ func TestHostForBitbucketServer(t *testing.T) {
 	h, err := HostFor("bitbucket-server", HostOptions{})
 	if err != nil || h.(BitbucketServer).Name() != "bitbucket-server" {
 		t.Fatalf("%v %v", h, err)
+	}
+}
+
+func TestParseServerRemoteRefusesUnsafePathSegments(t *testing.T) {
+	for _, bad := range []string{
+		"https://bb.corp/scm/../repos.git",
+		"https://bb.corp/scm/%2e%2e/repos.git",
+		"https://bb.corp/scm/PROJ/%2e%2e.git",
+		"https://bb.corp/scm/./repo.git",
+		"https://bb.corp/scm//repo.git",
+		"https://bb.corp/scm/PROJ/.git",
+		"ssh://git@bb.corp:7999/../repo.git",
+		"git@bb.corp:../repo.git",
+		"git@bb.corp:proj/re%2fpo.git",
+		"git@bb.corp:pro j/repo.git",
+		"git@bb.corp:.hidden/repo.git",
+		"git@bb.corp:proj/-x.git",
+	} {
+		if r, err := ParseServerRemote(bad); err == nil {
+			t.Errorf("%q should be refused, got %+v", bad, r)
+		}
+	}
+	for in, want := range map[string]ServerRepo{
+		"https://bb.corp/scm/MY.PROJ_1/re-po.v2.git": {"MY.PROJ_1", "re-po.v2"},
+		"git@bb.corp:~jdoe/repo.git":                 {"~jdoe", "repo"},
+	} {
+		if got, err := ParseServerRemote(in); err != nil || got != want {
+			t.Errorf("%q: %+v %v", in, got, err)
+		}
+	}
+}
+
+func TestBitbucketServer403IsNotALoginProblem(t *testing.T) {
+	h, _, _ := bsFixture(t, func(r bsRec, w http.ResponseWriter) {
+		if strings.HasSuffix(r.Path, "/pull-requests") {
+			w.WriteHeader(403)
+			_, _ = w.Write([]byte(`{"errors":[{"message":"You are not permitted to access this resource (" + "` + bsToken + `)"}]}`))
+			return
+		}
+		w.WriteHeader(403)
+	})
+	_, err := h.CreatePR(context.Background(), "", PRRequest{Title: "t"})
+	if !errors.Is(err, ErrNoPermission) || errors.Is(err, ErrNotLoggedIn) || !strings.Contains(err.Error(), "HTTP 403") || strings.Contains(err.Error(), bsToken) {
+		t.Fatalf("403 on a call: %v", err)
+	}
+	// The auth check: 403 means the token is known but lacks permission, not "rejected".
+	if _, err := h.AuthStatus(context.Background(), ""); !errors.Is(err, ErrNoPermission) {
+		t.Fatalf("403 on the auth check: %v", err)
+	}
+	// 401 stays a login problem.
+	h2, _, _ := bsFixture(t, func(r bsRec, w http.ResponseWriter) { w.WriteHeader(401) })
+	if _, err := h2.CreatePR(context.Background(), "", PRRequest{Title: "t"}); !errors.Is(err, ErrNotLoggedIn) {
+		t.Fatalf("401: %v", err)
+	}
+}
+
+func TestBitbucketServerSSHHostAliasUsesTheWebHostToken(t *testing.T) {
+	var asked []string
+	var recs []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recs = append(recs, r.Header.Get("Authorization")+" "+r.URL.Path)
+		_, _ = w.Write([]byte(`{"values":[{"id":3,"state":"OPEN","fromRef":{"id":"refs/heads/feature/x"},"links":{"self":[{"href":"https://bb/pr/3"}]}}]}`))
+	}))
+	defer srv.Close()
+	reg := &vcshosts.Fake{}
+	if err := reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL, SSHHosts: []string{"git-ssh.corp"}}, vcshosts.PutOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	run := &scripted{handle: func(name string, args []string) (string, error) {
+		return "ssh://git@git-ssh.corp:7999/proj/app.git", nil
+	}}
+	h := BitbucketServer{Runner: run, Servers: reg, Token: func(host string) (string, error) { asked = append(asked, host); return bsToken, nil }}
+	if _, _, err := h.FindPR(context.Background(), "", "feature/x"); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 1 || asked[0] != "127.0.0.1" || len(recs) != 1 || !strings.HasPrefix(recs[0], "Bearer "+bsToken+" ") {
+		t.Fatalf("token host %v, requests %v", asked, recs)
+	}
+	// An unregistered SSH host explains what to register.
+	run.handle = func(string, []string) (string, error) { return "ssh://git@other-ssh.corp:7999/proj/app.git", nil }
+	_, _, err := h.FindPR(context.Background(), "", "feature/x")
+	if !errors.Is(err, ErrUnsupported) || !strings.Contains(err.Error(), "web URL") || !strings.Contains(err.Error(), "SSH host") {
+		t.Fatalf("hint: %v", err)
+	}
+}
+
+func TestBitbucketServerCorruptRegistryIsNotNotRegistered(t *testing.T) {
+	home := t.TempDir()
+	p := vcshosts.FilePath(home)
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.WriteFile(p, []byte("{nope"), 0o644)
+	run := &scripted{handle: func(string, []string) (string, error) { return "ssh://git@bb.corp:7999/proj/app.git", nil }}
+	h := BitbucketServer{Runner: run, Servers: vcshosts.NewFile(home), Token: func(string) (string, error) { return bsToken, nil }}
+	_, _, err := h.FindPR(context.Background(), "", "x")
+	if err == nil || errors.Is(err, ErrUnsupported) || !strings.Contains(err.Error(), p) {
+		t.Fatalf("want an error naming %s, got %v", p, err)
+	}
+}
+
+// A server that answers 302 to another host must not receive the token, for
+// writes (pull request create, merge) as much as for reads.
+func TestBitbucketServerWritesNeverFollowRedirects(t *testing.T) {
+	var leaked []string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = append(leaked, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+	}))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/pull-requests"):
+			_, _ = w.Write([]byte(`{"values":[]}`))
+		case r.Method == "GET" && strings.HasSuffix(r.URL.Path, "/pull-requests/7"):
+			_, _ = w.Write([]byte(`{"id":7,"version":2,"state":"OPEN","fromRef":{"id":"refs/heads/feature/x"}}`))
+		default: // POST create / POST merge
+			http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+		}
+	}))
+	defer srv.Close()
+	reg := &vcshosts.Fake{}
+	_ = reg.Put(vcshosts.Entry{Platform: vcshosts.BitbucketServer, URL: srv.URL}, vcshosts.PutOptions{})
+	run := &scripted{handle: func(name string, args []string) (string, error) {
+		if args[0] == "symbolic-ref" {
+			return "feature/x", nil
+		}
+		return "ssh://git@127.0.0.1:7999/proj/app.git", nil
+	}}
+	h := BitbucketServer{Runner: run, Servers: reg, Token: func(string) (string, error) { return bsToken, nil }}
+	ctx := context.Background()
+	if _, err := h.CreatePR(ctx, "", PRRequest{Title: "t", Base: "main"}); err == nil || !strings.Contains(err.Error(), "HTTP 307") {
+		t.Fatalf("create: %v", err)
+	}
+	if err := h.MergePR(ctx, "", PR{ID: "7", Number: 7}, MergeOptions{Method: "squash"}); err == nil || !strings.Contains(err.Error(), "HTTP 307") {
+		t.Fatalf("merge: %v", err)
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("the redirect was followed: %v", leaked)
 	}
 }

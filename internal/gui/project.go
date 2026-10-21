@@ -12,6 +12,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/vcs"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // The per-project half of the Manager (D59). The install is global; a project is
@@ -88,8 +89,12 @@ func (s *Service) Project(ctx context.Context, root string) (ProjectDetail, erro
 	}
 	if out.Host != "" {
 		out.Credential = ProjectCredential{Known: true, Platform: out.Platform, Host: credstore.NormalizeHost(out.Host)}
-		if e, ok := s.serverEntry(out.Credential.Host); ok {
-			out.Credential.Server, out.Credential.ServerURL = true, e.URL
+		if reg, rerr := s.registry(); rerr == nil {
+			// An SSH alias resolves to the server's web host: that host owns the token.
+			if e, ok := vcshosts.Lookup(reg, out.Credential.Host); ok {
+				out.Credential.Host = e.Host
+				out.Credential.Server, out.Credential.ServerURL = true, e.URL
+			}
 		}
 		if st, err := s.credStore(); err == nil {
 			_, out.Credential.Stored, _ = st.Get(out.Credential.Host)

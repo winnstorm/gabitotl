@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -65,6 +66,15 @@ func verifyAt(ctx context.Context, platform, host, base, token string) (vcs.Auth
 // reportVerdict prints the outcome of a token check; it returns ExitOK when accepted.
 func reportVerdict(env Env, m ui.Messages, host string, st vcs.AuthState, err error) int {
 	switch {
+	case errors.Is(err, vcs.ErrCertificate):
+		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.srv.cert", "host", host))
+		return ExitError
+	case errors.Is(err, vcs.ErrNoPermission):
+		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.srv.noperm", "host", host))
+		return ExitError
+	case errors.Is(err, vcs.ErrTimeout):
+		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.srv.timeout", "host", host))
+		return ExitError
 	case err != nil:
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.srv.unreachable", "host", host, "detail", err.Error()))
 		return ExitError
@@ -79,12 +89,21 @@ func reportVerdict(env Env, m ui.Messages, host string, st vcs.AuthState, err er
 	return ExitOK
 }
 
+// serverLogin is what `vcs login --url` was given.
+type serverLogin struct {
+	url, platform, tokenEnv string
+	fromStdin, check        bool
+	sshHosts                []string
+	allowHTTP, replace      bool
+}
+
 // loginServer registers a self-hosted server and stores its token, but only after
 // the server accepted the token. The token comes from an environment variable
 // (--token-env, default BITBUCKET_SERVER_TOKEN), from standard input
 // (--token-stdin) or, failing both, the one already stored for the host; it is
 // never read from an argument and never printed. With check nothing is written.
-func loginServer(ctx context.Context, env Env, m ui.Messages, rawURL, platform, tokenEnv string, fromStdin, check bool) int {
+func loginServer(ctx context.Context, env Env, m ui.Messages, o serverLogin) int {
+	rawURL, platform, tokenEnv, fromStdin, check := o.url, o.platform, o.tokenEnv, o.fromStdin, o.check
 	fail := func(key string, pairs ...string) int {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format(key, pairs...))
 		return ExitError
@@ -95,9 +114,26 @@ func loginServer(ctx context.Context, env Env, m ui.Messages, rawURL, platform, 
 	if !vcshosts.ValidPlatform(platform) {
 		return fail("vcs.srv.badplatform", "platform", platform)
 	}
-	base, host, err := vcshosts.ParseBaseURL(rawURL)
+	base, host, err := vcshosts.ParseBaseURLInsecure(rawURL, o.allowHTTP)
+	if errors.Is(err, vcshosts.ErrInsecureHTTP) {
+		return fail("vcs.srv.insecure")
+	}
 	if err != nil {
 		return fail("vcs.srv.badurl", "detail", strings.TrimPrefix(err.Error(), "vcshosts: "))
+	}
+	entry, err := vcshosts.NormalizeInsecure(vcshosts.Entry{Platform: platform, URL: base, SSHHosts: o.sshHosts}, o.allowHTTP)
+	if err != nil {
+		return fail("vcs.srv.badssh")
+	}
+	if o.allowHTTP && strings.HasPrefix(base, "http://") && !vcshosts.IsLoopbackHost(host) {
+		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymWarn, m.Format("vcs.srv.cleartext", "host", host))
+	}
+	reg := servers()
+	if es, lerr := reg.List(); lerr != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl vcs login: %v\n", lerr)
+		return ExitError
+	} else if vcshosts.HasConflict(es, entry) && !o.replace {
+		return fail("vcs.srv.conflict", "host", host)
 	}
 	token, stored := "", false
 	switch {
@@ -126,7 +162,7 @@ func loginServer(ctx context.Context, env Env, m ui.Messages, rawURL, platform, 
 	if code := reportVerdict(env, m, host, st, verr); code != ExitOK || check {
 		return code
 	}
-	if err := servers().Put(vcshosts.Entry{Host: host, Platform: platform, URL: base}); err != nil {
+	if err := reg.Put(entry, vcshosts.PutOptions{Replace: o.replace, AllowInsecureHTTP: o.allowHTTP}); err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl vcs login: register server: %v\n", err)
 		return ExitError
 	}
@@ -194,8 +230,13 @@ func runVCSTest(env Env, args []string) int {
 		h = credstore.NormalizeHost(vcs.RemoteHost(remote))
 	}
 	platform, base := publicPlatformOf(h), ""
-	if e, ok := vcshosts.Lookup(servers(), h); ok {
-		platform, base = e.Platform, e.URL
+	e, ok, lerr := vcshosts.LookupErr(servers(), h)
+	if lerr != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl vcs test: cannot read the server registry: %v\n", lerr)
+		return ExitError
+	}
+	if ok {
+		platform, base, h = e.Platform, e.URL, e.Host
 	}
 	if platform == "" {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.srv.unregistered"))

@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,8 +46,15 @@ func ParseServerRemote(remote string) (ServerRepo, error) {
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return ServerRepo{}, errors.New("vcs: cannot find project/repository in the origin URL")
 	}
+	// The key and slug become path segments of the API URL: only the characters
+	// Bitbucket itself allows (and "~user" for a personal project), never "." or "..".
+	if !serverNameRe.MatchString(parts[0]) || !serverNameRe.MatchString(parts[1]) {
+		return ServerRepo{}, errors.New("vcs: the project or repository name in the origin URL is not valid")
+	}
 	return ServerRepo{Project: parts[0], Slug: parts[1]}, nil
 }
+
+var serverNameRe = regexp.MustCompile(`^~?[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 func (r ServerRepo) api() string {
 	return "/projects/" + url.PathEscape(r.Project) + "/repos/" + url.PathEscape(r.Slug)
@@ -87,6 +96,28 @@ func (b BitbucketServer) client() *http.Client {
 		c = &http.Client{Timeout: 30 * time.Second}
 	}
 	return noRedirect(c)
+}
+
+// netError is a transport failure as an error that also matches ErrCertificate or
+// ErrTimeout when that is the cause.
+func netError(err error, host, prefix string) error {
+	out := fmt.Errorf("%s: %s", prefix, friendlyNetError(err, host))
+	var ne net.Error
+	switch {
+	case isCertError(err):
+		return tagged(ErrCertificate, out)
+	case errors.As(err, &ne) && ne.Timeout(), errors.Is(err, context.DeadlineExceeded):
+		return tagged(ErrTimeout, out)
+	}
+	return out
+}
+
+func isCertError(err error) bool {
+	var ua x509.UnknownAuthorityError
+	var ci x509.CertificateInvalidError
+	var he x509.HostnameError
+	var cv *tls.CertificateVerificationError
+	return errors.As(err, &ua) || errors.As(err, &ci) || errors.As(err, &he) || errors.As(err, &cv)
 }
 
 // friendlyNetError words a transport failure without the URL or any secret; a
@@ -131,20 +162,23 @@ func (b BitbucketServer) target(ctx context.Context, dir string) (bsTarget, erro
 		return bsTarget{}, err
 	}
 	host := remoteHost(remote)
-	e, ok := vcshosts.Lookup(b.Servers, host)
+	e, ok, err := vcshosts.LookupErr(b.Servers, host)
+	if err != nil {
+		return bsTarget{}, fmt.Errorf("cannot read the server registry: %w", err)
+	}
 	if !ok || e.Platform != vcshosts.BitbucketServer {
-		return bsTarget{}, fmt.Errorf("%w: %s is not a registered Bitbucket server; run: gabitotl vcs login --url https://%s", ErrUnsupported, host, host)
+		return bsTarget{}, fmt.Errorf("%w: %s is not a registered Bitbucket server; register the server's web URL (and its SSH host if different): gabitotl vcs login --url https://%s --ssh-host %s", ErrUnsupported, host, host, host)
 	}
 	tok := ""
 	if b.Token != nil {
-		if tok, err = b.Token(host); err != nil {
+		if tok, err = b.Token(e.Host); err != nil { // the token belongs to the entry's web host, never to an SSH alias
 			return bsTarget{}, err
 		}
 	}
 	if strings.TrimSpace(tok) == "" {
-		return bsTarget{}, fmt.Errorf("%w: no Bitbucket token for %s", ErrNotLoggedIn, host)
+		return bsTarget{}, fmt.Errorf("%w: no Bitbucket token for %s", ErrNotLoggedIn, e.Host)
 	}
-	return bsTarget{base: e.URL, host: host, repo: repo, token: strings.TrimSpace(tok)}, nil
+	return bsTarget{base: e.URL, host: e.Host, repo: repo, token: strings.TrimSpace(tok)}, nil
 }
 
 // do sends one API request. Errors name the method, path and status; never the
@@ -173,14 +207,18 @@ func (b BitbucketServer) do(ctx context.Context, t bsTarget, method, path string
 	}
 	resp, err := b.client().Do(req)
 	if err != nil {
-		return scrubError(fmt.Errorf("bitbucket-server: %s %s: %s", method, path, friendlyNetError(err, t.host)), t.token)
+		ne := netError(err, t.host, "bitbucket-server: "+method+" "+path)
+		return tagged(kindOf(ne), scrubError(ne, t.token))
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		err := fmt.Errorf("bitbucket-server: %s %s: HTTP %d%s", method, path, resp.StatusCode, serverMessage(raw))
-		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
 			return fmt.Errorf("%w: %w", ErrNotLoggedIn, scrubError(err, t.token))
+		case http.StatusForbidden: // the token is known but may not do this: not a login problem
+			return tagged(ErrNoPermission, scrubError(err, t.token))
 		}
 		return scrubError(err, t.token)
 	}
@@ -191,6 +229,18 @@ func (b BitbucketServer) do(ctx context.Context, t bsTarget, method, path string
 	}
 	return nil
 }
+
+// kindOf is the sentinel a netError carries (nil-safe: a plain error has none).
+func kindOf(err error) error {
+	for _, k := range []error{ErrCertificate, ErrTimeout} {
+		if errors.Is(err, k) {
+			return k
+		}
+	}
+	return errTransport
+}
+
+var errTransport = errors.New("vcs: could not reach the server")
 
 // serverMessage extracts errors[0].message from a Data Center error body, shortened.
 func serverMessage(raw []byte) string {
@@ -462,13 +512,17 @@ func checkBitbucketServer(ctx context.Context, c *http.Client, base, host, token
 	req.Header.Set("Accept", "application/json")
 	resp, err := noRedirect(c).Do(req)
 	if err != nil {
-		return "", false, scrubError(fmt.Errorf("cannot reach %s: %s", host, friendlyNetError(err, host)), token)
+		ne := netError(err, host, "cannot reach "+host)
+		return "", false, tagged(kindOf(ne), scrubError(ne, token))
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 	switch {
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+	case resp.StatusCode == http.StatusUnauthorized:
 		return "", false, nil
+	case resp.StatusCode == http.StatusForbidden:
+		// The server recognised the token (a rejected one is a 401) but refuses this call.
+		return "", false, tagged(ErrNoPermission, fmt.Errorf("%s accepted the token but it lacks permission (HTTP 403)", host))
 	case resp.StatusCode == http.StatusOK:
 		u := resp.Header.Get("X-AUSERNAME")
 		if u == "" || strings.EqualFold(u, "anonymous") {

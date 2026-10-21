@@ -7,6 +7,7 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/vcs"
 )
 
 // Global delivery defaults and platform credentials (docs/DECISIONS.md D56). None
@@ -37,6 +38,7 @@ const (
 	CredUnreachable = "unreachable" // the platform could not be asked; nothing stored
 	CredInvalid     = "invalid"     // the platform, host or token is not acceptable; nothing stored
 	CredOK          = "ok"          // TestCredential: the stored token is accepted
+	CredConflict    = "conflict"    // SaveServer: the host name already belongs to a different server; nothing stored
 )
 
 // CredentialInfo says whether a token is stored for a platform host. It never
@@ -54,7 +56,10 @@ type CredentialResult struct {
 	Status   string `json:"status"`
 	Stored   bool   `json:"stored"`
 	Detail   string `json:"detail,omitempty"`
-	User     string `json:"user,omitempty"` // the account the token belongs to, when the platform tells
+	// Code is a stable failure reason the page renders from its catalogue
+	// (gui.cred.err.<code>); Detail is the English fallback for an unknown code.
+	Code string `json:"code,omitempty"`
+	User string `json:"user,omitempty"` // the account the token belongs to, when the platform tells
 }
 
 // platformHosts are the public hosts the credentials screen always lists.
@@ -169,7 +174,11 @@ func (s *Service) SaveCredential(ctx context.Context, platform, host, token stri
 	}
 	// The platform is asked at the host as typed (port included); the store key drops the port.
 	base := ""
-	if e, ok := s.serverEntry(res.Host); ok && e.Platform == platform {
+	e, ok, serr := s.serverEntry(res.Host)
+	if serr != nil {
+		return res, serr
+	}
+	if ok && e.Platform == platform {
 		base = e.URL
 	}
 	if s.verifyInto(ctx, &res, platform, strings.ToLower(host), base, strings.TrimSpace(token)) {
@@ -192,17 +201,23 @@ func (s *Service) verifyInto(ctx context.Context, res *CredentialResult, platfor
 	ok, detail, user, err := s.d.VerifyToken(ctx, platform, host, base, token)
 	switch {
 	case err != nil:
-		res.Status, res.Detail = CredUnreachable, "could not check the token"
+		res.Status, res.Detail, res.Code = CredUnreachable, "could not check the token", "unreachable"
 		if base != "" {
 			res.Detail = err.Error() // secret-free; names a certificate problem when that is the cause
 		}
 		var perr interface{ Timeout() bool }
-		if errors.As(err, &perr) && perr.Timeout() {
+		switch {
+		case errors.Is(err, vcs.ErrCertificate):
+			res.Code = "cert_untrusted"
+		case errors.Is(err, vcs.ErrNoPermission):
+			res.Code = "no_permission"
+		case errors.Is(err, vcs.ErrTimeout), errors.As(err, &perr) && perr.Timeout():
+			res.Code = "timeout"
 			res.Detail = "the platform did not answer in time"
 		}
 		return true
 	case !ok:
-		res.Status, res.Detail = CredRejected, detail
+		res.Status, res.Detail, res.Code = CredRejected, detail, "rejected"
 		return true
 	}
 	res.User = user

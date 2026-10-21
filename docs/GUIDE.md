@@ -814,6 +814,12 @@ Certificates are checked with your operating system's trust store (install your 
 is no option to skip the check, and an untrusted certificate is reported as such. `vcs login --url` also
 accepts `--platform github` or `--platform gitlab` for GitHub Enterprise and self-managed GitLab.
 
+The address must be `https://` (plain `http://` only for localhost; `--allow-insecure-http` overrides it for a
+trusted network and sends the token in clear text). One host name holds one server and one token: registering
+a different address under a known host name is refused unless you pass `--replace`. If the server's Git
+remotes use another host name than its web address, add it with `--ssh-host ssh.example.com` (repeatable); the
+token is still only sent to the web address.
+
 `gabitotl vcs login` detects the platform (the one in `vcs.md`, else the one `origin` points at):
 
 - GitHub and GitLab: it runs `gh auth status` / `glab auth status`. If you are logged in it says so and

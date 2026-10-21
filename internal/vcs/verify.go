@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -113,7 +114,8 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return st, fmt.Errorf("cannot reach %s: %s", host, scrubSecret(friendlyNetError(err, host), token))
+		ne := netError(err, host, "cannot reach "+host)
+		return st, tagged(kindOf(ne), errors.New(scrubSecret(ne.Error(), token)))
 	}
 	resp.Body.Close()
 	switch {
