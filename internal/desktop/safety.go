@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -105,15 +106,45 @@ const cleanupLog = `%TEMP%\gabitotl-uninstall.log`
 // rmdir (no /s: they only go when empty), and (4) appends whatever is left to
 // the cleanup log. Paths must have passed safeInstallDir / safeDataDir: no
 // quote or %, & | < > ^.
-func RemovalCommandLine(r Removal) string {
-	q := func(ss []string) []string {
+func RemovalCommandLine(r Removal) (string, error) {
+	clean := func(ss []string) ([]string, error) {
+		out := make([]string, len(ss))
+		for i, s := range ss {
+			c, err := cleanWinPath(s)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = c
+		}
+		return out, nil
+	}
+	quote := func(ss []string) []string {
 		out := make([]string, len(ss))
 		for i, s := range ss {
 			out[i] = `"` + s + `"`
 		}
 		return out
 	}
-	files, folders := q(r.Files), q(r.Folders)
+	rawFiles, err := clean(r.Files)
+	if err != nil {
+		return "", err
+	}
+	rawFolders, err := clean(r.Folders)
+	if err != nil {
+		return "", err
+	}
+	var dir, data string
+	if r.Dir != "" {
+		if dir, err = cleanWinPath(r.Dir); err != nil {
+			return "", err
+		}
+	}
+	if r.DataDir != "" {
+		if data, err = cleanWinPath(r.DataDir); err != nil {
+			return "", err
+		}
+	}
+	files, folders := quote(rawFiles), quote(rawFolders)
 	var steps []string
 	if r.WaitPID > 0 {
 		pid := fmt.Sprint(r.WaitPID)
@@ -133,15 +164,52 @@ func RemovalCommandLine(r Removal) string {
 	if len(conds) > 0 {
 		steps = append(steps, fmt.Sprintf(`for /l %%i in (1,1,%d) do (%s)`, cleanupRounds, strings.Join(conds, " else ")))
 	}
-	if r.Dir != "" {
-		steps = append(steps, `rmdir "`+r.Dir+`" >nul 2>&1`)
+	if dir != "" {
+		steps = append(steps, `rmdir "`+dir+`" >nul 2>&1`)
 	}
-	if r.DataDir != "" {
-		steps = append(steps, `rmdir "`+r.DataDir+`" >nul 2>&1`)
+	if data != "" {
+		steps = append(steps, `rmdir "`+data+`" >nul 2>&1`)
 	}
-	left := q(append(append(append([]string{}, r.Files...), r.Folders...), keepSet(r.Dir, r.DataDir)...))
+	left := quote(append(append(append([]string{}, rawFiles...), rawFolders...), keepSet(dir, data)...))
 	steps = append(steps, `(for %p in (`+strings.Join(left, " ")+`) do @if exist %p echo left behind: %p>>"`+cleanupLog+`")`)
-	return `cmd /d /s /c "` + strings.Join(steps, " & ") + `"`
+	return `cmd /d /s /c "` + strings.Join(steps, " & ") + `"`, nil
+}
+
+// cleanWinPath validates and normalizes one path for the removal command line,
+// independent of the host OS: it must be a non-empty absolute Windows path
+// (drive or UNC), free of cmd metacharacters and control characters, and not a
+// drive or share root once cleaned (so "..", "." and doubled separators are
+// resolved before anything is emitted).
+func cleanWinPath(p string) (string, error) {
+	bad := func(reason string) (string, error) { return "", &UnsafeDirError{Dir: p, Reason: reason} }
+	if strings.TrimSpace(p) == "" {
+		return bad("empty")
+	}
+	if i := strings.IndexAny(p, shellMeta); i >= 0 {
+		return bad(fmt.Sprintf("contains %q", p[i]))
+	}
+	if i := strings.IndexFunc(p, func(r rune) bool { return r < 0x20 }); i >= 0 {
+		return bad("contains a control character")
+	}
+	q := strings.ReplaceAll(stripExtended(p), `\`, "/")
+	unc := strings.HasPrefix(q, "//")
+	drive := len(q) >= 3 && q[1] == ':' && q[2] == '/' &&
+		(q[0] >= 'a' && q[0] <= 'z' || q[0] >= 'A' && q[0] <= 'Z')
+	switch {
+	case unc:
+		parts := strings.Split(strings.Trim(path.Clean("/"+q), "/"), "/")
+		if len(parts) < 3 || parts[0] == "" { // host, share, and something below
+			return bad("is a drive or share root")
+		}
+		return `\\` + strings.Join(parts, `\`), nil
+	case drive:
+		rest := path.Clean("/" + q[3:])
+		if rest == "/" {
+			return bad("is a drive or share root")
+		}
+		return q[:2] + strings.ReplaceAll(rest, "/", `\`), nil
+	}
+	return bad("not absolute")
 }
 
 func keepSet(ss ...string) []string {

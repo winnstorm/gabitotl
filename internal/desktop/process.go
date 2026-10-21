@@ -92,17 +92,84 @@ func (in *Installer) stopAll(ps []Proc, strict bool) error {
 	return err
 }
 
-// Owned reports whether path is one of exes (case-insensitive, cleaned) and
-// inside dir. Adapters use it to filter candidates.
+// stripExtended drops the Win32 extended-length prefix (\\?\C:\x, or
+// \\?\UNC\srv\share\x) so such paths compare equal to their plain form.
+func stripExtended(p string) string {
+	switch {
+	case len(p) >= 8 && strings.EqualFold(p[:8], `\\?\UNC\`):
+		return `\\` + p[8:]
+	case strings.HasPrefix(p, `\\?\`) || strings.HasPrefix(p, `\\.\`):
+		return p[4:]
+	}
+	return p
+}
+
+func normPath(p string) string { return strings.ToLower(filepath.Clean(stripExtended(p))) }
+
+// Owned reports whether path is one of exes (case-insensitive, cleaned, with a
+// \\?\ prefix normalized away) and inside dir. Adapters use it to filter
+// candidates.
 func Owned(path, dir string, exes []string) bool {
-	c := strings.ToLower(filepath.Clean(path))
-	if !sameOrInside(c, filepath.Clean(dir)) {
+	c := normPath(path)
+	if !sameOrInside(c, normPath(dir)) {
 		return false
 	}
 	for _, e := range exes {
-		if c == strings.ToLower(filepath.Clean(e)) {
+		if c == normPath(e) {
 			return true
 		}
 	}
 	return false
+}
+
+// procHandle is one open handle on a process, used for the whole stop
+// sequence: while it is open the PID cannot be reused, so everything done
+// through it targets the process whose identity was verified.
+type procHandle interface {
+	// Identity returns the live image path and start time of the process.
+	Identity() (image string, started time.Time, err error)
+	// CloseWindows asks the process's windows to close and reports whether it
+	// owns a visible one.
+	CloseWindows() (visible bool)
+	// Wait reports whether the process exited within d.
+	Wait(d time.Duration) bool
+	Terminate() error
+}
+
+// sameProcess is the identity decision: act only when the live process has the
+// same image and the same start time as the one that was listed. An unknown
+// start time cannot be verified, so it counts as a different process.
+func sameProcess(p Proc, image string, started time.Time) bool {
+	if p.Started.IsZero() || !started.Equal(p.Started) {
+		return false
+	}
+	return Owned(image, filepath.Dir(stripExtended(p.Path)), []string{p.Path})
+}
+
+// stopProcess closes p gracefully, then terminates it, through h. A process
+// that is no longer p (exited, or its PID reused) is "already gone": nil.
+func stopProcess(p Proc, grace time.Duration, h procHandle) error {
+	image, started, err := h.Identity()
+	if err != nil {
+		if h.Wait(0) {
+			return nil
+		}
+		return fmt.Errorf("verify identity: %w", err)
+	}
+	if !sameProcess(p, image, started) {
+		return nil // already gone: this PID is not the listed process any more
+	}
+	visible := h.CloseWindows()
+	if p.HasWindow || visible {
+		if h.Wait(grace) {
+			return nil
+		}
+	}
+	if err := h.Terminate(); err != nil {
+		return fmt.Errorf("terminate: %w", err)
+	}
+	if !h.Wait(5 * time.Second) {
+		return errors.New("still running after terminate")
+	}
+	return nil
 }

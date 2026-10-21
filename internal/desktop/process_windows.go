@@ -110,6 +110,38 @@ func imageOf(pid uint32) (string, time.Time) {
 	return windows.UTF16ToString(buf[:n]), t
 }
 
+// winHandle is the single handle of a Stop sequence.
+type winHandle struct {
+	h   windows.Handle
+	pid uint32
+}
+
+func (w winHandle) Identity() (string, time.Time, error) {
+	buf := make([]uint16, 32768)
+	n := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(w.h, 0, &buf[0], &n); err != nil {
+		return "", time.Time{}, err
+	}
+	var c, x, k, u windows.Filetime
+	if err := windows.GetProcessTimes(w.h, &c, &x, &k, &u); err != nil {
+		return "", time.Time{}, err
+	}
+	return windows.UTF16ToString(buf[:n]), time.Unix(0, c.Nanoseconds()), nil
+}
+
+func (w winHandle) CloseWindows() bool {
+	c := enumCtx{pid: w.pid, close: true}
+	enumWindows(&c)
+	return c.visible
+}
+
+func (w winHandle) Wait(d time.Duration) bool {
+	ev, _ := windows.WaitForSingleObject(w.h, uint32(d.Milliseconds()))
+	return ev == windows.WAIT_OBJECT_0
+}
+
+func (w winHandle) Terminate() error { return windows.TerminateProcess(w.h, 1) }
+
 func (winProcs) Stop(p Proc, grace time.Duration) error {
 	h, err := windows.OpenProcess(processTerminate|processSynchronize|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, p.PID)
 	if err != nil {
@@ -119,19 +151,5 @@ func (winProcs) Stop(p Proc, grace time.Duration) error {
 		return fmt.Errorf("open: %w", err)
 	}
 	defer windows.CloseHandle(h)
-	c := enumCtx{pid: p.PID, close: true}
-	enumWindows(&c) // WM_CLOSE to its windows, if any
-	if p.HasWindow || c.visible {
-		if ev, _ := windows.WaitForSingleObject(h, uint32(grace.Milliseconds())); ev == windows.WAIT_OBJECT_0 {
-			return nil
-		}
-	}
-	if err := windows.TerminateProcess(h, 1); err != nil {
-		return fmt.Errorf("terminate: %w", err)
-	}
-	ev, err := windows.WaitForSingleObject(h, 5000)
-	if err != nil || ev != windows.WAIT_OBJECT_0 {
-		return errors.New("still running after terminate")
-	}
-	return nil
+	return stopProcess(p, grace, winHandle{h: h, pid: p.PID})
 }

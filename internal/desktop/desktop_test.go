@@ -499,7 +499,10 @@ func TestRemovalCommandLine(t *testing.T) {
 		Dir: dir, Files: []string{dir + `\gabitotl-manager.exe`, dir + `\gabitotl.exe`},
 		DataDir: data, Folders: []string{data + `\webview`, data + `\webview-setup`, data + `\logs`}, WaitPID: 4242,
 	}
-	got := RemovalCommandLine(r)
+	got, err := RemovalCommandLine(r)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, want := range []string{
 		`cmd /d /s /c "`,
 		`tasklist /fi "PID eq 4242"`,
@@ -525,7 +528,7 @@ func TestRemovalCommandLine(t *testing.T) {
 	if !strings.HasSuffix(got, `"`) || strings.Count(got, `"`)%2 != 0 {
 		t.Fatalf("unbalanced quotes: %s", got)
 	}
-	if strings.Contains(RemovalCommandLine(Removal{Dir: dir, Files: r.Files}), "tasklist") {
+	if nw, err := RemovalCommandLine(Removal{Dir: dir, Files: r.Files}); err != nil || strings.Contains(nw, "tasklist") {
 		t.Fatal("no PID, no wait")
 	}
 }
@@ -841,5 +844,152 @@ func TestUninstallOwnsTheCLIToo(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("scheduled removal %v must include %s", f.sched, CLIExe)
+	}
+}
+
+func TestRemovalCommandLineRejectsUnsafePaths(t *testing.T) {
+	dir := `C:\Users\Ana\AppData\Local\Programs\GabitoTL`
+	data := `C:\Users\Ana\AppData\Local\GabitoTL`
+	for name, r := range map[string]Removal{
+		"empty datadir file": {Dir: dir, Files: []string{""}},
+		"relative datadir":   {Dir: dir, DataDir: `local\GabitoTL`},
+		"relative dir":       {Dir: `Programs\GabitoTL`},
+		"percent datadir":    {Dir: dir, DataDir: `C:\Users\%USERNAME%\GabitoTL`},
+		"caret datadir":      {Dir: dir, DataDir: `C:\a^b`},
+		"quote datadir":      {Dir: dir, DataDir: `C:\a"b`},
+		"amp datadir":        {Dir: dir, DataDir: `C:\a&calc`},
+		"percent dir":        {Dir: `C:\%TEMP%\x`},
+		"amp dir":            {Dir: `C:\a&b`},
+		"amp file":           {Dir: dir, Files: []string{dir + `\a&b.exe`}},
+		"folder meta":        {Dir: dir, DataDir: data, Folders: []string{data + `\w^`}},
+		"dotdot to root":     {Dir: dir, DataDir: `C:\x\..\..`},
+		"root datadir":       {Dir: dir, DataDir: `C:\`},
+		"root dir":           {Dir: `D:/`},
+		"unc share root":     {Dir: dir, DataDir: `\\srv\share`},
+		"folder is root":     {Dir: dir, Folders: []string{`C:\x\..`}},
+	} {
+		if got, err := RemovalCommandLine(r); err == nil {
+			t.Errorf("%s: accepted: %s", name, got)
+		}
+	}
+}
+
+func TestRemovalCommandLineCleansAndQuotes(t *testing.T) {
+	got, err := RemovalCommandLine(Removal{Dir: `C:\x\GabitoTL\..`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `rmdir "C:\x" >nul`) || strings.Contains(got, `..`) {
+		t.Fatalf("Dir not cleaned: %s", got)
+	}
+	data := `C:\Users\Ana (a)b\Local\.\GabitoTL\\`
+	got, err = RemovalCommandLine(Removal{Dir: `C:\p\GabitoTL`, DataDir: data, Folders: []string{data + `/webview`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`rmdir "C:\Users\Ana (a)b\Local\GabitoTL" >nul`,
+		`rmdir /s /q "C:\Users\Ana (a)b\Local\GabitoTL\webview"`,
+		`if exist "C:\Users\Ana (a)b\Local\GabitoTL\webview" (`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in\n%s", want, got)
+		}
+	}
+	got, err = RemovalCommandLine(Removal{Dir: `\\?\C:\p\GabitoTL`, Files: []string{`\\?\C:\p\GabitoTL\a.exe`}})
+	if err != nil || !strings.Contains(got, `del /f /q "C:\p\GabitoTL\a.exe"`) {
+		t.Fatalf("extended prefix not normalized: %v %s", err, got)
+	}
+}
+
+type fakeHandle struct {
+	image   string
+	started time.Time
+	idErr   error
+	exited  bool
+	visible bool
+	exitsOn string // "close" or "terminate": action after which it exits
+	calls   []string
+}
+
+func (f *fakeHandle) Identity() (string, time.Time, error) {
+	f.calls = append(f.calls, "identity")
+	return f.image, f.started, f.idErr
+}
+func (f *fakeHandle) CloseWindows() bool {
+	f.calls = append(f.calls, "close")
+	if f.exitsOn == "close" {
+		f.exited = true
+	}
+	return f.visible
+}
+func (f *fakeHandle) Wait(time.Duration) bool { return f.exited }
+func (f *fakeHandle) Terminate() error {
+	f.calls = append(f.calls, "terminate")
+	if f.exitsOn == "terminate" {
+		f.exited = true
+	}
+	return nil
+}
+
+func TestStopProcessIdentity(t *testing.T) {
+	dir := abs(filepath.Join("Programs", "GabitoTL"))
+	exe := filepath.Join(dir, ManagerExe)
+	t0 := time.Unix(1_700_000_000, 0)
+	p := Proc{PID: 7, Path: exe, Started: t0, HasWindow: true}
+	cases := []struct {
+		name  string
+		h     *fakeHandle
+		proc  Proc
+		calls string
+	}{
+		{"same image and start, closes itself", &fakeHandle{image: exe, started: t0, visible: true, exitsOn: "close"}, p, "identity close"},
+		{"same, terminated", &fakeHandle{image: strings.ToUpper(exe), started: t0, exitsOn: "terminate"}, p, "identity close terminate"},
+		{"pid reused by another image", &fakeHandle{image: filepath.Join(abs("elsewhere"), "notepad.exe"), started: t0}, p, "identity"},
+		{"same image, different start", &fakeHandle{image: exe, started: t0.Add(time.Second)}, p, "identity"},
+		{"unknown listed start", &fakeHandle{image: exe, started: t0}, Proc{PID: 7, Path: exe}, "identity"},
+	}
+	for _, c := range cases {
+		if err := stopProcess(c.proc, time.Millisecond, c.h); err != nil {
+			t.Errorf("%s: %v", c.name, err)
+		}
+		if got := strings.Join(c.h.calls, " "); got != c.calls {
+			t.Errorf("%s: calls = %q, want %q", c.name, got, c.calls)
+		}
+	}
+	// A process that never exits is an error only after terminate was tried.
+	if err := stopProcess(p, time.Millisecond, &fakeHandle{image: exe, started: t0}); err == nil {
+		t.Error("expected an error when the process survives terminate")
+	}
+	// Identity unreadable but the process already exited: gone, not an error.
+	if err := stopProcess(p, time.Millisecond, &fakeHandle{idErr: errors.New("x"), exited: true}); err != nil {
+		t.Errorf("exited process: %v", err)
+	}
+}
+
+func TestOwnedExtendedPrefixAndCase(t *testing.T) {
+	dir := abs(filepath.Join("Users", "Ana", "GabitoTL"))
+	exe := filepath.Join(dir, ManagerExe)
+	for _, p := range []string{`\\?\` + exe, strings.ToUpper(exe), `\\?\` + strings.ToLower(exe)} {
+		if !Owned(p, dir, []string{exe}) {
+			t.Errorf("Owned(%q) = false", p)
+		}
+	}
+	if Owned(`\\?\`+filepath.Join(abs("elsewhere"), ManagerExe), dir, []string{exe}) {
+		t.Error("foreign path owned")
+	}
+}
+
+func TestStripExtended(t *testing.T) {
+	for in, want := range map[string]string{
+		`\\?\C:\a\b`:       `C:\a\b`,
+		`\\?\UNC\srv\sh\x`: `\\srv\sh\x`,
+		`\\?\unc\srv\sh\x`: `\\srv\sh\x`,
+		`C:\a`:             `C:\a`,
+		`/tmp/a`:           `/tmp/a`,
+	} {
+		if got := stripExtended(in); got != want {
+			t.Errorf("stripExtended(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

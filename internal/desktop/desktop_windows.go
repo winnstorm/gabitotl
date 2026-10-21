@@ -81,9 +81,13 @@ type winFS struct{ osFS }
 // SysProcAttr.CmdLine so Go does not re-escape the quotes.
 func (winFS) ScheduleRemoval(r Removal) error {
 	r.WaitPID = os.Getpid()
+	line, err := RemovalCommandLine(r)
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command("cmd.exe")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CmdLine:       RemovalCommandLine(r),
+		CmdLine:       line,
 		CreationFlags: createNoWindow | windows.CREATE_NEW_PROCESS_GROUP,
 		HideWindow:    true,
 	}
