@@ -102,6 +102,14 @@ is installed and no agent is configured. The Manager can repair or upgrade it. O
 the shortcuts, the PATH entry, the registration and the installed files; your projects and backups are kept
 unless you explicitly choose to purge them (it asks you to type the volume name).
 
+**Troubleshooting.** The setup and the Manager write a diagnostics log to
+`%LOCALAPPDATA%\GabitoTL\logs\manager.log` (rotated at about 1 MB, one previous file kept as `manager.log.1`).
+It records the version, the screen chosen, the WebView2 runtime found, startup steps, every error returned to the
+screen, panics with their stack and what Finish tried to launch; it never records tokens or credential values.
+If GabitoTL does not open or stops, a message box names this file. The Manager's Health check has an
+"Open log folder" button. When something fails, attach the log to your report. The setup and the installed
+Manager keep separate WebView2 data folders under `%LOCALAPPDATA%\GabitoTL` (`webview-setup`, `webview`).
+
 Limits: Windows is covered by unit tests and a CI build only; the GUI has not been exercised on a real machine
 yet.
 

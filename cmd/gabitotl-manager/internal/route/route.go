@@ -39,3 +39,19 @@ func RelaunchTarget(installDir, managerExe string) string {
 	}
 	return filepath.Join(installDir, managerExe)
 }
+
+// WebViewDataDir is the WebView2 user-data folder of a run. The setup and the
+// installed app each get their own: two processes sharing one folder share one
+// WebView2 browser process, and a freshly launched installed copy then depends
+// on the setup that is still shutting down. Other routes (the installed app) use
+// the plain "webview" folder.
+func WebViewDataDir(localAppData, screen string) string {
+	if localAppData == "" {
+		return ""
+	}
+	name := "webview"
+	if screen == Wizard {
+		name = "webview-setup"
+	}
+	return filepath.Join(localAppData, "GabitoTL", name)
+}

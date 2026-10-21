@@ -51,15 +51,29 @@ function footer() {
   if (S.step < STEP_INSTALL) {
     next = '<button type="button" class="btn pri" data-act="next">' + esc(t('gui.btn.next')) + UI.icon('arrow-right') + '</button>';
   } else if (S.finished && !S.installErr) {
-    next = '<button type="button" class="btn pri" data-act="finish">' + UI.icon('check') + esc(t('gui.btn.finish')) + '</button>';
+    if (S.finishErr) {
+      next = '<button type="button" class="btn" data-act="finish" data-k="finish">' + UI.icon('refresh') + esc(t('gui.btn.retry')) + '</button>' +
+        '<button type="button" class="btn pri" data-act="quit" data-k="closeanyway">' + UI.icon('check') + esc(t('gui.btn.closeanyway')) + '</button>';
+    } else {
+      next = '<button type="button" class="btn pri" data-act="finish" data-k="finish"' + attr('disabled', true, S.finishing) + '>' + (S.finishing ? spinner() + esc(t('gui.btn.opening')) : UI.icon('check') + esc(t('gui.btn.finish'))) + '</button>';
+    }
   } else if (S.finished) {
     next = '<button type="button" class="btn pri" data-act="replan">' + UI.icon('refresh') + esc(t('gui.btn.retry')) + '</button>';
+  } else if (S.planErr) {
+    next = '<button type="button" class="btn pri" data-act="replan" data-k="replan">' + UI.icon('refresh') + esc(t('gui.btn.retry')) + '</button>';
+  } else if (S.running) {
+    next = '<button type="button" class="btn pri" data-act="install" data-k="install" disabled aria-busy="true">' + spinner() + esc(t('gui.btn.installing')) + '</button>';
+  } else if (!S.plan) {
+    next = '<button type="button" class="btn pri" data-act="install" data-k="install" disabled aria-busy="true">' + spinner() + esc(t('gui.btn.preparing')) + '</button>';
   } else {
-    next = '<button type="button" class="btn pri" data-act="install"' + attr('disabled', true, busy || !S.plan) + '>' + UI.icon('download') + esc(t('gui.btn.install')) + '</button>';
+    next = '<button type="button" class="btn pri" data-act="install" data-k="install">' + UI.icon('download') + esc(t('gui.btn.install')) + '</button>';
   }
   if (S.finished && !S.installErr) left = '';
   return '<div class="ft">' + left + alert + back + next + '</div>';
 }
+
+// spinner is the small rotating ring shown inside a busy button.
+function spinner() { return '<i class="spin" aria-hidden="true"></i>'; }
 
 // stepHead is the header of a wizard step: its icon, "Step n of N", title and sentence.
 function stepHead(title, lead) {
@@ -68,6 +82,8 @@ function stepHead(title, lead) {
 
 // ---- screens ----------------------------------------------------------------
 
+// intro is the animated "what is GabitoTL for": a small diagram (you, your agents,
+// memory and code index, a pull request) and four beats that appear in sequence.
 function stepWelcome() {
   var feats = [['spark', 'gui.welcome.f1.title', 'gui.welcome.f1.desc'], ['archive', 'gui.welcome.f2.title', 'gui.welcome.f2.desc'], ['undo', 'gui.welcome.f3.title', 'gui.welcome.f3.desc']].map(function (f) {
     return '<div class="tip"><span class="oic sm">' + UI.icon(f[0]) + '</span><div><b>' + esc(t(f[1])) + '</b>' + esc(t(f[2])) + '</div></div>';
@@ -328,8 +344,8 @@ function stepInstall() {
   var lead = ok ? t('gui.install.done.lead') : t('gui.install.lead');
   var out = ok ? '' : stepHead(S.running ? t('gui.install.title') : title, lead);
   if (S.planErr) return out + '<p class="lead" role="alert">' + esc(S.planErr) + '</p>';
-  if (!S.plan) return out + UI.skeleton() + '<p class="lead">' + esc(t('gui.install.planning')) + '</p>';
-  if (ok) out += doneHero() + (S.result ? resultBlock() : '');
+  if (!S.plan) return out + '<div class="planning" role="status">' + spinner() + '<b>' + esc(t('gui.install.planning')) + '</b></div>' + UI.skeleton();
+  if (ok) out += doneHero() + (S.finishErr ? '<div class="call" role="alert"><b>' + esc(t('gui.finish.failed', { detail: S.finishErr })) + '</b><span class="mono">' + esc(t('gui.finish.where', { path: S.a.win.installDir })) + '</span></div>' : '') + (S.result ? resultBlock() : '');
   var m = S.a.memory;
   var memText = m.mode === 'solo' ? t('gui.install.sum.memory.solo') : t(m.role === 'host' ? 'gui.install.sum.memory.host' : 'gui.install.sum.memory.client');
   var dl = S.a.delivery;
@@ -707,7 +723,7 @@ async function replan() {
   try {
     S.plan = await api().PlanInstall(buildAnswers());
   } catch (e) {
-    S.planErr = t('gui.error.generic', { detail: errText(e) });
+    S.planErr = t('gui.install.plan.failed', { detail: errText(e) });
   }
   render();
 }
@@ -743,11 +759,18 @@ actions.install = async function () {
   render();
 };
 
+// finish asks the backend to open the installed app and close this window. It is
+// called once per click; on failure the page says why and offers "Close anyway".
 actions.finish = async function () {
+  if (S.finishing) return;
+  S.finishing = true;
+  S.finishErr = '';
+  render();
   try {
     await api().Finish(S.a.win.installDir);
   } catch (e) {
-    S.error = t('gui.error.generic', { detail: errText(e) });
+    S.finishErr = errText(e);
+    S.finishing = false;
     render();
   }
 };

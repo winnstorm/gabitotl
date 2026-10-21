@@ -256,4 +256,10 @@ input[type=search]{height:36px;border:1px solid var(--line2);border-radius:8px;p
 .pop .fn{animation:fnin .35s ease-out both}
 .go .hero .ring{--len:176;stroke-dasharray:176;transform-origin:center;animation:draw .6s .05s ease-out backwards,ringpulse .5s ease-out both}
 .go .hero .tick{--len:44;stroke-dasharray:44;animation:draw .35s .55s ease-out backwards}
+/* busy buttons and the plan-loading line */
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;display:inline-block;animation:spinRot .8s linear infinite;flex:none}
+@keyframes spinRot{to{transform:rotate(360deg)}}
+.btn:disabled[aria-busy=true]{opacity:.85;cursor:progress}
+.planning{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text3)}
+.planning .spin{width:18px;height:18px;color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}

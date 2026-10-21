@@ -84,7 +84,7 @@ function render() {
     case 'uninstall': html = renderManager(); break;
     default: html = titlebar() + '<div class="body"><main class="pane center" id="pane">' + esc(t('gui.loading')) + '</main></div>';
   }
-  document.getElementById('app').innerHTML = html;
+  patchApp(html);
   pane = document.getElementById('pane');
   var key = pageKey();
   if (pane) pane.scrollTop = key === lastPage ? scroll : 0;
@@ -102,6 +102,32 @@ function render() {
   UI.afterRender(akey, dir, S.m && S.m.modal, S.m && S.m.toast);
   if (S.info && S.info.route !== 'wizard') managerAfterRender();
 }
+
+// patchApp swaps the new markup into #app but keeps the title bar and the footer
+// nodes when their markup did not change. A click is a mousedown and a mouseup on
+// the same node: replacing the footer in between (a progress event, a late reply)
+// used to swallow the click on Install.
+var KEEP = ['.tb', '.ft'];
+function patchApp(html) {
+  var app = document.getElementById('app');
+  if (typeof document.createElement !== 'function' || !app.replaceChildren) { app.innerHTML = html; return; }
+  var tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  var oldKids = Array.prototype.slice.call(app.children);
+  var newKids = Array.prototype.slice.call(tpl.content.children);
+  if (oldKids.length !== newKids.length) { app.replaceChildren(tpl.content); newKids.forEach(sign); return; }
+  // Same layout: replace child by child and leave an unchanged .tb/.ft exactly
+  // where it is. Detaching and re-attaching a node cancels a click in progress.
+  newKids.forEach(function (fresh, i) {
+    var old = oldKids[i];
+    var sig = fresh.outerHTML;
+    if (KEEP.some(function (sel) { return fresh.matches(sel); }) && old._sig === sig) return;
+    fresh._sig = sig;
+    old.replaceWith(fresh);
+  });
+}
+
+function sign(n) { n._sig = n.outerHTML; }
 
 // pageKey names the screen on view: a change slides or fades the page in.
 var lastPage = null, lastAnim = null;

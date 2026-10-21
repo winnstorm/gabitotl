@@ -79,3 +79,17 @@ func TestProjectListIsBackwardCompatible(t *testing.T) {
 		t.Fatalf("after forget: %v %q", got, LoadRoot(f))
 	}
 }
+
+func TestWebViewDataDirSeparatesSetupFromApp(t *testing.T) {
+	setup := WebViewDataDir(`C:\L`, Wizard)
+	app := WebViewDataDir(`C:\L`, Manage)
+	if setup == app || setup == "" || app == "" {
+		t.Fatalf("setup %q and app %q must differ", setup, app)
+	}
+	if WebViewDataDir(`C:\L`, Uninstall) != app {
+		t.Fatal("uninstall shares the app folder")
+	}
+	if WebViewDataDir("", Manage) != "" {
+		t.Fatal("empty base must stay empty")
+	}
+}

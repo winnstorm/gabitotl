@@ -884,7 +884,8 @@ var ICONS = { ok: ['ok', 'check', 'gui.doc.ok'], warn: ['warn', 'warn', 'gui.doc
 
 function screenDoctor() {
   var rep = S.m.doctor;
-  var btns = '<button type="button" class="btn" data-act="copy" data-k="copy"' + attr('disabled', true, !rep) + '>' + UI.icon('copy') + esc(t('gui.doc.copy')) + '</button>' +
+  var btns = '<button type="button" class="btn" data-act="openlog" data-k="openlog">' + UI.icon('folder') + esc(t('gui.doc.log')) + '</button>' +
+    '<button type="button" class="btn" data-act="copy" data-k="copy"' + attr('disabled', true, !rep) + '>' + UI.icon('copy') + esc(t('gui.doc.copy')) + '</button>' +
     '<button type="button" class="btn pri" data-act="rerun" data-k="rerun"' + attr('disabled', true, S.m.busy) + '>' + UI.icon('refresh') + esc(t('gui.doc.rerun')) + '</button>';
   var out = head('doctor', btns) + busyLine();
   if (!rep) return out;
@@ -901,6 +902,14 @@ function screenDoctor() {
   });
   return out + '</div>';
 }
+
+actions.openlog = async function () {
+  try {
+    await api().OpenLogFolder();
+  } catch (e) {
+    toast(t('gui.error.generic', { detail: errText(e) }));
+  }
+};
 
 actions.rerun = function () { loadScreen(); };
 

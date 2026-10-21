@@ -18,7 +18,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -29,6 +29,7 @@ import (
 
 	"github.com/winnstorm/gabitotl/cmd/gabitotl-manager/frontend"
 	"github.com/winnstorm/gabitotl/cmd/gabitotl-manager/internal/route"
+	"github.com/winnstorm/gabitotl/internal/applog"
 	"github.com/winnstorm/gabitotl/internal/cli"
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gui"
@@ -40,9 +41,41 @@ import (
 var appVersion = version.Version
 
 func main() {
+	lg := openLog()
+	defer lg.Close()
+	// A panic before or around wails.Run would otherwise vanish: the GUI exe has
+	// no console. Log it with its stack and tell the person where the log is.
+	defer func() {
+		if r := recover(); r != nil {
+			lg.Panic("main", r)
+			fatal(lg, fmt.Sprintf("GabitoTL stopped unexpectedly: %v", r))
+			os.Exit(1)
+		}
+	}()
+	if err := run(lg); err != nil {
+		lg.Errorf("run: %v", err)
+		fatal(lg, "GabitoTL could not start: "+err.Error())
+		os.Exit(1)
+	}
+}
+
+// fatal shows a native message box that names the log file.
+func fatal(lg *applog.Logger, msg string) {
+	if p := lg.Path(); p != "" {
+		msg += "\n\nDetails: " + p
+	}
+	messageBox("GabitoTL", msg)
+}
+
+func run(lg *applog.Logger) error {
 	exe, err := os.Executable()
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	wv := webView2Version()
+	lg.Infof("start: version=%s exe=%s args=%s go=%s webview2=%q", appVersion, exe, applog.SafeArgs(os.Args[1:]), goVersion(), wv)
+	if wv == "" {
+		lg.Errorf("WebView2 runtime not found in the registry (Wails may offer to install it)")
 	}
 	sibling := filepath.Join(filepath.Dir(exe), "gabitotl.exe")
 	if _, err := os.Stat(sibling); err != nil {
@@ -70,21 +103,25 @@ func main() {
 	deps.ForgetProject = func(p string) error { return route.ForgetProject(statePath(), p) }
 	svc := gui.New(deps)
 
-	app := &App{svc: svc, exe: exe, cliPath: cliPath}
-	app.route = route.Resolve(os.Args[1:], svc.DesktopStatus().Installed)
+	app := &App{svc: svc, exe: exe, cliPath: cliPath, log: lg}
+	st := svc.DesktopStatus()
+	app.route = route.Resolve(os.Args[1:], st.Installed)
+	lg.Infof("route=%s installed=%v installDir=%s", app.route, st.Installed, st.InstallDir)
 
-	data := ""
-	if cache, err := os.UserCacheDir(); err == nil {
-		data = filepath.Join(cache, "GabitoTL", "WebView2")
-	}
+	data := route.WebViewDataDir(localDir(), app.route)
+	lg.Infof("webview data dir: %s", data)
+	lg.Infof("wails.Run")
 	err = wails.Run(&options.App{
 		Title: "GabitoTL", Width: 960, Height: 640, MinWidth: 960, MinHeight: 640,
-		AssetServer: &assetserver.Options{Assets: frontend.Assets},
-		OnStartup:   app.startup,
-		Bind:        []any{app},
-		Windows:     &windows.Options{WebviewUserDataPath: data, Theme: windows.SystemDefault},
+		AssetServer:    &assetserver.Options{Assets: frontend.Assets},
+		OnStartup:      app.startup,
+		OnDomReady:     func(context.Context) { app.domReady(); lg.Infof("dom ready") },
+		OnShutdown:     func(context.Context) { lg.Infof("shutdown") },
+		Bind:           []any{app},
+		Logger:         wailsLog{lg},
+		ErrorFormatter: func(err error) any { lg.Errorf("bound call: %v", err); return err.Error() },
+		Windows:        &windows.Options{WebviewUserDataPath: data, Theme: windows.SystemDefault},
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	lg.Infof("wails.Run returned: %v", err)
+	return err
 }
