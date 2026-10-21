@@ -489,9 +489,9 @@ func (s *Service) PlanUninstall(_ context.Context, o UninstallOptions) (Uninstal
 			}
 			out.Unsupports = append(out.Unsupports, "desktop")
 		} else {
-			for _, st := range steps {
-				out.Steps = append(out.Steps, PlanStep{ID: "desktop." + st.ID, Title: st.Title})
-			}
+			dsteps, dnotes := s.desktopPlanSteps(m, ds, steps)
+			out.Steps = append(out.Steps, dsteps...)
+			out.Notes = append(out.Notes, dnotes...)
 			out.Mutates = true
 		}
 	}

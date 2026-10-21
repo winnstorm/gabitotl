@@ -159,7 +159,7 @@ func (m *memDesktop) RemoveAll(p string) error {
 	m.calls = append(m.calls, "rmall")
 	return nil
 }
-func (m *memDesktop) ScheduleRemoval(string, []string) error {
+func (m *memDesktop) ScheduleRemoval(desktop.Removal) error {
 	m.calls = append(m.calls, "schedule")
 	return nil
 }
@@ -210,3 +210,18 @@ func (stubMemory) Update(context.Context, memory.ID, memory.EntryPatch) error {
 func (stubMemory) SessionSummary(context.Context, memory.Summary) error { return memory.ErrUnsupported }
 func (stubMemory) CurrentProject(context.Context) (string, error)       { return "shop", nil }
 func (stubMemory) Doctor(context.Context) memory.Report                 { return memory.Report{Provider: "memory-mcp"} }
+
+// fixedProcs reports n running copies and records Stop calls.
+type fixedProcs struct {
+	n       int
+	stopped int
+}
+
+func (f *fixedProcs) Running(string, []string) ([]desktop.Proc, error) {
+	ps := make([]desktop.Proc, f.n)
+	for i := range ps {
+		ps[i] = desktop.Proc{PID: uint32(100 + i)}
+	}
+	return ps, nil
+}
+func (f *fixedProcs) Stop(desktop.Proc, time.Duration) error { f.stopped++; return nil }

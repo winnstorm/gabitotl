@@ -768,6 +768,13 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   unit tests with fakes and a CI build; the GUI has not been run on a real Windows machine (OJO). Only the Windows-
   relevant packages run in the Windows CI job; the full suite and e2e stay on Linux and macOS. Code signing is not set
   up, so SmartScreen may warn on first run.
+- **Running copies:** install, upgrade and uninstall first find running copies of the owned executables (image path
+  inside the install dir, same user only, never the current process) and close them: WM_CLOSE to their windows, a
+  short grace period, then TerminateProcess. If one cannot be closed, an install stops before copying anything. The
+  detached cleanup waits for the Manager to exit, retries up to about a minute, and also removes the WebView2 profiles
+  and the log under `%LOCALAPPDATA%\GabitoTL` (only those named folders), then the install and data folders if empty;
+  leftovers are listed in `%TEMP%\gabitotl-uninstall.log`. This closes the "in-place upgrade of a running exe" gap
+  (still unverified on real Windows).
 
 ## D56. Credentials in the OS credential store; global delivery defaults layered under the project
 

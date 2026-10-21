@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -83,6 +84,8 @@ func run(lg *applog.Logger) error {
 	}
 	inst := desktop.New()
 	inst.EmbeddedCLI = bundledCLI
+	inst.Log = lg.Infof
+	logHungCopies(lg, inst)
 	// Order: CLI next to this exe, else the default install dir when the setup
 	// bundles one. The Service overrides it with the path it installed.
 	cliPath := sibling
@@ -124,4 +127,16 @@ func run(lg *applog.Logger) error {
 	})
 	lg.Infof("wails.Run returned: %v", err)
 	return err
+}
+
+// logHungCopies records other installed copies that never showed a window and
+// have lived over a minute, so the next report shows them. It never kills them.
+func logHungCopies(lg *applog.Logger, inst *desktop.Installer) {
+	hung := desktop.HungCopies(inst.RunningCopies(desktop.Options{}), time.Now())
+	for _, p := range hung {
+		lg.Errorf("another copy looks hung: pid=%d path=%s started=%s (no window); close it from Task Manager or run Uninstall, which closes it", p.PID, p.Path, p.Started.Format(time.RFC3339))
+	}
+	if len(hung) > 0 {
+		lg.Errorf("hung copies found: %d", len(hung))
+	}
 }

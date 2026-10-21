@@ -1,18 +1,31 @@
 package gui
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/winnstorm/gabitotl/internal/installer/ui"
+)
 
 // PlanDesktop shows what adding the given Windows integration pieces (install
 // folder, Start menu entry, desktop shortcut, PATH) would do. It writes nothing.
 // The Manager uses it to add a piece that is missing after the first install.
 func (s *Service) PlanDesktop(w WindowsAnswers) (Plan, error) {
-	steps, supported, err := s.desktopSteps(s.desktopOptions(w))
+	o := s.desktopOptions(w)
+	steps, supported, err := s.desktopSteps(o)
 	if err != nil {
 		return Plan{}, err
 	}
 	p := Plan{Groups: []PlanGroup{}, Notes: []Note{}, Steps: []PlanStep{}, Supported: supported, Mutates: supported && len(steps) > 0}
-	for _, st := range steps {
-		p.Steps = append(p.Steps, PlanStep{ID: "desktop." + st.ID, Title: st.Title})
+	m := ui.Active("")
+	if env, err := s.env(""); err == nil {
+		m = msgs(env, "")
+	}
+	p.Steps, p.Notes = s.desktopPlanSteps(m, o, steps)
+	if p.Steps == nil {
+		p.Steps = []PlanStep{}
+	}
+	if p.Notes == nil {
+		p.Notes = []Note{}
 	}
 	if !supported {
 		p.Unsupports = []string{"desktop"}

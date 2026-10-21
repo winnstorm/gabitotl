@@ -44,9 +44,10 @@ func New() *Installer {
 			StartMenuPrograms: knownFolder(windows.FOLDERID_Programs, filepath.Join(roaming, "Microsoft", "Windows", "Start Menu", "Programs")),
 			DesktopDir:        knownFolder(windows.FOLDERID_Desktop, filepath.Join(home, "Desktop")),
 			Protected:         protectedDirs(home, local, roaming),
+			DataDir:           filepath.Join(local, "GabitoTL"),
 			Today:             func() string { return time.Now().Format("20060102") },
 		},
-		FS: fs, Path: userPath{}, Links: wshShortcuts{}, Reg: appsRegistry{},
+		FS: fs, Path: userPath{}, Links: wshShortcuts{}, Reg: appsRegistry{}, Procs: winProcs{},
 	}
 }
 
@@ -75,13 +76,14 @@ func knownFolder(id *windows.KNOWNFOLDERID, fallback string) string {
 type winFS struct{ osFS }
 
 // ScheduleRemoval starts a detached, windowless cleanup process (see
-// RemovalCommandLine). It outlives this process, which is the point: our own
+// RemovalCommandLine) that first waits for this process to exit. It outlives this process, which is the point: our own
 // exe is locked until we exit. The command line is passed verbatim through
 // SysProcAttr.CmdLine so Go does not re-escape the quotes.
-func (winFS) ScheduleRemoval(dir string, files []string) error {
+func (winFS) ScheduleRemoval(r Removal) error {
+	r.WaitPID = os.Getpid()
 	cmd := exec.Command("cmd.exe")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CmdLine:       RemovalCommandLine(dir, files),
+		CmdLine:       RemovalCommandLine(r),
 		CreationFlags: createNoWindow | windows.CREATE_NEW_PROCESS_GROUP,
 		HideWindow:    true,
 	}

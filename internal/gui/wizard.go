@@ -196,8 +196,9 @@ func (s *Service) prepare(ctx context.Context, a InstallAnswers) (prep, error) {
 }
 
 // extraSteps are the steps that run after the installer plan.
-func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []string, error) {
+func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []Note, []string, error) {
 	var steps []PlanStep
+	var notes []Note
 	var unsupported []string
 	if cg := s.codegraphStep(p.m); cg != nil {
 		steps = append(steps, *cg)
@@ -209,26 +210,27 @@ func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []string, er
 		steps = append(steps, PlanStep{ID: "delivery-global", Title: p.m.Format("gui.step.delivery-global", "automation", da.Automation)})
 	}
 	if a.Windows.InstallDir != "" || a.Windows.StartMenu || a.Windows.DesktopShortcut || a.Windows.AddToPath {
-		ds, supported, err := s.desktopSteps(s.desktopOptions(a.Windows))
+		do := s.desktopOptions(a.Windows)
+		ds, supported, err := s.desktopSteps(do)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if !supported {
 			unsupported = append(unsupported, "desktop")
 		}
-		for _, d := range ds {
-			steps = append(steps, PlanStep{ID: "desktop." + d.ID, Title: d.Title})
-		}
+		dsteps, dnotes := s.desktopPlanSteps(p.m, do, ds)
+		steps = append(steps, dsteps...)
+		notes = append(notes, dnotes...)
 	}
-	return steps, unsupported, nil
+	return steps, notes, unsupported, nil
 }
 
 func (s *Service) planFrom(a InstallAnswers, p prep) (Plan, error) {
-	steps, unsupported, err := s.extraSteps(a, p)
+	steps, extra, unsupported, err := s.extraSteps(a, p)
 	if err != nil {
 		return Plan{}, err
 	}
-	notes := noteList(p.m, p.plan.Notes)
+	notes := append(noteList(p.m, p.plan.Notes), extra...)
 	for _, w := range p.inv.Memory.Warnings {
 		notes = append(notes, Note{Code: "warn." + w.Code, Text: p.m.Format("warn."+w.Code, "detail", w.Detail)})
 	}

@@ -110,6 +110,12 @@ If GabitoTL does not open or stops, a message box names this file. The Manager's
 "Open log folder" button. When something fails, attach the log to your report. The setup and the installed
 Manager keep separate WebView2 data folders under `%LOCALAPPDATA%\GabitoTL` (`webview-setup`, `webview`).
 
+**Stuck copies or leftovers after uninstall.** Install, upgrade and uninstall close running copies of GabitoTL for
+you (the plan says how many; unsaved work in them is lost). If a copy is stuck without a window and something is
+left behind, clean up by hand: run `taskkill /F /IM gabitotl-manager.exe` in a terminal, then delete the folder
+`%LOCALAPPDATA%\Programs\GabitoTL` (and `%LOCALAPPDATA%\GabitoTL` if you also want the logs and WebView2 data
+gone). The automatic cleanup writes what it could not delete to `%TEMP%\gabitotl-uninstall.log`.
+
 Limits: Windows is covered by unit tests and a CI build only; the GUI has not been exercised on a real machine
 yet.
 

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/codeindex"
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/installer/ui"
 )
 
 // CodeIndex detects and sets up the optional code index tools.
@@ -116,4 +118,26 @@ func (s *Service) applyDesktop(o desktop.Options, p Progress, from, to int) Step
 		s.setCLI(cli)
 	}
 	return StepResult{ID: "desktop", Status: StatusOK}
+}
+
+// desktopPlanSteps maps desktop steps to plan steps. The "close running copies"
+// step gets its localized title and a note that unsaved work in those copies is
+// lost; the other titles pass through.
+func (s *Service) desktopPlanSteps(m ui.Messages, o desktop.Options, ds []desktop.Step) ([]PlanStep, []Note) {
+	var steps []PlanStep
+	var notes []Note
+	for _, d := range ds {
+		st := PlanStep{ID: "desktop." + d.ID, Title: d.Title}
+		if d.ID == desktop.StepClose && s.d.Desktop != nil {
+			n := len(s.d.Desktop.RunningCopies(o))
+			key := "gui.step.close-copies.many"
+			if n == 1 {
+				key = "gui.step.close-copies.one"
+			}
+			st.Title = m.Format(key, "count", strconv.Itoa(n))
+			notes = append(notes, Note{Code: "desktop.close", Text: m.Format("gui.close-copies.warn", "count", strconv.Itoa(n))})
+		}
+		steps = append(steps, st)
+	}
+	return steps, notes
 }

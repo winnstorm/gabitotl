@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fake implements every port in memory and records the calls in order.
@@ -18,6 +19,7 @@ type fake struct {
 	links   map[string]Shortcut
 	failOn  string // call name that returns an error
 	sched   []string
+	removal Removal
 	copied  int64
 	removed []string
 }
@@ -64,8 +66,8 @@ func (f *fake) RemoveAll(p string) error {
 	}
 	return f.rec("removeall")
 }
-func (f *fake) ScheduleRemoval(_ string, files []string) error {
-	f.sched = files
+func (f *fake) ScheduleRemoval(r Removal) error {
+	f.sched, f.removal = r.Files, r
 	return f.rec("schedule")
 }
 func (f *fake) Get() (string, error) { return f.path, f.rec("path.get") }
@@ -492,23 +494,185 @@ func TestEnvValidate(t *testing.T) {
 
 func TestRemovalCommandLine(t *testing.T) {
 	dir := `C:\Users\Ana Perez\AppData\Local\Programs\GabitoTL`
-	files := []string{dir + `\gabitotl-manager.exe`, dir + `\gabitotl.exe`}
-	got := RemovalCommandLine(dir, files)
+	data := `C:\Users\Ana Perez\AppData\Local\GabitoTL`
+	r := Removal{
+		Dir: dir, Files: []string{dir + `\gabitotl-manager.exe`, dir + `\gabitotl.exe`},
+		DataDir: data, Folders: []string{data + `\webview`, data + `\webview-setup`, data + `\logs`}, WaitPID: 4242,
+	}
+	got := RemovalCommandLine(r)
 	for _, want := range []string{
 		`cmd /d /s /c "`,
-		`del /f /q "` + files[0] + `" "` + files[1] + `"`,
-		`rmdir "` + dir + `"`,
-		`for /l %i in (1,1,5)`,
+		`tasklist /fi "PID eq 4242"`,
+		`find " 4242 "`,
+		`del /f /q "` + r.Files[0] + `" "` + r.Files[1] + `"`,
+		`rmdir /s /q "` + data + `\webview"`,
+		`rmdir /s /q "` + data + `\webview-setup"`,
+		`rmdir /s /q "` + data + `\logs"`,
+		`rmdir "` + dir + `" >nul`,
+		`rmdir "` + data + `" >nul`,
+		`for /l %i in (1,1,60)`,
+		`gabitotl-uninstall.log`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "rmdir /s") || strings.Contains(got, "rd /s") {
-		t.Fatalf("must not recurse: %s", got)
+	for _, bad := range []string{`rmdir /s /q "` + dir + `"`, `rmdir /s /q "` + data + `"`} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("install and data dirs must never be removed recursively: %s", got)
+		}
 	}
 	if !strings.HasSuffix(got, `"`) || strings.Count(got, `"`)%2 != 0 {
 		t.Fatalf("unbalanced quotes: %s", got)
+	}
+	if strings.Contains(RemovalCommandLine(Removal{Dir: dir, Files: r.Files}), "tasklist") {
+		t.Fatal("no PID, no wait")
+	}
+}
+
+func TestRemovalOnlyNamedFoldersInsideDataDir(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.Env.DataDir = abs(filepath.Join("local", "GabitoTL"))
+	if err := in.Uninstall(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, p := range f.removal.Folders {
+		names = append(names, filepath.Base(p))
+		if !sameOrInside(p, in.Env.DataDir) {
+			t.Fatalf("%s outside the data dir", p)
+		}
+	}
+	if !reflect.DeepEqual(names, dataFolders) || f.removal.DataDir != in.Env.DataDir {
+		t.Fatalf("removal = %+v", f.removal)
+	}
+	in.Env.DataDir = abs(filepath.Join("local", "Gabito&TL"))
+	f.removal = Removal{}
+	_ = in.Uninstall(Options{}, nil)
+	if len(f.removal.Folders) != 0 || f.removal.DataDir != "" {
+		t.Fatalf("a data dir with cmd metacharacters must be skipped: %+v", f.removal)
+	}
+}
+
+// fakeProcs lists a fixed set of copies and records Stop in the fake's call log.
+type fakeProcs struct {
+	f       *fake
+	procs   []Proc
+	failPID uint32
+}
+
+func (p *fakeProcs) Running(string, []string) ([]Proc, error) { return p.procs, nil }
+func (p *fakeProcs) Stop(pr Proc, _ time.Duration) error {
+	p.f.calls = append(p.f.calls, "stop")
+	if pr.PID == p.failPID {
+		return errors.New("access denied")
+	}
+	return nil
+}
+
+func withProcs(f *fake, pids ...uint32) (*Installer, *fakeProcs) {
+	in := newInstaller(f)
+	fp := &fakeProcs{f: f}
+	for _, id := range pids {
+		fp.procs = append(fp.procs, Proc{PID: id, Path: filepath.Join(in.Env.DefaultInstallDir, ManagerExe)})
+	}
+	in.Procs = fp
+	return in, fp
+}
+
+func TestPlansIncludeCloseStepOnlyWhenCopiesRun(t *testing.T) {
+	f := newFake()
+	in, fp := withProcs(f)
+	if got := ids(mustPlan(t, in, Options{})); got[0] == StepClose {
+		t.Fatalf("no copies, no close step: %v", got)
+	}
+	if got := ids(mustUPlan(t, in)); got[0] == StepClose {
+		t.Fatalf("no copies, no close step: %v", got)
+	}
+	fp.procs = []Proc{{PID: 1}, {PID: 2}, {PID: 3}}
+	pl := mustPlan(t, in, Options{})
+	if pl[0].ID != StepClose || !strings.Contains(pl[0].Title, "3 running copies") {
+		t.Fatalf("plan = %v", pl)
+	}
+	if up := mustUPlan(t, in); up[0].ID != StepClose {
+		t.Fatalf("uninstall plan = %v", up)
+	}
+}
+
+func TestUninstallStopsCopiesBeforeScheduling(t *testing.T) {
+	f := newFake()
+	in, _ := withProcs(f, 10, 11)
+	if err := in.Uninstall(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var seq []string
+	for _, c := range f.calls {
+		if c == "stop" || c == "schedule" {
+			seq = append(seq, c)
+		}
+	}
+	if !reflect.DeepEqual(seq, []string{"stop", "stop", "schedule"}) {
+		t.Fatalf("order = %v", seq)
+	}
+}
+
+func TestUninstallFailureToStopStillRunsTheRest(t *testing.T) {
+	f := newFake()
+	in, fp := withProcs(f, 10, 11)
+	fp.failPID = 10
+	f.reg = &Registration{}
+	err := in.Uninstall(Options{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "process 10") || strings.Contains(err.Error(), "process 11") {
+		t.Fatalf("want only pid 10 reported, got %v", err)
+	}
+	if f.reg != nil || f.calls[len(f.calls)-1] != "schedule" {
+		t.Fatalf("later steps must run: reg=%v calls=%v", f.reg, f.calls)
+	}
+}
+
+func TestApplyRefusesToCopyWhenCopiesCannotBeStopped(t *testing.T) {
+	f := newFake()
+	in, fp := withProcs(f, 10)
+	fp.failPID = 10
+	err := in.Apply(Options{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "nothing was copied") {
+		t.Fatalf("err = %v", err)
+	}
+	for _, c := range f.calls {
+		if c == "copy" || c == "write" {
+			t.Fatalf("copied despite a running copy: %v", f.calls)
+		}
+	}
+	fp.failPID = 0
+	f.calls = nil
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.calls[0] != "stop" {
+		t.Fatalf("stop must precede the copy: %v", f.calls)
+	}
+}
+
+func TestHungCopies(t *testing.T) {
+	now := time.Now()
+	ps := []Proc{
+		{PID: 1, Started: now.Add(-2 * time.Minute)},                  // hung
+		{PID: 2, Started: now.Add(-2 * time.Minute), HasWindow: true}, // fine
+		{PID: 3, Started: now.Add(-5 * time.Second)},                  // young
+		{PID: 4}, // unknown start
+	}
+	if got := HungCopies(ps, now); len(got) != 1 || got[0].PID != 1 {
+		t.Fatalf("hung = %v", got)
+	}
+}
+
+func TestOwned(t *testing.T) {
+	dir := abs(filepath.Join("Programs", "GabitoTL"))
+	exes := ownedFiles(dir)
+	if !Owned(strings.ToUpper(exes[0]), dir, exes) || Owned(filepath.Join(dir, "other.exe"), dir, exes) ||
+		Owned(filepath.Join(abs("elsewhere"), ManagerExe), dir, exes) {
+		t.Fatal("Owned must match only the owned exes inside dir, ignoring case")
 	}
 }
 
@@ -565,7 +729,7 @@ func (f failingFS) WriteFile(dst string, data []byte) (int64, error) {
 	}
 	return f.osFS.WriteFile(dst, data)
 }
-func (failingFS) ScheduleRemoval(string, []string) error { return nil }
+func (failingFS) ScheduleRemoval(Removal) error { return nil }
 
 func diskInstaller(t *testing.T, fs FileSystem) (*Installer, string, string) {
 	t.Helper()

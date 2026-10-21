@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -341,5 +342,33 @@ func TestPlanAndApplyDesktopPieces(t *testing.T) {
 	}
 	if _, err := r.svc.ApplyDesktop(w, p.ID, nil); err != nil || m.reg == nil || m.path == "" {
 		t.Fatalf("%v reg=%v path=%q", err, m.reg, m.path)
+	}
+}
+
+func TestUninstallPlanShowsRunningCopies(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.install(r.answers())
+	r.project()
+	r.withDesktop()
+	fp := &fixedProcs{n: 3}
+	r.svc.d.Desktop.Procs = fp
+	o := UninstallOptions{Root: r.root, Desktop: true}
+	pl, err := r.svc.PlanUninstall(ctx, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var step, note bool
+	for _, s := range pl.Steps {
+		step = step || (s.ID == "desktop.close" && strings.Contains(s.Title, "3"))
+	}
+	for _, n := range pl.Notes {
+		note = note || (n.Code == "desktop.close" && strings.Contains(n.Text, "3"))
+	}
+	if !step || !note {
+		t.Fatalf("close step/note missing: %+v", pl)
+	}
+	if _, err := r.svc.Uninstall(ctx, o, pl.ID, nil); err != nil || fp.stopped != 3 {
+		t.Fatalf("stopped=%d err=%v", fp.stopped, err)
 	}
 }

@@ -47,6 +47,7 @@ type Step struct {
 
 // Step IDs.
 const (
+	StepClose     = "close"
 	StepCopy      = "copy"
 	StepPath      = "path"
 	StepStartMenu = "startmenu"
@@ -102,11 +103,9 @@ type FileSystem interface {
 	WriteFile(dst string, data []byte) (int64, error)
 	Exists(path string) bool
 	RemoveAll(path string) error
-	// ScheduleRemoval deletes files after this process has exited (a running
-	// executable cannot delete itself on Windows).
-	// Only the listed files are deleted, then dir itself if it is empty;
-	// anything else the user keeps there survives.
-	ScheduleRemoval(dir string, files []string) error
+	// ScheduleRemoval cleans up after this process has exited (a running
+	// executable cannot delete itself on Windows); see Removal.
+	ScheduleRemoval(r Removal) error
 }
 
 // PathEnv is the per-user PATH port.
@@ -141,7 +140,10 @@ type Env struct {
 	// Protected lists directories an install dir may never be, nor contain
 	// (home, Documents, %LOCALAPPDATA%, Program Files, ...).
 	Protected []string
-	Today     func() string // yyyymmdd; nil means the empty string
+	// DataDir is %LOCALAPPDATA%\GabitoTL, where the Manager keeps its WebView2
+	// profiles and logs. Empty means nothing there is cleaned up.
+	DataDir string
+	Today   func() string // yyyymmdd; nil means the empty string
 }
 
 // Installer orchestrates the install and uninstall through the ports.
@@ -155,6 +157,11 @@ type Installer struct {
 	// is written to the install dir when no gabitotl.exe sits next to the
 	// running manager. Nil means nothing is bundled.
 	EmbeddedCLI []byte
+	// Procs finds and stops running copies of the installed executables. Nil
+	// means none are ever found.
+	Procs Processes
+	// Log receives one line per process step (PIDs and paths, never secrets).
+	Log func(format string, a ...any)
 }
 
 // validate refuses to run with unresolved locations: an empty
@@ -273,6 +280,13 @@ func (in *Installer) installActions(o Options) []action {
 	manager := filepath.Join(dir, ManagerExe)
 	var size int64
 	var as []action
+
+	if procs := in.runningCopies(dir); len(procs) > 0 {
+		as = append(as, action{
+			Step: Step{StepClose, closeTitle(len(procs))},
+			do:   func() error { return in.stopAll(procs, true) },
+		})
+	}
 
 	var existed bool
 	var b backups
@@ -484,50 +498,79 @@ func (in *Installer) UninstallPlan(o Options) ([]Step, error) {
 }
 
 func (in *Installer) uninstallSteps(o Options) []Step {
-	return []Step{
-		{StepUnlink, "Remove the shortcuts"},
-		{StepUnpath, "Remove " + in.dir(o) + " from your PATH"},
-		{StepUnreg, "Remove the Apps & features entry"},
-		{StepRemove, "Delete the GabitoTL files in " + in.dir(o) + " once this window closes"},
+	var ss []Step
+	if n := len(in.runningCopies(in.dir(o))); n > 0 {
+		ss = append(ss, Step{StepClose, closeTitle(n)})
 	}
+	return append(ss,
+		Step{StepUnlink, "Remove the shortcuts"},
+		Step{StepUnpath, "Remove " + in.dir(o) + " from your PATH"},
+		Step{StepUnreg, "Remove the Apps & features entry"},
+		Step{StepRemove, "Delete the GabitoTL files in " + in.dir(o) + " once this window closes"},
+	)
 }
 
 // Uninstall removes everything Apply created. It is best effort: every step
-// runs, and the failures are joined. Only the files GabitoTL installed are
-// deleted, by a detached process after this one exits (the running executable
-// lives there); the directory goes only if that leaves it empty.
+// runs, and the failures are joined. Running copies are closed first. Only the
+// files GabitoTL installed are deleted, by a detached process after this one
+// exits (the running executable lives there); the directory goes only if that
+// leaves it empty.
 func (in *Installer) Uninstall(o Options, progress func(Step)) error {
 	if err := in.check(o); err != nil {
 		return err
 	}
 	dir := in.dir(o)
-	ss := in.uninstallSteps(o)
 	var errs []error
-	run := func(i int, f func() error) {
+	run := func(s Step, f func() error) {
 		if progress != nil {
-			progress(ss[i])
+			progress(s)
 		}
 		if err := f(); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", ss[i].Title, err))
+			errs = append(errs, fmt.Errorf("%s: %w", s.Title, err))
 		}
 	}
-	run(0, func() error {
-		return errors.Join(in.FS.RemoveAll(in.startMenuFolder()), in.Links.Remove(in.desktopLink()))
-	})
-	run(1, func() error {
-		cur, err := in.Path.Get()
-		if err != nil {
-			return err
+	for _, s := range in.uninstallSteps(o) {
+		switch s.ID {
+		case StepClose:
+			run(s, func() error { return in.stopAll(in.runningCopies(dir), false) })
+		case StepUnlink:
+			run(s, func() error {
+				return errors.Join(in.FS.RemoveAll(in.startMenuFolder()), in.Links.Remove(in.desktopLink()))
+			})
+		case StepUnpath:
+			run(s, func() error {
+				cur, err := in.Path.Get()
+				if err != nil {
+					return err
+				}
+				next, changed := RemovePathEntry(cur, dir)
+				if !changed {
+					return nil
+				}
+				return in.Path.Set(next)
+			})
+		case StepUnreg:
+			run(s, in.Reg.Unregister)
+		case StepRemove:
+			run(s, func() error { return in.FS.ScheduleRemoval(in.removal(dir)) })
 		}
-		next, changed := RemovePathEntry(cur, dir)
-		if !changed {
-			return nil
-		}
-		return in.Path.Set(next)
-	})
-	run(2, in.Reg.Unregister)
-	run(3, func() error { return in.FS.ScheduleRemoval(dir, ownedFiles(dir)) })
+	}
 	return errors.Join(errs...)
+}
+
+// removal is what the detached cleanup deletes: the owned files, the Manager's
+// own WebView2 profiles and logs, then the (then empty) install and data dirs.
+func (in *Installer) removal(dir string) Removal {
+	r := Removal{Dir: dir, Files: ownedFiles(dir)}
+	if d := in.Env.DataDir; d != "" && safeDataDir(d, d) == nil {
+		r.DataDir = d
+		for _, n := range dataFolders {
+			if p := filepath.Join(d, n); safeDataDir(p, d) == nil {
+				r.Folders = append(r.Folders, p)
+			}
+		}
+	}
+	return r
 }
 
 // Status reports what is installed in the directory chosen by o.
