@@ -20,7 +20,7 @@ import (
 func runVCS(env Env, args []string) int {
 	return subcommands(env, "vcs", args, map[string]func(Env, []string) int{
 		"status": runVCSStatus, "branch": runVCSBranch, "setup": runVCSSetup, "login": runVCSLogin,
-		"commit": runVCSCommit, "push": runVCSPush, "pr": runVCSPR, "merge": runVCSMerge, "ship": runVCSShip,
+		"test": runVCSTest, "commit": runVCSCommit, "push": runVCSPush, "pr": runVCSPR, "merge": runVCSMerge, "ship": runVCSShip,
 	})
 }
 
@@ -55,7 +55,7 @@ type deliveryFlags struct {
 }
 
 func (f *deliveryFlags) bind(fs *flag.FlagSet) {
-	fs.StringVar(&f.provider, "vcs-provider", "", "platform of the repository: github, gitlab, bitbucket (default: inferred from origin)")
+	fs.StringVar(&f.provider, "vcs-provider", "", "platform of the repository: github, gitlab, bitbucket, bitbucket-server (default: inferred from origin)")
 	fs.StringVar(&f.automation, "vcs-automation", "", "what Gabito does alone: all (commit, push, PR, merge), until-pr (you merge) or ask; settles the delivery questions")
 	fs.StringVar(&f.mergeMethod, "vcs-merge-method", "", "how a PR is merged: squash, merge or rebase (default squash)")
 	fs.Var(boolPtr{&f.deleteBranch}, "vcs-delete-branch", "delete the branch after the merge (--vcs-delete-branch=false to keep it)")

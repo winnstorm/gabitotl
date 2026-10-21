@@ -31,7 +31,7 @@ func runInit(env Env, args []string) int {
 	fs.StringVar(&f.userName, "user-name", "", "explicit developer profile name (the active identity comes from the OS user)")
 	fs.StringVar(&f.mode, "mode", "", "memory mode: solo|team (default: solo)")
 	fs.StringVar(&f.provider, "provider", "", "memory provider: engram|memory-mcp (default: by mode)")
-	fs.StringVar(&f.vcs, "vcs", "", "VCS provider: github|bitbucket|gitlab|azure-devops|git|local (default: git)")
+	fs.StringVar(&f.vcs, "vcs", "", "VCS provider: github|bitbucket|bitbucket-server|gitlab|azure-devops|git|local (default: git)")
 	fs.BoolVar(&f.yes, "yes", false, "non-interactive: accept defaults, never prompt")
 	fs.BoolVar(&f.noHooks, "no-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
 	if err := fs.Parse(args); err != nil {

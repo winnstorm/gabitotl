@@ -29,6 +29,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/persona"
 	"github.com/winnstorm/gabitotl/internal/projects"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // Deps are the ports of the Service. Env is required; every other field has a
@@ -52,7 +53,12 @@ type Deps struct {
 	// credential methods. VerifyToken asks the platform whether a token works with
 	// no project involved (ok, a secret-free detail, a transport error).
 	Credentials func(home string) credstore.Store
-	VerifyToken func(ctx context.Context, platform, host, token string) (ok bool, detail string, err error)
+	// baseURL is the registry URL of a self-hosted server ("" for a public host);
+	// user is the authenticated account name when the platform tells.
+	VerifyToken func(ctx context.Context, platform, host, baseURL, token string) (ok bool, detail, user string, err error)
+	// Servers is the registry of self-hosted servers (Bitbucket Data Center, GitHub
+	// Enterprise, self-managed GitLab) of the user at home; nil disables them.
+	Servers func(home string) vcshosts.Registry
 	// CodeGraph installs the required CodeGraph component; nil uses the real
 	// installer of this machine (Windows only, unsupported elsewhere).
 	CodeGraph *codegraph.Installer

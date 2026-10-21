@@ -787,9 +787,27 @@ deleted when it is exactly what `origin` has, so nothing unpublished is ever los
 | GitHub | the `gh` CLI (`pr create`, `pr merge`, `pr edit --base`, `pr checks`) | `gh auth login` |
 | GitLab (gitlab.com and self-managed) | the `glab` CLI (`mr create`, `mr merge`, `mr update`, `mr view`) | `glab auth login` |
 | Bitbucket **Cloud** | the REST API 2.0 over HTTPS | a token in an environment variable |
+| Bitbucket **Server / Data Center** (your own server) | the REST API 1.0 over HTTPS | `gabitotl vcs login --url ...` |
 
-Bitbucket Server and Data Center are **not supported**; `vcs login` and `vcs status` say so. Azure DevOps and
-a generic Git host have no pull request support yet.
+Azure DevOps and a generic Git host have no pull request support yet.
+
+**Your own Bitbucket Data Center.** Register the server once and store an HTTP access token (Bitbucket >
+Profile > Personal access tokens, with project and repository write):
+
+```
+export BITBUCKET_SERVER_TOKEN=...          # or: --token-env NAME, or pipe the token with --token-stdin
+gabitotl vcs login --url https://bitbucket.personal.corp:8443
+gabitotl vcs test --host bitbucket.personal.corp   # re-check the stored token any time
+```
+
+The token is verified against the server first; only then is the server written to the non-secret
+`~/.gabitotl/vcs-hosts.json` (host, platform, web URL with port and context path) and the token to your
+credential store under the host name (without port). A project whose `origin` is on that host (https
+`.../scm/PROJ/repo.git`, `ssh://git@host:7999/proj/repo.git` or `git@host:proj/repo.git`) then uses
+`bitbucket-server` automatically; the API address always comes from the registry, never from the SSH port.
+Certificates are checked with your operating system's trust store (install your corporate CA there); there
+is no option to skip the check, and an untrusted certificate is reported as such. `vcs login --url` also
+accepts `--platform github` or `--platform gitlab` for GitHub Enterprise and self-managed GitLab.
 
 `gabitotl vcs login` detects the platform (the one in `vcs.md`, else the one `origin` points at):
 

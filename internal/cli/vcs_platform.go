@@ -49,7 +49,7 @@ func credentialFor(root string, cfg gabitotl.VCSConfig) (vcs.Credential, error) 
 }
 
 // platformNames are the providers GabitoTL can drive, with their display names.
-var platformNames = map[string]string{"github": "GitHub", "gitlab": "GitLab", "bitbucket": "Bitbucket"}
+var platformNames = map[string]string{"github": "GitHub", "gitlab": "GitLab", "bitbucket": "Bitbucket", "bitbucket-server": "Bitbucket Server"}
 
 // platformTool is the command-line tool that owns the login of each CLI-based platform.
 var platformTool = map[string]string{"github": "gh", "gitlab": "glab"}
@@ -83,6 +83,7 @@ func hostFor(provider, root string, cfg gabitotl.VCSConfig) (vcs.Host, error) {
 	return vcs.HostFor(provider, vcs.HostOptions{
 		Runner: vcsRunnerFn(), HTTP: vcsHTTPFn(), BitbucketAPI: vcsAPIFn(),
 		Credentials: func() (vcs.Credential, error) { return credentialFor(root, cfg) },
+		Servers:     servers(), ServerToken: serverTokenFor(root, cfg),
 	})
 }
 
@@ -126,4 +127,5 @@ func init() {
 		tok, ok, err := credStoreFn(userHome()).Get(host)
 		return tok, ok && err == nil
 	}
+	vcs.DefaultServers = servers
 }

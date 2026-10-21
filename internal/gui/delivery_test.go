@@ -17,6 +17,7 @@ type credRig struct {
 	store *credstore.Fake
 	ok    bool
 	err   error
+	user  string
 	saw   []string
 }
 
@@ -24,9 +25,9 @@ func newCredRig(t *testing.T) *credRig {
 	t.Helper()
 	c := &credRig{rig: newRig(t), store: credstore.NewFake(), ok: true}
 	c.svc.d.Credentials = func(string) credstore.Store { return c.store }
-	c.svc.d.VerifyToken = func(_ context.Context, platform, host, _ string) (bool, string, error) {
-		c.saw = append(c.saw, platform+"@"+host)
-		return c.ok, "the token was rejected", c.err
+	c.svc.d.VerifyToken = func(_ context.Context, platform, host, base, _ string) (bool, string, string, error) {
+		c.saw = append(c.saw, platform+"@"+host+"|"+base)
+		return c.ok, "the token was rejected", c.user, c.err
 	}
 	return c
 }

@@ -25,13 +25,21 @@ func runVCSLogin(env Env, args []string) int {
 	fl := flag.NewFlagSet("vcs login", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	root := fl.String("root", "", "project root (default: Git top-level of the current directory)")
-	tokenEnv := fl.String("token-env", "", "Bitbucket: name of the environment variable that holds the token (default BITBUCKET_TOKEN)")
+	tokenEnv := fl.String("token-env", "", "Bitbucket: name of the environment variable that holds the token (default BITBUCKET_TOKEN; with --url BITBUCKET_SERVER_TOKEN)")
 	store := fl.Bool("store-token", false, "Bitbucket: copy the token from that variable into the credential store of your user")
+	serverURL := fl.String("url", "", "self-hosted server: its web URL (for example https://bitbucket.corp:8443); registers it and stores the token")
+	serverPlatform := fl.String("platform", "", "with --url: bitbucket-server (default), github or gitlab")
+	tokenStdin := fl.Bool("token-stdin", false, "with --url: read the token from standard input (one line) instead of an environment variable")
 	check := fl.Bool("check", false, "only verify the login; never log in or change anything")
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
 	}
 	m := ui.Active("")
+	if *serverURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), vcsServerTimeout)
+		defer cancel()
+		return loginServer(ctx, env, m, *serverURL, *serverPlatform, *tokenEnv, *tokenStdin, *check)
+	}
 	dir, err := resolveRoot(env, *root)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl vcs login: %v\n", err)
@@ -51,6 +59,9 @@ func runVCSLogin(env Env, args []string) int {
 	if !known {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.login.noplatform", "provider", provider))
 		return ExitError
+	}
+	if provider == "bitbucket-server" {
+		return loginServerProject(ctx, env, m, dir, cfg)
 	}
 	if provider == "bitbucket" {
 		return loginBitbucket(ctx, env, m, dir, layout, user, cfg, *tokenEnv, *store, *check)

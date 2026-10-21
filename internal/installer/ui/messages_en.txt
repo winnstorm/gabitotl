@@ -204,7 +204,7 @@ vcs.login.notlogged = You have not logged in to {platform} yet. Run: {command}
 vcs.login.failed = I could not confirm your session on {platform}. Try again: {command}
 vcs.login.notty = Without a terminal I cannot open the {platform} login. Run this in a terminal: {command}
 vcs.login.toolmissing = The tool {tool} is missing. Install it from {url} and then run gabitotl vcs login.
-vcs.login.unsupported = {platform} is not supported in this repository. For Bitbucket only Bitbucket Cloud (bitbucket.org) works, not Server or Data Center.
+vcs.login.unsupported = {platform} is not supported in this repository. For Bitbucket, Cloud (bitbucket.org) works out of the box; a Server or Data Center must be registered first with gabitotl vcs login --url https://your-server.
 vcs.login.noplatform = I do not know which platform this repository is on (origin says {provider}). GabitoTL handles GitHub, GitLab and Bitbucket Cloud: pick one with gabitotl vcs setup --vcs-provider=github, gitlab or bitbucket.
 vcs.login.bb.askenv = Which environment variable holds your Bitbucket token?
 vcs.login.bb.badname = {name} is not a valid environment variable name (letters, digits and underscore, not starting with a digit).
@@ -214,6 +214,18 @@ vcs.login.bb.stored = I stored the token in your user credential store ({target}
 vcs.login.bb.saved = I saved the reference {ref} in {path}. The token is not stored there.
 vcs.login.bb.rejected = Bitbucket did not accept the token in {name}. Check that it has not expired and that it can read and write pull requests, and run gabitotl vcs login again.
 vcs.login.bb.ok = Bitbucket session verified with the variable {name}.
+vcs.srv.badplatform = {platform} is not a platform I can register (use bitbucket-server, github or gitlab).
+vcs.srv.badurl = The server URL is not valid: {detail}
+vcs.srv.notoken = There is no token to check. Create an HTTP access token on your server and pass it in the variable {name} (export {name}=...) or on standard input with --token-stdin.
+vcs.srv.rejected = {host} did not accept the token. Check that it has not expired and that it can read and write pull requests.
+vcs.srv.unreachable = I could not check the token with {host}: {detail}
+vcs.srv.ok = {host} accepted the token.
+vcs.srv.ok.user = {host} accepted the token (signed in as {user}).
+vcs.srv.stored = Registered {host} as {url} and stored its token in your user credential store ({target}). The token is never written to .gabitotl.
+vcs.srv.unregistered = This server is not registered. Register it with: gabitotl vcs login --url https://your-server --token-env NAME
+vcs.srv.login.todo = The token for this server is missing or was not accepted. Run: gabitotl vcs login --url https://your-server --token-env NAME
+vcs.srv.nostored = There is no stored token for {host}. Store one with: gabitotl vcs login (or gabitotl vcs login --url https://{host} --token-env NAME for your own server).
+vcs.srv.nohost = I could not read the origin remote of this project. Pass the host with --host.
 ask.action = What do you want to do?
 ask.action.migrate = Migrate Gentle-AI → GabitoTL
 ask.action.keep = Install GabitoTL without touching Gentle-AI

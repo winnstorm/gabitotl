@@ -36,6 +36,7 @@ const (
 	CredRejected    = "rejected"    // the platform refused the token; nothing stored
 	CredUnreachable = "unreachable" // the platform could not be asked; nothing stored
 	CredInvalid     = "invalid"     // the platform, host or token is not acceptable; nothing stored
+	CredOK          = "ok"          // TestCredential: the stored token is accepted
 )
 
 // CredentialInfo says whether a token is stored for a platform host. It never
@@ -53,6 +54,7 @@ type CredentialResult struct {
 	Status   string `json:"status"`
 	Stored   bool   `json:"stored"`
 	Detail   string `json:"detail,omitempty"`
+	User     string `json:"user,omitempty"` // the account the token belongs to, when the platform tells
 }
 
 // platformHosts are the public hosts the credentials screen always lists.
@@ -166,17 +168,11 @@ func (s *Service) SaveCredential(ctx context.Context, platform, host, token stri
 		return res, nil
 	}
 	// The platform is asked at the host as typed (port included); the store key drops the port.
-	ok, detail, err := s.d.VerifyToken(ctx, platform, strings.ToLower(host), strings.TrimSpace(token))
-	switch {
-	case err != nil:
-		res.Status, res.Detail = CredUnreachable, "could not check the token"
-		var perr interface{ Timeout() bool }
-		if errors.As(err, &perr) && perr.Timeout() {
-			res.Detail = "the platform did not answer in time"
-		}
-		return res, nil
-	case !ok:
-		res.Status, res.Detail = CredRejected, detail
+	base := ""
+	if e, ok := s.serverEntry(res.Host); ok && e.Platform == platform {
+		base = e.URL
+	}
+	if s.verifyInto(ctx, &res, platform, strings.ToLower(host), base, strings.TrimSpace(token)) {
 		return res, nil
 	}
 	if err := st.Set(res.Host, token); err != nil {
@@ -188,6 +184,29 @@ func (s *Service) SaveCredential(ctx context.Context, platform, host, token stri
 	}
 	res.Status, res.Stored = CredSaved, true
 	return res, nil
+}
+
+// verifyInto asks the platform about token and fills res on a failure, returning
+// true when the caller must stop. On success it records the account name.
+func (s *Service) verifyInto(ctx context.Context, res *CredentialResult, platform, host, base, token string) (stop bool) {
+	ok, detail, user, err := s.d.VerifyToken(ctx, platform, host, base, token)
+	switch {
+	case err != nil:
+		res.Status, res.Detail = CredUnreachable, "could not check the token"
+		if base != "" {
+			res.Detail = err.Error() // secret-free; names a certificate problem when that is the cause
+		}
+		var perr interface{ Timeout() bool }
+		if errors.As(err, &perr) && perr.Timeout() {
+			res.Detail = "the platform did not answer in time"
+		}
+		return true
+	case !ok:
+		res.Status, res.Detail = CredRejected, detail
+		return true
+	}
+	res.User = user
+	return false
 }
 
 // DeleteCredential removes the stored token of host.

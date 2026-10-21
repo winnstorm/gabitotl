@@ -42,6 +42,9 @@ type ProjectCredential struct {
 	Platform string `json:"platform,omitempty"`
 	Host     string `json:"host,omitempty"`
 	Stored   bool   `json:"stored"`
+	// Server is true when the host is a registered self-hosted server (its web URL is ServerURL).
+	Server    bool   `json:"server"`
+	ServerURL string `json:"serverUrl,omitempty"`
 }
 
 // ProjectDetail is the overview of one project folder.
@@ -85,6 +88,9 @@ func (s *Service) Project(ctx context.Context, root string) (ProjectDetail, erro
 	}
 	if out.Host != "" {
 		out.Credential = ProjectCredential{Known: true, Platform: out.Platform, Host: credstore.NormalizeHost(out.Host)}
+		if e, ok := s.serverEntry(out.Credential.Host); ok {
+			out.Credential.Server, out.Credential.ServerURL = true, e.URL
+		}
 		if st, err := s.credStore(); err == nil {
 			_, out.Credential.Stored, _ = st.Get(out.Credential.Host)
 		}

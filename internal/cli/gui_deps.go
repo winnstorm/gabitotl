@@ -10,6 +10,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/guard"
 	"github.com/winnstorm/gabitotl/internal/gui"
 	"github.com/winnstorm/gabitotl/internal/vcs"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 	"github.com/winnstorm/gabitotl/internal/version"
 )
 
@@ -34,6 +35,7 @@ func GUIDeps(cliPath func() string) gui.Deps {
 		},
 		Credentials: func(home string) credstore.Store { return credStoreFn(home) },
 		VerifyToken: guiVerifyToken,
+		Servers:     func(home string) vcshosts.Registry { return serversFn(home) },
 		Projects: func(ctx context.Context) ([]projects.Project, error) {
 			e := projects.OSEnv()
 			return projects.Scan(ctx, projects.Defaults(e), projects.DefaultOptions(e.Home)), nil
@@ -43,12 +45,12 @@ func GUIDeps(cliPath func() string) gui.Deps {
 }
 
 // guiVerifyToken checks a token against the platform API with no project.
-func guiVerifyToken(ctx context.Context, platform, host, token string) (bool, string, error) {
-	st, err := vcs.VerifyToken(ctx, platform, host, token, vcs.VerifyOptions{HTTP: vcsHTTPFn(), APIBase: vcsAPIFn()})
+func guiVerifyToken(ctx context.Context, platform, host, baseURL, token string) (bool, string, string, error) {
+	st, err := vcs.VerifyToken(ctx, platform, host, token, vcs.VerifyOptions{HTTP: vcsHTTPFn(), APIBase: vcsAPIFn(), BaseURL: baseURL})
 	if err != nil {
-		return false, "", err
+		return false, "", "", err
 	}
-	return st.OK(), st.Detail, nil
+	return st.OK(), st.Detail, st.User, nil
 }
 
 // guiAuth is `vcs login --check` as data.

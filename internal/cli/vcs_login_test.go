@@ -315,7 +315,7 @@ func TestLoginBitbucketServerIsUnsupported(t *testing.T) {
 	withPlatform(t, &platformFake{}, map[string]string{"BITBUCKET_TOKEN": "t"})
 	bitbucketAPI(t, "t")
 	r := runIn(t, "", false, root, "vcs", "login")
-	if r.code == 0 || !strings.Contains(r.err, "Server ni Data Center") {
+	if r.code == 0 || !strings.Contains(r.err, "Server o Data Center hay que registrarlo") {
 		t.Fatalf("%+v", r)
 	}
 }
