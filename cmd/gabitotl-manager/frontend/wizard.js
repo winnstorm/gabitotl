@@ -84,13 +84,30 @@ function stepHead(title, lead) {
 
 // intro is the animated "what is GabitoTL for": a small diagram (you, your agents,
 // memory and code index, a pull request) and four beats that appear in sequence.
-function stepWelcome() {
-  var feats = [['spark', 'gui.welcome.f1.title', 'gui.welcome.f1.desc'], ['archive', 'gui.welcome.f2.title', 'gui.welcome.f2.desc'], ['undo', 'gui.welcome.f3.title', 'gui.welcome.f3.desc']].map(function (f) {
-    return '<div class="tip"><span class="oic sm">' + UI.icon(f[0]) + '</span><div><b>' + esc(t(f[1])) + '</b>' + esc(t(f[2])) + '</div></div>';
+var introStart = 0;
+function intro() {
+  // The animation plays once. A re-render (language, license checkbox) continues
+  // it where it was (negative delay) or, once it ended, shows the final state.
+  if (!introStart) introStart = Date.now();
+  var el = (Date.now() - introStart) / 1000;
+  var done = el > 4;
+  var nodes = [['user', 'gui.intro.d.you'], ['bot', 'gui.intro.d.agents'], ['db', 'gui.intro.d.memory'], ['pr', 'gui.intro.d.pr']];
+  var flow = nodes.map(function (n, i) {
+    return (i ? '<span class="arrow" style="--i:' + i + '"><i></i></span>' : '') +
+      '<div class="node" style="--i:' + i + '"><span class="oic">' + UI.icon(n[0], 'lg') + '</span><span>' + esc(t(n[1])) + '</span></div>';
   }).join('');
+  var beats = [['bot', 1, 'gui.intro.b1.title', 'gui.intro.b1.desc'], ['db', 2, 'gui.intro.b2.title', 'gui.intro.b2.desc'], ['search', 3, 'gui.intro.b3.title', 'gui.intro.b3.desc'], ['pr', 4, 'gui.intro.b4.title', 'gui.intro.b4.desc']].map(function (b) {
+    return '<li class="beat" style="--i:' + b[1] + '"><span class="oic sm">' + UI.icon(b[0]) + '</span><div><b>' + esc(t(b[2])) + '</b>' + esc(t(b[3])) + '</div></li>';
+  }).join('');
+  return '<section class="intro' + (done ? ' done' : '') + '" style="--el:' + el.toFixed(2) + 's" aria-label="' + esc(t('gui.intro.title')) + '"><div class="lbl">' + UI.icon('spark') + esc(t('gui.intro.title')) + '</div>' +
+    '<div class="flow" aria-hidden="true">' + flow + '</div><ol class="beats">' + beats + '</ol>' +
+    '<p class="lead sm manage">' + esc(t('gui.intro.manage')) + '</p></section>';
+}
+
+function stepWelcome() {
   return '<div class="phead" style="gap:18px;margin-top:4px">' + logo(64) + '<div><div class="stepof">' + esc(t('gui.wiz.stepof', { n: 1, total: STEPS.length })) + '</div><h1>' + esc(t('gui.welcome.title')) + '</h1><p class="lead">' + esc(t('gui.welcome.tagline')) + '</p></div></div>' +
     '<p class="lead">' + esc(t('gui.welcome.lead')) + '</p>' +
-    '<div class="tips">' + feats + '</div>' +
+    intro() +
     '<div class="lbl">' + UI.icon('globe') + esc(t('gui.welcome.language')) + '</div>' +
     '<div class="grid2">' + [['es', 'gui.welcome.lang.es.name', 'gui.welcome.lang.es.desc'], ['en', 'gui.welcome.lang.en.name', 'gui.welcome.lang.en.desc']].map(function (o) {
       return '<div class="opt' + (S.lang === o[0] ? ' sel' : '') + '"><label><input type="radio" name="lang" data-act="lang" data-val="' + o[0] + '" data-k="welcome-lang-' + o[0] + '"' + attr('checked', true, S.lang === o[0]) + '><span class="oic">' + UI.icon('globe', 'lg') + '</span><div><b>' + esc(t(o[1])) + '</b><span>' + esc(t(o[2])) + '</span></div></label></div>';

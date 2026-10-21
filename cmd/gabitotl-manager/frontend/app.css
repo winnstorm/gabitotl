@@ -256,6 +256,23 @@ input[type=search]{height:36px;border:1px solid var(--line2);border-radius:8px;p
 .pop .fn{animation:fnin .35s ease-out both}
 .go .hero .ring{--len:176;stroke-dasharray:176;transform-origin:center;animation:draw .6s .05s ease-out backwards,ringpulse .5s ease-out both}
 .go .hero .tick{--len:44;stroke-dasharray:44;animation:draw .35s .55s ease-out backwards}
+/* welcome: what GabitoTL is for. Base styles are the final state, so reduced motion (animation off) shows everything. */
+.intro{display:flex;flex-direction:column;gap:12px}
+.intro .flow{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:14px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}
+.intro .node{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text3);text-align:center;min-width:92px;animation:introPop .5s ease both;animation-delay:calc(var(--i)*.55s - var(--el,0s))}
+.intro .node .oic{background:var(--sel);color:var(--accent)}
+.intro .arrow{flex:1;height:2px;background:var(--line2);position:relative;min-width:24px;border-radius:2px;animation:introFade .4s ease both;animation-delay:calc(var(--i)*.55s - .3s - var(--el,0s))}
+.intro .arrow i{position:absolute;top:-3px;left:0;width:8px;height:8px;border-radius:50%;background:var(--accent);animation:introDot 1.6s ease-in-out 4;animation-delay:calc(var(--i)*.55s - var(--el,0s))}
+.intro .beats{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.intro .beat{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surf);font-size:12.5px;line-height:1.45;color:var(--text2);animation:introRise .55s ease both;animation-delay:calc(2.3s + var(--i)*.45s - var(--el,0s))}
+.intro .beat b{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
+.intro .manage{animation:introFade .6s ease both;animation-delay:calc(4.4s - var(--el,0s))}
+.intro.done *{animation:none!important}
+@keyframes introPop{from{opacity:0;transform:scale(.7)}}
+@keyframes introFade{from{opacity:0}}
+@keyframes introRise{from{opacity:0;transform:translateY(10px)}}
+@keyframes introDot{0%{left:0;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:calc(100% - 8px);opacity:0}}
+@media (max-width:820px){.intro .beats{grid-template-columns:1fr}}
 /* busy buttons and the plan-loading line */
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;display:inline-block;animation:spinRot .8s linear infinite;flex:none}
 @keyframes spinRot{to{transform:rotate(360deg)}}
