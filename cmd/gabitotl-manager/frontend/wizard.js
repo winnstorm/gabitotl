@@ -4,13 +4,13 @@
 // comes from the message catalogue through t().
 
 var STEPS = [
-  ['gui.nav.welcome', stepWelcome],
-  ['gui.nav.detect', stepDetect],
-  ['gui.nav.profile', stepProfile],
-  ['gui.nav.memory', stepMemory],
-  ['gui.nav.delivery', stepDelivery],
-  ['gui.nav.windows', stepWindows],
-  ['gui.nav.install', stepInstall],
+  ['gui.nav.welcome', stepWelcome, 'bot'],
+  ['gui.nav.detect', stepDetect, 'search'],
+  ['gui.nav.profile', stepProfile, 'user'],
+  ['gui.nav.memory', stepMemory, 'db'],
+  ['gui.nav.delivery', stepDelivery, 'pr'],
+  ['gui.nav.windows', stepWindows, 'desktop'],
+  ['gui.nav.install', stepInstall, 'download'],
 ];
 var STEP_INSTALL = STEPS.length - 1;
 
@@ -18,11 +18,27 @@ var ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // PROVIDER_ENV is also used by the Manager's per-project delivery form.
 var PROVIDER_ENV = { github: 'GITHUB_TOKEN', gitlab: 'GITLAB_TOKEN', bitbucket: 'BITBUCKET_TOKEN' };
 
+// stepsLocked: the stepper cannot be used while the install runs or after it succeeded.
+function stepsLocked() { return S.running || (S.finished && !S.installErr); }
+
+// The stepper: finished steps are buttons that go back (answers are kept), the
+// current one is aria-current, the ones ahead are plain text (forward is gated by Next).
+function stepper() {
+  var n = STEPS.length, locked = stepsLocked();
+  var pct = Math.round(S.step / (n - 1) * 100);
+  var items = STEPS.map(function (s, i) {
+    var label = esc(t(s[0]));
+    if (i < S.step) {
+      return '<li class="step done"><button type="button" class="stepbtn" data-act="goto" data-val="' + i + '" data-k="step-' + i + '" aria-label="' + esc(t('gui.nav.goto', { step: t(s[0]) })) + '"' + attr('disabled', true, locked) + '><span class="dot">' + UI.icon('check') + '</span>' + label + '</button></li>';
+    }
+    if (i === S.step) return '<li class="step cur" aria-current="step"><span class="stepbtn"><span class="dot">' + (i + 1) + '</span>' + label + '</span></li>';
+    return '<li class="step ahead"><span class="stepbtn"><span class="dot">' + (i + 1) + '</span>' + label + '</span></li>';
+  }).join('');
+  return '<div class="steps"><div class="rail-line" style="height:' + (n - 1) * 44 + 'px"><div class="rail-fill" data-gid="rail" data-gp="height" data-gv="' + pct + '" style="height:' + pct + '%"></div></div><ol>' + items + '</ol></div>';
+}
+
 function renderWizard() {
-  var rail = '<nav class="rail" aria-label="' + esc(t('gui.nav.label')) + '"><ol>' + STEPS.map(function (s, i) {
-    var cls = i === S.step ? ' cur' : (i < S.step ? ' done' : '');
-    return '<li class="step' + cls + '"' + (i === S.step ? ' aria-current="step"' : '') + '><span class="dot">' + (i < S.step ? '✓' : i + 1) + '</span>' + esc(t(s[0])) + '</li>';
-  }).join('') + '</ol><div class="railfoot mono">v' + esc(S.info.version) + ' · ' + esc(S.info.os) + '/' + esc(S.info.arch) + '</div></nav>';
+  var rail = '<nav class="rail" aria-label="' + esc(t('gui.nav.label')) + '">' + stepper() + '<div class="railfoot mono">v' + esc(S.info.version) + ' · ' + esc(S.info.os) + '/' + esc(S.info.arch) + '</div></nav>';
   return titlebar() + '<div class="body">' + rail + '<main class="pane" id="pane">' + STEPS[S.step][1]() + '</main></div>' + footer();
 }
 
@@ -30,29 +46,38 @@ function footer() {
   var busy = S.running;
   var left = '<button type="button" class="btn" data-act="cancel"' + attr('disabled', true, busy) + '>' + esc(t('gui.btn.cancel')) + '</button>';
   var alert = S.error ? '<span class="alert" role="alert">' + esc(S.error) + '</span>' : '<span class="sp"></span>';
-  var back = S.step > 0 && !(S.finished && !S.installErr) ? '<button type="button" class="btn" data-act="back"' + attr('disabled', true, busy) + '>' + esc(t('gui.btn.back')) + '</button>' : '';
+  var back = S.step > 0 && !(S.finished && !S.installErr) ? '<button type="button" class="btn" data-act="back"' + attr('disabled', true, busy) + '>' + UI.icon('arrow-left') + esc(t('gui.btn.back')) + '</button>' : '';
   var next;
   if (S.step < STEP_INSTALL) {
-    next = '<button type="button" class="btn pri" data-act="next">' + esc(t('gui.btn.next')) + '</button>';
+    next = '<button type="button" class="btn pri" data-act="next">' + esc(t('gui.btn.next')) + UI.icon('arrow-right') + '</button>';
   } else if (S.finished && !S.installErr) {
-    next = '<button type="button" class="btn pri" data-act="finish">' + esc(t('gui.btn.finish')) + '</button>';
+    next = '<button type="button" class="btn pri" data-act="finish">' + UI.icon('check') + esc(t('gui.btn.finish')) + '</button>';
   } else if (S.finished) {
-    next = '<button type="button" class="btn pri" data-act="replan">' + esc(t('gui.btn.retry')) + '</button>';
+    next = '<button type="button" class="btn pri" data-act="replan">' + UI.icon('refresh') + esc(t('gui.btn.retry')) + '</button>';
   } else {
-    next = '<button type="button" class="btn pri" data-act="install"' + attr('disabled', true, busy || !S.plan) + '>' + esc(t('gui.btn.install')) + '</button>';
+    next = '<button type="button" class="btn pri" data-act="install"' + attr('disabled', true, busy || !S.plan) + '>' + UI.icon('download') + esc(t('gui.btn.install')) + '</button>';
   }
   if (S.finished && !S.installErr) left = '';
   return '<div class="ft">' + left + alert + back + next + '</div>';
 }
 
+// stepHead is the header of a wizard step: its icon, "Step n of N", title and sentence.
+function stepHead(title, lead) {
+  return phead(STEPS[S.step][2], title, lead, { step: true });
+}
+
 // ---- screens ----------------------------------------------------------------
 
 function stepWelcome() {
-  return '<div class="hrow" style="gap:18px;margin-top:8px">' + logo(64) + '<div><h1>' + esc(t('gui.welcome.title')) + '</h1><p class="lead">' + esc(t('gui.welcome.tagline')) + '</p></div></div>' +
+  var feats = [['spark', 'gui.welcome.f1.title', 'gui.welcome.f1.desc'], ['archive', 'gui.welcome.f2.title', 'gui.welcome.f2.desc'], ['undo', 'gui.welcome.f3.title', 'gui.welcome.f3.desc']].map(function (f) {
+    return '<div class="tip"><span class="oic sm">' + UI.icon(f[0]) + '</span><div><b>' + esc(t(f[1])) + '</b>' + esc(t(f[2])) + '</div></div>';
+  }).join('');
+  return '<div class="phead" style="gap:18px;margin-top:4px">' + logo(64) + '<div><div class="stepof">' + esc(t('gui.wiz.stepof', { n: 1, total: STEPS.length })) + '</div><h1>' + esc(t('gui.welcome.title')) + '</h1><p class="lead">' + esc(t('gui.welcome.tagline')) + '</p></div></div>' +
     '<p class="lead">' + esc(t('gui.welcome.lead')) + '</p>' +
-    '<div class="lbl">' + esc(t('gui.welcome.language')) + '</div>' +
+    '<div class="tips">' + feats + '</div>' +
+    '<div class="lbl">' + UI.icon('globe') + esc(t('gui.welcome.language')) + '</div>' +
     '<div class="grid2">' + [['es', 'gui.welcome.lang.es.name', 'gui.welcome.lang.es.desc'], ['en', 'gui.welcome.lang.en.name', 'gui.welcome.lang.en.desc']].map(function (o) {
-      return '<label class="opt' + (S.lang === o[0] ? ' sel' : '') + '"><input type="radio" name="lang" data-act="lang" data-val="' + o[0] + '" data-k="welcome-lang-' + o[0] + '"' + attr('checked', true, S.lang === o[0]) + '><div><b>' + esc(t(o[1])) + '</b><span>' + esc(t(o[2])) + '</span></div></label>';
+      return '<div class="opt' + (S.lang === o[0] ? ' sel' : '') + '"><label><input type="radio" name="lang" data-act="lang" data-val="' + o[0] + '" data-k="welcome-lang-' + o[0] + '"' + attr('checked', true, S.lang === o[0]) + '><span class="oic">' + UI.icon('globe', 'lg') + '</span><div><b>' + esc(t(o[1])) + '</b><span>' + esc(t(o[2])) + '</span></div></label></div>';
     }).join('') + '</div>' +
     '<p class="lead sm">' + esc(t('gui.welcome.lang.note')) + '</p>' +
     '<div style="margin-top:auto" class="chk"><input type="checkbox" id="lic" data-bind="a.license" data-k="a.license"' + attr('checked', true, S.a.license) + '><label for="lic">' + esc(t('gui.welcome.license')) + '</label> <a href="#" data-act="license">' + esc(t('gui.welcome.license.link')) + '</a></div>';
@@ -65,18 +90,18 @@ function runtimeBadge(state) {
 }
 
 function stepDetect() {
-  var head = '<div class="hrow"><div class="grow"><h1>' + esc(t('gui.detect.title')) + '</h1><p class="lead">' + esc(t('gui.detect.lead')) + '</p></div>' +
-    '<button type="button" class="btn sm" data-act="scan"' + attr('disabled', true, S.scanning) + '>' + esc(t('gui.btn.scan')) + '</button></div>';
+  var head = '<div class="hrow"><div class="grow">' + stepHead(t('gui.detect.title'), t('gui.detect.lead')) + '</div>' +
+    '<button type="button" class="btn sm" data-act="scan"' + attr('disabled', true, S.scanning) + '>' + UI.icon('refresh') + esc(t('gui.btn.scan')) + '</button></div>';
   var d = S.detect;
   if (S.detectErr) return head + '<p class="lead" role="alert">' + esc(S.detectErr) + '</p>';
-  if (!d) return head + '<p class="lead">' + esc(t('gui.detect.scanning')) + '</p>';
+  if (!d) return head + UI.skeleton() + '<p class="lead">' + esc(t('gui.detect.scanning')) + '</p>';
   var none = t('gui.detect.none');
   var rows = [];
-  rows.push(row(t('gui.detect.git'), d.git.found ? (d.git.path || 'git') + (d.userName ? ' · ' + d.userName : '') : none, d.git.found ? badge('ok', t('gui.detect.badge.ready')) : badge('err', t('gui.detect.badge.missing'))));
-  d.runtimes.forEach(function (r) { rows.push(row(r.label, r.name, runtimeBadge(r.state))); });
-  rows.push(row(t('gui.detect.engram'), d.engram.present ? String(d.engram.observations) : none, d.engram.present ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional'))));
-  rows.push(row(t('gui.detect.container'), d.containerEngine || none, d.containerEngine ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional'))));
-  rows.push(row(t('gui.detect.pkg'), d.packageManager || none, d.packageManager ? badge('ok', t('gui.detect.badge.ready')) : badge('todo', t('gui.detect.badge.optional'))));
+  rows.push(row(t('gui.detect.git'), d.git.found ? (d.git.path || 'git') + (d.userName ? ' · ' + d.userName : '') : none, d.git.found ? badge('ok', t('gui.detect.badge.ready')) : badge('err', t('gui.detect.badge.missing')), 'branch'));
+  d.runtimes.forEach(function (r) { rows.push(row(r.label, r.name, runtimeBadge(r.state), rtIcon(r.name))); });
+  rows.push(row(t('gui.detect.engram'), d.engram.present ? String(d.engram.observations) : none, d.engram.present ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional')), 'db'));
+  rows.push(row(t('gui.detect.container'), d.containerEngine || none, d.containerEngine ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional')), 'server'));
+  rows.push(row(t('gui.detect.pkg'), d.packageManager || none, d.packageManager ? badge('ok', t('gui.detect.badge.ready')) : badge('todo', t('gui.detect.badge.optional')), 'download'));
   var out = head + '<div class="box">' + rows.join('') + '</div>';
   if (d.gentleAI.found) {
     out += '<div class="call" role="group" aria-label="Gentle AI"><b>' + esc(t('gui.detect.gentle')) + '</b><div class="opts">' +
@@ -87,22 +112,29 @@ function stepDetect() {
   return out;
 }
 
-function row(label, value, badgeHTML) {
-  return '<div class="row"><b>' + esc(label) + '</b><span class="mono">' + esc(value) + '</span><span class="sp"></span>' + badgeHTML + '</div>';
+function row(label, value, badgeHTML, ic) {
+  return '<div class="row">' + (ic ? '<span class="oic sm">' + UI.icon(ic) + '</span>' : '') + '<b>' + esc(label) + '</b><span class="mono">' + esc(value) + '</span><span class="sp"></span>' + badgeHTML + '</div>';
+}
+
+var MODE_CARDS = [['lite', 'gui.profile.mode.lite', 'bolt', 'mode-lite'], ['normal', 'gui.profile.mode.normal', 'chat', 'mode-normal'], ['full', 'gui.profile.mode.full', 'book', 'mode-full']];
+
+// personaCards draws the three chat modes as cards bound to path.
+function personaCards(path) {
+  return '<div class="grid3">' + MODE_CARDS.map(function (m) { return radio(path, m[0], t(m[1]), '', { icon: m[2], pop: m[3] }); }).join('') + '</div>';
 }
 
 function stepProfile() {
   var d = S.detect || { runtimes: [], gentleAI: {} };
   var rts = d.runtimes.length ? '<div class="grid3">' + d.runtimes.map(function (r) {
     var on = !!S.a.runtimes[r.name];
-    return '<div class="rt' + (on ? ' sel' : '') + '"><label><input type="checkbox" data-bind="a.runtimes.' + esc(r.name) + '" data-k="rt-' + esc(r.name) + '"' + attr('checked', true, on) + '>' + esc(r.label) + '</label>' +
-      '<select aria-label="' + esc(r.label + ' — ' + t('gui.profile.integrate')) + '" title="' + esc(t('gui.profile.scope.project.hint')) + '"><option selected>' + esc(t('gui.profile.scope.global')) + '</option><option disabled>' + esc(t('gui.profile.scope.project')) + '</option></select></div>';
+    return '<div class="rt' + (on ? ' sel' : '') + '"' + UI.popAttr(r.name) + ' data-pk="rt-' + esc(r.name) + '"><label><input type="checkbox" data-bind="a.runtimes.' + esc(r.name) + '" data-k="rt-' + esc(r.name) + '"' + attr('checked', true, on) + '><span class="oic sm">' + UI.icon(rtIcon(r.name)) + '</span>' + esc(r.label) + '</label>' +
+      '<select aria-label="' + esc(r.label + ' — ' + t('gui.profile.integrate')) + '" title="' + esc(t('gui.profile.scope.project.hint')) + '"><option selected>' + esc(t('gui.profile.scope.global')) + '</option><option disabled>' + esc(t('gui.profile.scope.project')) + '</option></select>' + UI.infoBtn(r.name) + '</div>';
   }).join('') + '</div><p class="hint">' + esc(t('gui.profile.scope.project.hint')) + '</p>' : '<p class="lead">' + esc(t('gui.profile.noruntimes')) + '</p>';
   var noGentle = !d.gentleAI.found;
-  return '<div><h1>' + esc(t('gui.profile.title')) + '</h1><p class="lead">' + esc(t('gui.profile.lead')) + '</p></div>' +
-    '<div class="grid2">' + field('a.name', t('gui.profile.name'), { hint: t('gui.profile.name.hint') }) +
-    '<div class="field">' + esc(t('gui.profile.mode')) + seg('a.personaMode', [['lite', 'gui.profile.mode.lite'], ['normal', 'gui.profile.mode.normal'], ['full', 'gui.profile.mode.full']], t('gui.profile.mode')) + '<span class="hint">' + esc(t('gui.profile.mode.hint')) + '</span></div></div>' +
-    '<div class="lbl">' + esc(t('gui.profile.integrate')) + '</div>' + rts +
+  return stepHead(t('gui.profile.title'), t('gui.profile.lead')) +
+    field('a.name', t('gui.profile.name'), { hint: t('gui.profile.name.hint') }) +
+    '<div class="lbl">' + UI.icon('chat') + esc(t('gui.profile.mode')) + '</div>' + personaCards('a.personaMode') + '<p class="hint">' + esc(t('gui.profile.mode.hint')) + '</p>' +
+    '<div class="lbl">' + UI.icon('plug') + esc(t('gui.profile.integrate')) + '</div>' + rts +
     '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">' +
     check('a.migratePersona', t('gui.profile.migrate'), { disabled: noGentle, title: noGentle ? t('note.gentle-ai-not-found') : '' }) +
     check('a.retireGentleKiro', t('gui.profile.retire-kiro'), { disabled: !d.gentleAI.gentleKiroPresent, title: d.gentleAI.gentleKiroPresent ? '' : t('note.gentle-kiro-none') }) + '</div>';
@@ -111,8 +143,8 @@ function stepProfile() {
 function stepMemory() {
   var m = S.a.memory;
   var team = m.mode === 'team';
-  var out = '<div><h1>' + esc(t('gui.memory.title')) + '</h1><p class="lead">' + esc(t('gui.memory.lead')) + '</p></div>' +
-    '<div class="grid2">' + radio('a.memory.mode', 'solo', t('gui.memory.solo'), t('gui.memory.solo.desc')) + radio('a.memory.mode', 'team', t('gui.memory.team'), t('gui.memory.team.desc')) + '</div>';
+  var out = stepHead(t('gui.memory.title'), t('gui.memory.lead')) +
+    '<div class="grid2">' + radio('a.memory.mode', 'solo', t('gui.memory.solo'), t('gui.memory.solo.desc'), { icon: 'laptop', pop: 'mem-solo' }) + radio('a.memory.mode', 'team', t('gui.memory.team'), t('gui.memory.team.desc'), { icon: 'users', pop: 'mem-team' }) + '</div>';
   if (!team) return out;
   var canImport = S.detect && S.detect.engram.canImport;
   out += '<div class="panel"><div class="field">' + esc(t('gui.memory.role')) + seg('a.memory.role', [['host', 'gui.memory.role.host'], ['client', 'gui.memory.role.client']], t('gui.memory.role')) + '</div>';
@@ -132,12 +164,13 @@ function stepMemory() {
   return out;
 }
 
+// Generic glyphs for the platforms (no brand logos).
+var CRED_ICON = { github: 'cloud', gitlab: 'diamond', bitbucket: 'bucket', 'bitbucket-server': 'server', server: 'server' };
 var CRED_PLATFORMS = [['github', 'gui.delivery.platform.github'], ['gitlab', 'gui.delivery.platform.gitlab'], ['bitbucket', 'gui.delivery.platform.bitbucket']];
 var CRED_STATUS = { saved: 'gui.delivery.cred.saved', rejected: 'gui.delivery.cred.rejected', unreachable: 'gui.delivery.cred.unreachable', invalid: 'gui.delivery.cred.invalid' };
 
 function stepDelivery() {
-  return '<div><h1>' + esc(t('gui.delivery.title')) + '</h1><p class="lead">' + esc(t('gui.delivery.lead')) + '</p></div>' +
-    deliveryForm('a.delivery') + credentialsBlock();
+  return stepHead(t('gui.delivery.title'), t('gui.delivery.lead')) + deliveryForm('a.delivery') + credentialsBlock();
 }
 
 // deliveryForm is the automation, merge method, draft and branch cleanup fields
@@ -147,9 +180,9 @@ function deliveryForm(base) {
   var dl = get(base);
   var all = dl.automation === 'all';
   return '<div class="field">' + esc(t('gui.delivery.automation')) + '<div class="grid3">' +
-    radio(base + '.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc')) +
-    radio(base + '.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc')) +
-    radio(base + '.automation', 'ask', t('gui.delivery.auto.ask'), t('gui.delivery.auto.ask.desc')) + '</div></div>' +
+    radio(base + '.automation', 'all', t('gui.delivery.auto.all'), t('gui.delivery.auto.all.desc'), { icon: 'merge', pop: 'auto-all' }) +
+    radio(base + '.automation', 'until-pr', t('gui.delivery.auto.until-pr'), t('gui.delivery.auto.until-pr.desc'), { icon: 'pr', pop: 'auto-until-pr' }) +
+    radio(base + '.automation', 'ask', t('gui.delivery.auto.ask'), t('gui.delivery.auto.ask.desc'), { icon: 'question', pop: 'auto-ask' }) + '</div></div>' +
     '<div class="grid2" style="align-items:end"><label class="field' + (all ? '' : ' off') + '" style="' + (all ? '' : 'color:var(--muted)') + '">' + esc(t('gui.delivery.merge')) +
     '<select data-bind="' + base + '.mergeMethod" data-k="' + base + '.mergeMethod"' + attr('disabled', true, !all) + '>' +
     [['squash', 'gui.delivery.merge.squash'], ['merge', 'gui.delivery.merge.merge'], ['rebase', 'gui.delivery.merge.rebase']].map(function (o) {
@@ -184,7 +217,7 @@ function credMsgHTML(key) {
 }
 
 function credBtn(act, label, key, extra) {
-  return '<button type="button" class="btn sm" data-act="' + act + '" data-k="' + act + '-' + esc(key) + '" ' + extra + attr('disabled', true, !!S.cred.busy) + '>' + esc(label) + '</button>';
+  return '<button type="button" class="btn sm" data-act="' + act + '" data-k="' + act + '-' + esc(key) + '" ' + extra + (act === 'credtest' ? UI.popAttr('cred-test') : '') + attr('disabled', true, !!S.cred.busy) + '>' + esc(label) + '</button>';
 }
 
 // credentialsBlock is one row per platform: stored or not, a write-only token
@@ -192,13 +225,13 @@ function credBtn(act, label, key, extra) {
 // back from Go.
 function credentialsBlock() {
   var c = S.cred;
-  var head = '<div class="lbl">' + esc(t('gui.delivery.creds.title')) + '</div><p class="hint">' + esc(t('gui.delivery.creds.lead')) + '</p>';
+  var head = '<div class="lbl"' + UI.popAttr('cred') + ' data-pk="cred-h">' + UI.icon('key') + esc(t('gui.delivery.creds.title')) + UI.infoBtn('cred') + '</div><p class="hint">' + esc(t('gui.delivery.creds.lead')) + '</p>';
   if (c.err) return head + '<p class="hint" role="alert">' + esc(c.err) + '</p>';
   return head + '<div class="box">' + CRED_PLATFORMS.map(function (p) {
     var info = (c.list || []).filter(function (x) { return x.platform === p[0]; })[0] || { host: '', stored: false };
     var busy = c.busy === p[0];
     var label = t(p[1]) + ' \u2014 ' + t('gui.delivery.cred.input');
-    return '<div class="row"><b>' + esc(t(p[1])) + '</b><span class="mono">' + esc(info.host) + '</span><span class="sp"></span>' +
+    return '<div class="row"><span class="oic sm">' + UI.icon(CRED_ICON[p[0]]) + '</span><b>' + esc(t(p[1])) + '</b><span class="mono">' + esc(info.host) + '</span><span class="sp"></span>' +
       badge(info.stored ? 'ok' : 'todo', info.stored ? t('gui.delivery.cred.stored') : t('gui.delivery.cred.none')) +
       (info.stored ? credBtn('credtest', t('gui.delivery.cred.test'), p[0], 'data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" ') : '') +
       (info.stored ? credBtn('credremove', t('gui.delivery.cred.remove'), p[0], 'data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" ') : '') + '</div>' +
@@ -217,13 +250,13 @@ function srvPlatformLabel(p) {
 // serversBlock lists the registered self-hosted servers and the form that adds one.
 function serversBlock() {
   var c = S.cred, f = c.srv;
-  var out = '<div class="lbl">' + esc(t('gui.servers.title')) + '</div><p class="hint">' + esc(t('gui.servers.lead')) + '</p><div class="box">';
+  var out = '<div class="lbl"' + UI.popAttr('server') + ' data-pk="server-h">' + UI.icon('server') + esc(t('gui.servers.title')) + UI.infoBtn('server') + '</div><p class="hint">' + esc(t('gui.servers.lead')) + '</p><div class="box">';
   var list = c.servers || [];
   if (!list.length) out += '<div class="row"><span class="hint">' + esc(t('gui.servers.none')) + '</span></div>';
   list.forEach(function (s) {
     var key = 'srv:' + s.host;
     var d = 'data-cred="' + esc(s.platform) + '" data-host="' + esc(s.host) + '" ';
-    out += '<div class="row"><b>' + esc(s.host) + '</b><span>' + esc(srvPlatformLabel(s.platform)) + '</span><span class="mono">' + esc(s.url) + '</span><span class="sp"></span>' +
+    out += '<div class="row"><span class="oic sm">' + UI.icon('server') + '</span><b>' + esc(s.host) + '</b><span>' + esc(srvPlatformLabel(s.platform)) + '</span><span class="mono">' + esc(s.url) + '</span><span class="sp"></span>' +
       badge(s.stored ? 'ok' : 'todo', s.stored ? t('gui.delivery.cred.stored') : t('gui.delivery.cred.none')) +
       (s.stored ? credBtn('credtest', t('gui.delivery.cred.test'), key, d) : '') + credBtn('srvremove', t('gui.delivery.cred.remove'), key, d) + credMsgHTML(key) + '</div>';
   });
@@ -257,33 +290,46 @@ function codegraphLines() {
 
 function stepWindows() {
   var supported = !!S.info.installDir;
-  var toggle = function (path, title, desc, o) {
+  var toggle = function (path, title, desc, ic, pop, o) {
     o = o || {};
-    return '<label class="tog' + (o.disabled ? ' off' : '') + '"><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, !!get(path)) + attr('disabled', true, !!o.disabled) + '><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></label>';
+    var on = !!get(path);
+    return '<div class="tog' + (o.disabled ? ' off' : '') + (on ? ' sel' : '') + '"' + UI.popAttr(pop) + ' data-pk="' + path + '"><label class="tgl"><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, on) + attr('disabled', true, !!o.disabled) + '><span class="oic sm">' + UI.icon(ic) + '</span><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></label>' + UI.infoBtn(pop) + '</div>';
   };
   var cg = codegraphLines();
-  return '<div><h1>' + esc(t('gui.windows.title')) + '</h1><p class="lead">' + esc(supported ? t('gui.windows.lead') : t('gui.windows.unsupported')) + '</p></div>' +
+  return stepHead(t('gui.windows.title'), supported ? t('gui.windows.lead') : t('gui.windows.unsupported')) +
     '<div class="hrow">' + field('a.win.installDir', t('gui.windows.dir'), { mono: true, style: 'flex:1', disabled: !supported }) +
-    '<button type="button" class="btn sm" data-act="browse"' + attr('disabled', true, !supported) + '>' + esc(t('gui.btn.browse')) + '</button></div>' +
-    '<div class="lbl">' + esc(t('gui.windows.shortcuts')) + '</div><div class="box">' +
-    toggle('a.win.startMenu', t('gui.windows.startmenu'), t('gui.windows.startmenu.desc'), { disabled: !supported }) +
-    toggle('a.win.desktopShortcut', t('gui.windows.desktop'), t('gui.windows.desktop.desc'), { disabled: !supported }) +
-    toggle('a.win.addToPath', t('gui.windows.path'), t('gui.windows.path.desc'), { disabled: !supported }) + '</div>' +
-    '<div class="lbl">' + esc(t('gui.windows.required')) + '</div><div class="box">' +
-    '<label class="tog off"><input type="checkbox" checked disabled aria-describedby="cg-status"><b>' + esc(t('gui.windows.codegraph')) + '</b><span>' + esc(t('gui.windows.codegraph.desc')) + '</span></label>' +
-    '<div class="tog" id="cg-status" role="status"><span>' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div></div>';
+    '<button type="button" class="btn sm" data-act="browse"' + attr('disabled', true, !supported) + '>' + UI.icon('folder') + esc(t('gui.btn.browse')) + '</button></div>' +
+    '<div class="lbl">' + UI.icon('desktop') + esc(t('gui.windows.shortcuts')) + '</div><div class="box">' +
+    toggle('a.win.startMenu', t('gui.windows.startmenu'), t('gui.windows.startmenu.desc'), 'menu', 'startmenu', { disabled: !supported }) +
+    toggle('a.win.desktopShortcut', t('gui.windows.desktop'), t('gui.windows.desktop.desc'), 'desktop', 'desktop', { disabled: !supported }) +
+    toggle('a.win.addToPath', t('gui.windows.path'), t('gui.windows.path.desc'), 'terminal', 'path', { disabled: !supported }) + '</div>' +
+    '<div class="lbl">' + UI.icon('lock') + esc(t('gui.windows.required')) + '</div><div class="box">' +
+    '<div class="tog off sel"' + UI.popAttr('codegraph') + ' data-pk="cg"><label class="tgl"><input type="checkbox" checked disabled aria-describedby="cg-status"><span class="oic sm">' + UI.icon('graph') + '</span><b>' + esc(t('gui.windows.codegraph')) + '</b><span>' + esc(t('gui.windows.codegraph.desc')) + '</span></label>' + UI.infoBtn('codegraph') + '</div>' +
+    '<div class="tog" id="cg-status" role="status"><span class="tgl" style="padding:10px 14px;color:var(--muted)">' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div></div>';
 }
 
 function selectedRuntimes() {
   return ((S.detect && S.detect.runtimes) || []).filter(function (r) { return S.a.runtimes[r.name]; });
 }
 
+// doneHero is the success screen: a checkmark that draws itself and what to do next.
+function doneHero() {
+  var tips = [['desktop', 'gui.done.tip1.title', 'gui.done.tip1.desc'], ['spark', 'gui.done.tip2.title', 'gui.done.tip2.desc'], ['folders', 'gui.done.tip3.title', 'gui.done.tip3.desc']].map(function (f) {
+    return '<div class="tip"><span class="oic sm">' + UI.icon(f[0]) + '</span><div><b>' + esc(t(f[1])) + '</b>' + esc(t(f[2])) + '</div></div>';
+  }).join('');
+  return '<div class="hero"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><circle class="ring" cx="32" cy="32" r="28"/><path class="tick" d="M19 33l9 9 17-19"/></svg>' +
+    '<h1>' + esc(t('gui.install.done')) + '</h1><p class="lead">' + esc(t('gui.install.done.lead')) + '</p></div>' +
+    '<div class="lbl">' + UI.icon('arrow-right') + esc(t('gui.done.next')) + '</div><div class="tips">' + tips + '</div>';
+}
+
 function stepInstall() {
+  var ok = S.finished && !S.installErr;
   var title = S.finished ? (S.installErr ? t('gui.install.failed') : t('gui.install.done')) : (S.running ? t('gui.install.running') : t('gui.install.review'));
-  var lead = S.finished && !S.installErr ? t('gui.install.done.lead') : t('gui.install.lead');
-  var out = '<div><h1>' + esc(S.running ? t('gui.install.title') : title) + '</h1><p class="lead">' + esc(lead) + '</p></div>';
+  var lead = ok ? t('gui.install.done.lead') : t('gui.install.lead');
+  var out = ok ? '' : stepHead(S.running ? t('gui.install.title') : title, lead);
   if (S.planErr) return out + '<p class="lead" role="alert">' + esc(S.planErr) + '</p>';
-  if (!S.plan) return out + '<p class="lead">' + esc(t('gui.install.planning')) + '</p>';
+  if (!S.plan) return out + UI.skeleton() + '<p class="lead">' + esc(t('gui.install.planning')) + '</p>';
+  if (ok) out += doneHero() + (S.result ? resultBlock() : '');
   var m = S.a.memory;
   var memText = m.mode === 'solo' ? t('gui.install.sum.memory.solo') : t(m.role === 'host' ? 'gui.install.sum.memory.host' : 'gui.install.sum.memory.client');
   var dl = S.a.delivery;
@@ -291,7 +337,7 @@ function stepInstall() {
   var delivery = [t(autoKey[dl.automation]), t('gui.install.sum.delivery.global')];
   if (dl.draft) delivery.push(t('gui.delivery.draft'));
   var agents = selectedRuntimes().map(function (r) { return r.label; });
-  out += '<dl class="sum">' +
+  out += '<dl class="sum panel">' +
     '<dt>' + esc(t('gui.install.sum.agents')) + '</dt><dd>' + esc(agents.length ? agents.join(', ') + ' (' + t('gui.install.sum.global') + ')' : t('gui.install.sum.none')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.memory')) + '</dt><dd>' + esc(memText) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.delivery')) + '</dt><dd>' + esc(delivery.join(' · ')) + '</dd>' +
@@ -301,9 +347,9 @@ function stepInstall() {
     '<dt>' + esc(t('gui.install.sum.backup')) + '</dt><dd>' + esc(S.plan.snapshot ? S.plan.snapshot : t('gui.install.sum.backup.value')) + '</dd></dl>';
   if (!S.running && !S.finished) return out + planDetails(S.plan);
   out += '<div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;font-size:13px"><b style="flex:1">' + esc(S.progressMsg) + '</b><span class="mono">' + S.pct + '%</span></div>' +
-    '<div class="bar" role="progressbar" aria-label="' + esc(t('gui.install.progress')) + '" aria-valuenow="' + S.pct + '" aria-valuemin="0" aria-valuemax="100"><div style="width:' + S.pct + '%"></div></div></div>' +
+    '<div class="bar" role="progressbar" aria-label="' + esc(t('gui.install.progress')) + '" aria-valuenow="' + S.pct + '" aria-valuemin="0" aria-valuemax="100"><div data-gid="install" data-gv="' + S.pct + '" style="width:' + S.pct + '%"></div></div></div>' +
     '<div class="log mono" role="log" aria-label="' + esc(t('gui.install.log')) + '">' + S.log.map(logLine).join('') + '</div>';
-  if (S.finished) out += resultBlock();
+  if (S.finished && !ok) out += resultBlock();
   return out;
 }
 
@@ -369,15 +415,43 @@ actions.cancel = function () {
   if (window.confirm(t('gui.confirm.cancel'))) api().Quit();
 };
 
+// dropPlan forgets the plan and the outcome of the last install attempt: going back
+// changes answers, so the plan is always computed again on the way to Install.
+function dropPlan() {
+  S.plan = null;
+  S.planErr = '';
+  S.finished = false;
+  S.installErr = '';
+  S.result = null;
+  S.log = [];
+  S.pct = 0;
+}
+
 actions.back = function () {
+  if (S.running) return;
   S.error = '';
+  S.dir = 'back';
   S.step = Math.max(0, S.step - 1);
+  dropPlan();
+  render();
+};
+
+// goto jumps back to a finished step (its button in the stepper). Forward stays
+// behind Next, which validates each screen.
+actions.goto = function (el) {
+  var i = parseInt(el.getAttribute('data-val'), 10);
+  if (stepsLocked() || isNaN(i) || i < 0 || i >= S.step) return;
+  S.error = '';
+  S.dir = 'back';
+  S.step = i;
+  dropPlan();
   render();
 };
 
 actions.next = async function () {
   S.error = validate(S.step);
   if (S.error) return render();
+  S.dir = 'fwd';
   S.step++;
   if (S.step === 1 && !S.detect) scan();
   if (S.step === 2) applyDetectDefaults();

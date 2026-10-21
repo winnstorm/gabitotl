@@ -49,6 +49,13 @@ pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
 detects your agents, shows a plan of everything it will change, and only applies it after you confirm.
 It needs no administrator rights: everything is per user.
 
+In the wizard, the steps on the left are clickable once you have finished them: select one to go back and
+change an answer (your answers are kept and the plan is always recomputed before the install). Every option
+(agents, chat mode, memory, delivery, shortcuts, CodeGraph) is a card; hover it, focus it or press its (i)
+button to see what it does, when to pick it, which files change on your machine and a small diagram. Press
+Escape to close it. The same popovers explain the main actions of the Manager. Animations respect the
+system's reduced-motion setting, and the app follows the system's light or dark theme.
+
 The setup is always global and never asks for a project folder. Its delivery step saves your defaults
 (automation, merge method, draft PRs, branch cleanup) for all projects; a project can override them later from
 the Manager. You can also paste an access token per platform (GitHub, GitLab, Bitbucket): it is verified with

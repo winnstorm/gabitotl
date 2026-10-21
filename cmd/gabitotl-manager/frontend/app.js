@@ -86,14 +86,29 @@ function render() {
   }
   document.getElementById('app').innerHTML = html;
   pane = document.getElementById('pane');
-  if (pane) pane.scrollTop = scroll;
+  var key = pageKey();
+  if (pane) pane.scrollTop = key === lastPage ? scroll : 0;
   var log = document.querySelector && document.querySelector('.log');
   if (log) log.scrollTop = log.scrollHeight;
   if (active) {
     var el = document.querySelector('[data-k="' + active.replace(/"/g, '\\"') + '"]');
     if (el && !el.disabled) el.focus();
   }
+  var akey = key + (S.m && S.m.busy && S.info && S.info.route !== 'wizard' ? ':loading' : '');
+  var dir = S.dir;
+  if (akey !== lastAnim) S.dir = '';
+  lastPage = key;
+  lastAnim = akey;
+  UI.afterRender(akey, dir, S.m && S.m.modal, S.m && S.m.toast);
   if (S.info && S.info.route !== 'wizard') managerAfterRender();
+}
+
+// pageKey names the screen on view: a change slides or fades the page in.
+var lastPage = null, lastAnim = null;
+function pageKey() {
+  if (!S.info) return 'boot';
+  if (S.info.route === 'wizard') return 'w' + S.step + (S.finished && !S.installErr ? 'd' : '');
+  return 'm:' + S.m.screen + ':' + S.m.proj + ':' + (S.m.screen === 'project' ? S.m.tab : '');
 }
 
 // ---- small view helpers -----------------------------------------------------
@@ -107,12 +122,24 @@ function check(path, label, o) {
     esc(label) + '</label>';
 }
 
+// radio is an option card: icon, title, one line, a selected state and, when o.pop
+// names an explanation, the popover (hover, focus or the (i) button). o: disabled,
+// icon, pop.
 function radio(path, val, name, desc, o) {
   o = o || {};
   var on = get(path) === val;
-  return '<label class="opt' + (on ? ' sel' : '') + (o.disabled ? ' off' : '') + '">' +
+  return '<div class="opt' + (on ? ' sel' : '') + (o.disabled ? ' off' : '') + '"' + UI.popAttr(o.pop) + ' data-pk="' + esc(path + '-' + val) + '"><label>' +
     '<input type="radio" name="' + path + '" value="' + esc(val) + '" data-bind="' + path + '" data-k="' + path + '-' + esc(val) + '"' + attr('checked', true, on) + attr('disabled', true, !!o.disabled) + '>' +
-    '<div><b>' + esc(name) + '</b>' + (desc ? '<span>' + esc(desc) + '</span>' : '') + '</div></label>';
+    (o.icon ? '<span class="oic">' + UI.icon(o.icon, 'lg') + '</span>' : '') +
+    '<div><b>' + esc(name) + '</b>' + (desc ? '<span>' + esc(desc) + '</span>' : '') + '</div></label>' + UI.infoBtn(o.pop) + '</div>';
+}
+
+// phead is the header of a screen: an icon tile, the title and a sentence. o: id
+// (the title becomes the focus target of the Manager), step (the wizard's "Step n of N").
+function phead(ic, title, lead, o) {
+  o = o || {};
+  var of = o.step ? '<div class="stepof">' + esc(t('gui.wiz.stepof', { n: S.step + 1, total: STEPS.length })) + '</div>' : '';
+  return '<div class="phead"><span class="pico">' + UI.icon(ic, 'lg') + '</span><div>' + of + '<h1' + (o.id ? ' id="' + o.id + '" tabindex="-1"' : '') + '>' + esc(title) + '</h1>' + (lead ? '<p class="lead">' + esc(lead) + '</p>' : '') + '</div></div>';
 }
 
 // seg draws a button group; items are [value, catalogueKey, disabled?].
@@ -130,7 +157,15 @@ function field(path, label, o) {
     (o.hint ? '<span class="hint">' + esc(o.hint) + '</span>' : '') + '</label>';
 }
 
-function badge(cls, text) { return '<span class="badge ' + cls + '">' + esc(text) + '</span>'; }
+// rtIcon is the generic glyph of an agent (not its logo).
+function rtIcon(name) { return { 'claude-code': 'spark', opencode: 'terminal', kiro: 'ghost' }[name] || 'bot'; }
+
+var BADGE_ICON = { ok: 'check', warn: 'warn', todo: 'info', err: 'error' };
+
+function badge(cls, text, ic) {
+  var name = ic || BADGE_ICON[cls];
+  return '<span class="badge ' + cls + '">' + (name ? UI.icon(name, 'sm') : '') + esc(text) + '</span>';
+}
 
 // ---- events -----------------------------------------------------------------
 
@@ -155,6 +190,7 @@ document.addEventListener('change', function (ev) {
   if (!path) return;
   if (el.type === 'checkbox') set(path, el.checked);
   else set(path, el.value);
+  if (el.type === 'radio' || el.type === 'checkbox') UI.pulse(el.getAttribute('data-k'));
   if (!el.hasAttribute('data-norender')) render();
 });
 
