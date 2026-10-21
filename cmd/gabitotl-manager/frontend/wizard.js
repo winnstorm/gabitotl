@@ -159,8 +159,27 @@ function deliveryForm(base) {
     check(base + '.deleteBranch', t('gui.delivery.delete-branch'), { disabled: !all, title: all ? '' : t('gui.delivery.merge.hint') }) + '</div></div>';
 }
 
+// credResultMsg turns a Save/Test result into the line shown next to a row: a
+// success names the account when the platform told, any other outcome shows the
+// secret-free detail (certificate problems included) or a generic status text.
+function credResultMsg(r) {
+  var ok = r.status === 'saved' || r.status === 'ok';
+  if (ok) return { cls: 'ok', text: r.user ? t('gui.delivery.cred.ok.user', { user: r.user }) : t(r.status === 'saved' ? 'gui.delivery.cred.saved' : 'gui.delivery.cred.ok') };
+  return { cls: 'warn', text: r.detail || t(CRED_STATUS[r.status] || CRED_STATUS.invalid) };
+}
+
+function credMsgHTML(key) {
+  var msg = S.cred.msg[key];
+  return msg ? '<span class="badge ' + esc(msg.cls) + '" role="status">' + esc(msg.text) + '</span>' : '';
+}
+
+function credBtn(act, label, key, extra) {
+  return '<button type="button" class="btn sm" data-act="' + act + '" data-k="' + act + '-' + esc(key) + '" ' + extra + attr('disabled', true, !!S.cred.busy) + '>' + esc(label) + '</button>';
+}
+
 // credentialsBlock is one row per platform: stored or not, a write-only token
-// field and its outcome. The token is never read back from Go.
+// field and its outcome, then the self-hosted servers. The token is never read
+// back from Go.
 function credentialsBlock() {
   var c = S.cred;
   var head = '<div class="lbl">' + esc(t('gui.delivery.creds.title')) + '</div><p class="hint">' + esc(t('gui.delivery.creds.lead')) + '</p>';
@@ -168,15 +187,45 @@ function credentialsBlock() {
   return head + '<div class="box">' + CRED_PLATFORMS.map(function (p) {
     var info = (c.list || []).filter(function (x) { return x.platform === p[0]; })[0] || { host: '', stored: false };
     var busy = c.busy === p[0];
-    var msg = c.msg[p[0]];
-    var msgHTML = msg ? '<span class="badge ' + esc(msg.cls) + '" role="status">' + esc(msg.text) + '</span>' : '';
-    var label = t(p[1]) + ' — ' + t('gui.delivery.cred.input');
+    var label = t(p[1]) + ' \u2014 ' + t('gui.delivery.cred.input');
     return '<div class="row"><b>' + esc(t(p[1])) + '</b><span class="mono">' + esc(info.host) + '</span><span class="sp"></span>' +
       badge(info.stored ? 'ok' : 'todo', info.stored ? t('gui.delivery.cred.stored') : t('gui.delivery.cred.none')) +
-      (info.stored ? '<button type="button" class="btn sm" data-act="credremove" data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" data-k="credremove-' + esc(p[0]) + '"' + attr('disabled', true, !!c.busy) + '>' + esc(t('gui.delivery.cred.remove')) + '</button>' : '') + '</div>' +
+      (info.stored ? credBtn('credtest', t('gui.delivery.cred.test'), p[0], 'data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" ') : '') +
+      (info.stored ? credBtn('credremove', t('gui.delivery.cred.remove'), p[0], 'data-cred="' + esc(p[0]) + '" data-host="' + esc(info.host) + '" ') : '') + '</div>' +
       '<div class="row"><input class="mono" style="flex:1;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 12px" type="password" autocomplete="off" spellcheck="false" aria-label="' + esc(label) + '" data-bind="cred.tok.' + esc(p[0]) + '" data-cred="' + esc(p[0]) + '" data-k="cred-' + esc(p[0]) + '" data-norender value="' + esc(c.tok[p[0]]) + '"' + attr('disabled', true, !!c.busy) + '>' +
-      '<button type="button" class="btn sm" data-act="credsave" data-cred="' + esc(p[0]) + '" data-k="credsave-' + esc(p[0]) + '"' + attr('disabled', true, !!c.busy) + '>' + esc(busy ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + msgHTML + '</div>';
-  }).join('') + '</div>';
+      '<button type="button" class="btn sm" data-act="credsave" data-cred="' + esc(p[0]) + '" data-k="credsave-' + esc(p[0]) + '"' + attr('disabled', true, !!c.busy) + '>' + esc(busy ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + credMsgHTML(p[0]) + '</div>';
+  }).join('') + '</div>' + serversBlock();
+}
+
+var SRV_PLATFORMS = [['bitbucket-server', 'gui.delivery.platform.bitbucket-server'], ['github', 'gui.delivery.platform.github-enterprise'], ['gitlab', 'gui.delivery.platform.gitlab-self']];
+
+function srvPlatformLabel(p) {
+  var m = SRV_PLATFORMS.filter(function (x) { return x[0] === p; })[0];
+  return m ? t(m[1]) : p;
+}
+
+// serversBlock lists the registered self-hosted servers and the form that adds one.
+function serversBlock() {
+  var c = S.cred, f = c.srv;
+  var out = '<div class="lbl">' + esc(t('gui.servers.title')) + '</div><p class="hint">' + esc(t('gui.servers.lead')) + '</p><div class="box">';
+  var list = c.servers || [];
+  if (!list.length) out += '<div class="row"><span class="hint">' + esc(t('gui.servers.none')) + '</span></div>';
+  list.forEach(function (s) {
+    var key = 'srv:' + s.host;
+    var d = 'data-cred="' + esc(s.platform) + '" data-host="' + esc(s.host) + '" ';
+    out += '<div class="row"><b>' + esc(s.host) + '</b><span>' + esc(srvPlatformLabel(s.platform)) + '</span><span class="mono">' + esc(s.url) + '</span><span class="sp"></span>' +
+      badge(s.stored ? 'ok' : 'todo', s.stored ? t('gui.delivery.cred.stored') : t('gui.delivery.cred.none')) +
+      (s.stored ? credBtn('credtest', t('gui.delivery.cred.test'), key, d) : '') + credBtn('srvremove', t('gui.delivery.cred.remove'), key, d) + credMsgHTML(key) + '</div>';
+  });
+  out += '<div class="row"><label class="field" style="margin:0">' + esc(t('gui.servers.platform')) +
+    '<select data-bind="cred.srv.platform" data-k="srv-platform"' + attr('disabled', true, !!c.busy) + '>' + SRV_PLATFORMS.map(function (o) {
+      return '<option value="' + o[0] + '"' + attr('selected', true, f.platform === o[0]) + '>' + esc(t(o[1])) + '</option>';
+    }).join('') + '</select></label>' +
+    '<label class="field" style="margin:0;flex:1">' + esc(t('gui.servers.url')) +
+    '<input class="mono" type="text" autocomplete="off" spellcheck="false" placeholder="https://bitbucket.example.com:8443" data-bind="cred.srv.url" data-k="srv-url" data-norender value="' + esc(f.url) + '"' + attr('disabled', true, !!c.busy) + '></label></div>' +
+    '<div class="row"><input class="mono" style="flex:1;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 12px" type="password" autocomplete="off" spellcheck="false" aria-label="' + esc(t('gui.servers.token')) + '" placeholder="' + esc(t('gui.servers.token')) + '" data-bind="cred.srv.tok" data-srvadd="1" data-k="srv-tok" data-norender value="' + esc(f.tok) + '"' + attr('disabled', true, !!c.busy) + '>' +
+    '<button type="button" class="btn sm" data-act="srvsave" data-k="srv-save"' + attr('disabled', true, !!c.busy) + '>' + esc(c.busy === 'srv:new' ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + credMsgHTML('srv:new') + '</div></div>';
+  return out;
 }
 
 function codegraphLines() {
@@ -387,10 +436,15 @@ async function loadCreds() {
   try {
     S.cred.list = await api().Credentials();
     S.cred.err = '';
+    await loadServersQuiet();
   } catch (e) {
     S.cred.err = t('gui.delivery.cred.unavailable');
   }
   render();
+}
+
+async function loadServersQuiet() {
+  try { S.cred.servers = await api().Servers(); } catch (e) { S.cred.servers = []; }
 }
 
 async function loadCodeGraph() {
@@ -413,8 +467,7 @@ actions.credsave = async function (el) {
   render();
   try {
     var r = await api().SaveCredential(p, '', tok);
-    var st = CRED_STATUS[r.status] ? r.status : 'invalid';
-    S.cred.msg[p] = { cls: st === 'saved' ? 'ok' : 'warn', text: t(CRED_STATUS[st]) };
+    S.cred.msg[p] = credResultMsg(r);
   } catch (e) {
     S.cred.msg[p] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
   }
@@ -436,8 +489,70 @@ actions.credremove = async function (el) {
   await loadCreds();
 };
 
+// credtest asks the platform whether the stored token is still accepted.
+actions.credtest = async function (el) {
+  var p = el.getAttribute('data-cred'), host = el.getAttribute('data-host');
+  var key = el.getAttribute('data-key') || host && S.cred.servers && S.cred.servers.some(function (s) { return s.host === host; }) ? 'srv:' + host : p;
+  if (S.cred.busy) return;
+  S.cred.busy = key;
+  S.cred.msg[key] = null;
+  render();
+  try {
+    S.cred.msg[key] = credResultMsg(await api().TestCredential(p, host));
+  } catch (e) {
+    S.cred.msg[key] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
+  }
+  S.cred.busy = '';
+  render();
+};
+
+// srvsave verifies a token against the server and registers it only when accepted.
+actions.srvsave = async function () {
+  var f = S.cred.srv, tok = (f.tok || '').trim(), url = (f.url || '').trim();
+  if (S.cred.busy) return;
+  if (!url || !tok) {
+    S.cred.msg['srv:new'] = { cls: 'warn', text: t('gui.servers.missing') };
+    return render();
+  }
+  // The token leaves the page state on every attempt, saved or not.
+  f.tok = '';
+  S.cred.busy = 'srv:new';
+  S.cred.msg['srv:new'] = null;
+  render();
+  try {
+    var r = await api().SaveServer(f.platform, url, tok);
+    S.cred.msg['srv:new'] = credResultMsg(r);
+    if (r.status === 'saved') f.url = '';
+  } catch (e) {
+    S.cred.msg['srv:new'] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
+  }
+  tok = '';
+  S.cred.busy = '';
+  await loadCreds();
+};
+
+actions.srvremove = async function (el) {
+  var host = el.getAttribute('data-host'), key = 'srv:' + host;
+  if (S.cred.busy) return;
+  S.cred.busy = key;
+  render();
+  try {
+    await api().DeleteServer(host);
+    S.cred.msg[key] = null;
+    S.cred.msg['srv:new'] = { cls: 'todo', text: t('gui.servers.removed', { host: host }) };
+  } catch (e) {
+    S.cred.msg[key] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
+  }
+  S.cred.busy = '';
+  await loadCreds();
+};
+
 // Enter in a token field saves it.
 document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Enter' && ev.target.getAttribute && ev.target.tagName === 'INPUT' && ev.target.getAttribute('data-srvadd')) {
+    ev.preventDefault();
+    return actions.srvsave(ev.target);
+  }
   var p = ev.key === 'Enter' && ev.target.getAttribute && ev.target.getAttribute('data-cred');
   if (p && ev.target.tagName === 'INPUT') {
     ev.preventDefault();

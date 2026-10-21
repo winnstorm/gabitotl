@@ -14,7 +14,7 @@ var S = {
   detect: null,
   detectErr: '',
   scanning: false,
-  cred: { list: [], err: '', busy: '', tok: { github: '', gitlab: '', bitbucket: '' }, msg: {} },
+  cred: { list: [], servers: [], srv: { platform: 'bitbucket-server', url: '', tok: '' }, err: '', busy: '', tok: { github: '', gitlab: '', bitbucket: '' }, msg: {} },
   cg: null,
   a: {
     license: false,

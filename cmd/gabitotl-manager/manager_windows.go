@@ -220,6 +220,22 @@ func (a *App) SaveCredential(platform, host, token string) (gui.CredentialResult
 // DeleteCredential removes the stored token of a host.
 func (a *App) DeleteCredential(host string) error { return a.svc.DeleteCredential(host) }
 
+// Servers lists the registered self-hosted servers. It never returns a token.
+func (a *App) Servers() ([]gui.ServerInfo, error) { return a.svc.Servers() }
+
+// SaveServer verifies a token against a self-hosted server and registers it only when accepted.
+func (a *App) SaveServer(platform, url, token string) (gui.CredentialResult, error) {
+	return a.svc.SaveServer(a.ctx, platform, url, token)
+}
+
+// DeleteServer unregisters a self-hosted server and removes its stored token.
+func (a *App) DeleteServer(host string) error { return a.svc.DeleteServer(host) }
+
+// TestCredential asks the platform whether a stored token is still accepted.
+func (a *App) TestCredential(platform, host string) (gui.CredentialResult, error) {
+	return a.svc.TestCredential(a.ctx, platform, host)
+}
+
 // CodeGraph reports the required CodeGraph component and its MCP registration.
 func (a *App) CodeGraph() (gui.CodeGraphStatus, error) { return a.svc.CodeGraph(a.ctx) }
 

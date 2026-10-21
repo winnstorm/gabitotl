@@ -137,7 +137,7 @@ async function loadScreen() {
 }
 
 async function loadCredsQuiet() {
-  try { S.cred.list = await api().Credentials(); S.cred.err = ''; } catch (e) { S.cred.err = t('gui.delivery.cred.unavailable'); }
+  try { S.cred.list = await api().Credentials(); S.cred.err = ''; await loadServersQuiet(); } catch (e) { S.cred.err = t('gui.delivery.cred.unavailable'); }
 }
 
 async function loadProject(root, seq) {
@@ -790,8 +790,13 @@ function projDelivery() {
   out += '<div class="lbl">' + esc(t('gui.delivery.creds.title')) + '</div>';
   var c = pd.credential;
   if (!c.known) return out + '<p class="hint">' + esc(t('gui.proj.cred.none')) + '</p>';
+  var kind = c.server ? t('gui.proj.cred.server', { platform: srvPlatformLabel(c.platform), url: c.serverUrl || '' }) : (CRED_PLATFORMS.some(function (p) { return p[0] === c.platform; }) ? t('gui.proj.cred.public', { platform: srvPlatformLabel(c.platform) }) : '');
   out += '<div class="box"><div class="row"><b style="width:auto">' + esc(t('gui.proj.cred', { host: c.host })) + '</b><span class="sp"></span>' +
-    (c.stored ? badge('ok', t('gui.proj.cred.stored')) : badge('todo', t('gui.proj.cred.missing'))) + '</div></div>';
+    (c.stored ? badge('ok', t('gui.proj.cred.stored')) : badge('todo', t('gui.proj.cred.missing'))) +
+    (c.stored ? credBtn('credtest', t('gui.delivery.cred.test'), 'proj', 'data-key="proj" data-cred="' + esc(c.platform || '') + '" data-host="' + esc(c.host) + '" ') : '') + credMsgHTML('proj') + '</div>' +
+    (kind ? '<div class="row"><span class="hint">' + esc(kind) + '</span></div>' : '') + '</div>';
+  var pub = c.platform === 'github' || c.platform === 'gitlab' || c.platform === 'bitbucket';
+  if (!c.server && !(pub && /^(github\.com|gitlab\.com|bitbucket\.org)$/.test(c.host))) out += '<p class="hint">' + esc(t('gui.proj.cred.unknown')) + '</p>';
   if (!c.stored) out += '<div>' + link('go', 'delivery', t('gui.proj.cred.link'), 'pd-cred-link') + '</div>';
   return out;
 }
