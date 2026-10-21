@@ -10,28 +10,31 @@
 // The install is always global; a project is only a folder you open.
 
 var GLOBAL_NAV = [
-  ['overview', 'gui.mgr.nav.overview'],
-  ['delivery', 'gui.mgr.nav.delivery-global'],
-  ['codegraph', 'gui.mgr.nav.codegraph'],
-  ['integrations', 'gui.mgr.nav.integrations'],
-  ['persona', 'gui.mgr.nav.persona'],
-  ['doctor', 'gui.mgr.nav.doctor'],
-  ['windows', 'gui.mgr.nav.windows'],
-  ['backups', 'gui.mgr.nav.backups'],
-  ['uninstall', 'gui.mgr.nav.uninstall'],
+  ['overview', 'gui.mgr.nav.overview', 'home'],
+  ['delivery', 'gui.mgr.nav.delivery-global', 'pr'],
+  ['codegraph', 'gui.mgr.nav.codegraph', 'graph'],
+  ['integrations', 'gui.mgr.nav.integrations', 'plug'],
+  ['persona', 'gui.mgr.nav.persona', 'chat'],
+  ['doctor', 'gui.mgr.nav.doctor', 'pulse'],
+  ['windows', 'gui.mgr.nav.windows', 'desktop'],
+  ['backups', 'gui.mgr.nav.backups', 'archive'],
+  ['uninstall', 'gui.mgr.nav.uninstall', 'trash'],
 ];
 
 // Project tabs; needs: the tab only works once GabitoTL is set up in the folder.
 var PROJECT_TABS = [
-  ['overview', 'gui.mgr.nav.overview', false],
-  ['delivery', 'gui.mgr.nav.delivery', true],
-  ['index', 'gui.proj.tab.index', false],
-  ['guard', 'gui.proj.tab.guard', true],
-  ['memory', 'gui.mgr.nav.memory', true],
-  ['doctor', 'gui.mgr.nav.doctor', true],
-  ['integrations', 'gui.mgr.nav.integrations', true],
-  ['backups', 'gui.mgr.nav.backups', true],
+  ['overview', 'gui.mgr.nav.overview', false, 'home'],
+  ['delivery', 'gui.mgr.nav.delivery', true, 'pr'],
+  ['index', 'gui.proj.tab.index', false, 'graph'],
+  ['guard', 'gui.proj.tab.guard', true, 'shield'],
+  ['memory', 'gui.mgr.nav.memory', true, 'db'],
+  ['doctor', 'gui.mgr.nav.doctor', true, 'pulse'],
+  ['integrations', 'gui.mgr.nav.integrations', true, 'plug'],
+  ['backups', 'gui.mgr.nav.backups', true, 'archive'],
 ];
+
+// The sources a project was found in, and the platform of its remote, as icons.
+var SRC_ICON = { gabitotl: 'bot', 'claude-code': 'spark', opencode: 'terminal', kiro: 'ghost' };
 
 var SRC_KEYS = { gabitotl: 'gui.projects.src.gabitotl', 'claude-code': 'gui.projects.src.claude-code', opencode: 'gui.projects.src.opencode', kiro: 'gui.projects.src.kiro' };
 
@@ -482,16 +485,16 @@ function summaryPlan(label, lines) {
 
 // ---- shell --------------------------------------------------------------------
 
-function navBtn(id, key, current) {
-  return '<button type="button" class="nav" data-act="go" data-val="' + id + '" data-k="nav-' + id + '"' + (current ? ' aria-current="page"' : '') + '>' + esc(t(key)) + '</button>';
+function navBtn(id, key, current, ic) {
+  return '<button type="button" class="nav" data-act="go" data-val="' + id + '" data-k="nav-' + id + '"' + (current ? ' aria-current="page"' : '') + '>' + UI.icon(ic) + '<span>' + esc(t(key)) + '</span></button>';
 }
 
 function renderManager() {
   var sc = S.m.screen;
-  var nav = '<div class="grp">' + esc(t('gui.mgr.nav.global')) + '</div>' + GLOBAL_NAV.map(function (n) { return navBtn(n[0], n[1], sc === n[0]); }).join('') +
-    '<div class="grp">' + esc(t('gui.mgr.nav.projects-group')) + '</div>' + navBtn('projects', 'gui.mgr.nav.projects', sc === 'projects');
+  var nav = '<div class="grp">' + esc(t('gui.mgr.nav.global')) + '</div>' + GLOBAL_NAV.map(function (n) { return navBtn(n[0], n[1], sc === n[0], n[2]); }).join('') +
+    '<div class="grp">' + esc(t('gui.mgr.nav.projects-group')) + '</div>' + navBtn('projects', 'gui.mgr.nav.projects', sc === 'projects', 'folders');
   if (S.m.proj) {
-    nav += '<button type="button" class="nav" data-act="popen" data-path="' + esc(S.m.proj) + '" data-k="nav-current" title="' + esc(S.m.proj) + '"' + (sc === 'project' ? ' aria-current="page"' : '') + '>' + esc(t('gui.mgr.nav.current')) + ': ' + esc(projectName()) + '</button>';
+    nav += '<button type="button" class="nav" data-act="popen" data-path="' + esc(S.m.proj) + '" data-k="nav-current" title="' + esc(S.m.proj) + '"' + (sc === 'project' ? ' aria-current="page"' : '') + '>' + UI.icon('folder') + '<span>' + esc(t('gui.mgr.nav.current')) + ': ' + esc(projectName()) + '</span></button>';
   }
   var side = '<nav class="side" aria-label="' + esc(t('gui.mgr.nav.label')) + '">' + nav +
     '<div class="foot mono"><span>v' + esc(S.info.version) + '</span></div></nav>';
@@ -519,21 +522,22 @@ function screenHTML() {
 }
 
 var TITLES = {
-  overview: ['gui.mgr.nav.overview', 'gui.ov.global.lead'], doctor: ['gui.doc.title', 'gui.doc.lead'],
-  integrations: ['gui.mgr.nav.integrations', 'gui.int.lead'], persona: ['gui.mgr.nav.persona', 'gui.persona.lead'],
-  memory: ['gui.mgr.nav.memory', 'gui.memory.lead'], delivery: ['gui.glob.delivery.title', 'gui.glob.delivery.lead'],
-  codegraph: ['gui.cg.title', 'gui.cg.lead'], windows: ['gui.ov.windows', 'gui.windows.lead'],
-  guard: ['gui.mgr.nav.guard', 'gui.guard.lead'], backups: ['gui.mgr.nav.backups', 'gui.bk.lead'],
-  uninstall: ['gui.un.title', 'gui.un.lead'], projects: ['gui.projects.title', 'gui.projects.lead'],
+  overview: ['gui.mgr.nav.overview', 'gui.ov.global.lead', 'home'], doctor: ['gui.doc.title', 'gui.doc.lead', 'pulse'],
+  integrations: ['gui.mgr.nav.integrations', 'gui.int.lead', 'plug'], persona: ['gui.mgr.nav.persona', 'gui.persona.lead', 'chat'],
+  memory: ['gui.mgr.nav.memory', 'gui.memory.lead', 'db'], delivery: ['gui.glob.delivery.title', 'gui.glob.delivery.lead', 'pr'],
+  codegraph: ['gui.cg.title', 'gui.cg.lead', 'graph'], windows: ['gui.ov.windows', 'gui.windows.lead', 'desktop'],
+  guard: ['gui.mgr.nav.guard', 'gui.guard.lead', 'shield'], backups: ['gui.mgr.nav.backups', 'gui.bk.lead', 'archive'],
+  uninstall: ['gui.un.title', 'gui.un.lead', 'trash'], projects: ['gui.projects.title', 'gui.projects.lead', 'folders'],
 };
 
 function head(sc, buttons) {
   var tl = TITLES[sc];
   if (S.m.screen === 'project') return '<div class="hrow"><div class="grow"><p class="lead">' + esc(t(tl[1])) + '</p></div>' + (buttons || '') + '</div>';
-  return '<div class="hrow"><div class="grow"><h1 id="ptitle" tabindex="-1">' + esc(t(tl[0])) + '</h1><p class="lead">' + esc(t(tl[1])) + '</p></div>' + (buttons || '') + '</div>';
+  return '<div class="hrow"><div class="grow">' + phead(tl[2], t(tl[0]), t(tl[1]), { id: 'ptitle' }) + '</div>' + (buttons || '') + '</div>';
 }
 
-function busyLine() { return S.m.busy ? '<p class="lead">' + esc(t('gui.loading')) + '</p>' : ''; }
+// While a screen loads a shimmering skeleton stands in for it.
+function busyLine() { return S.m.busy ? UI.skeleton() : ''; }
 
 function link(act, val, label, k) {
   return '<button type="button" class="btn xs" data-act="' + act + '" data-val="' + esc(val) + '" data-k="' + k + '">' + esc(label) + '</button>';
@@ -547,7 +551,12 @@ function counts(rep) {
   return c;
 }
 
-function stat(n, key) { return '<div class="stat"><b>' + esc(n) + '</b>' + esc(t(key)) + '</div>'; }
+var STAT_ICON = { 'gui.doc.ok': ['ok', 'check'], 'gui.doc.warn': ['warn', 'warn'], 'gui.doc.todo': ['todo', 'info'], 'gui.doc.error': ['err', 'error'] };
+
+function stat(n, key) {
+  var s = STAT_ICON[key] || ['todo', 'info'];
+  return '<div class="stat s-' + s[0] + '">' + UI.icon(s[1]) + '<b>' + esc(n) + '</b>' + esc(t(key)) + '</div>';
+}
 
 function cgSummary() {
   var g = S.m.cg;
@@ -583,20 +592,25 @@ function screenOverview() {
   if (S.root && S.m.proj !== S.root) {
     out += '<div><button type="button" class="btn pri" data-act="popen" data-path="' + esc(S.root) + '" data-k="continue">' + esc(t('gui.ov.projects.continue', { name: baseName(S.root) })) + '</button></div>';
   }
-  if (!recent.length && !S.m.busy) out += '<p class="hint">' + esc(t('gui.ov.projects.none')) + '</p>';
+  if (!recent.length && !S.m.busy) out += UI.emptyState('folders', t('gui.ov.projects.none'), addProjectBtn('ov-padd'));
   else out += projectRows(recent, 'ov');
   out += '<div class="acts"><button type="button" class="btn" data-act="go" data-val="projects" data-k="qa-projects">' + esc(t('gui.ov.projects.all')) + '</button></div>';
   return out;
 }
 
+// addProjectBtn is the call to action of the empty project lists.
+function addProjectBtn(k) {
+  return '<button type="button" class="btn pri" data-act="padd" data-k="' + k + '">' + UI.icon('plus') + esc(t('gui.projects.add')) + '</button>';
+}
+
 function desktopCard() {
   var d = S.m.settings && S.m.settings.desktop;
   if (!d || !d.supported) return '<p class="lead">' + esc(t('gui.windows.unsupported')) + '</p>';
-  var rows = [['startMenu', 'gui.windows.startmenu', d.startMenu], ['desktopShortcut', 'gui.windows.desktop', d.desktopShortcut], ['addToPath', 'gui.windows.path', d.onPath]];
-  return '<div class="box"><div class="row"><b>' + esc(t('gui.windows.dir')) + '</b><span class="mono">' + esc(d.installDir) + '</span></div>' +
+  var rows = [['startMenu', 'gui.windows.startmenu', d.startMenu, 'menu', 'startmenu'], ['desktopShortcut', 'gui.windows.desktop', d.desktopShortcut, 'desktop', 'desktop'], ['addToPath', 'gui.windows.path', d.onPath, 'terminal', 'path']];
+  return '<div class="box"><div class="row"><span class="oic sm">' + UI.icon('folder') + '</span><b>' + esc(t('gui.windows.dir')) + '</b><span class="mono">' + esc(d.installDir) + '</span></div>' +
     rows.map(function (r) {
-      return '<div class="row"><b>' + esc(t(r[1])) + '</b>' + (r[2] ? badge('ok', t('gui.ov.in-place')) : badge('todo', t('gui.ov.missing'))) + '<span class="sp"></span>' +
-        (r[2] ? '' : '<button type="button" class="btn xs" data-act="desk" data-val="' + r[0] + '" data-k="desk-' + r[0] + '">' + esc(t('gui.ov.add')) + '</button>') + '</div>';
+      return '<div class="row"' + UI.popAttr(r[4]) + ' data-pk="desk-' + r[0] + '"><span class="oic sm">' + UI.icon(r[3]) + '</span><b>' + esc(t(r[1])) + '</b>' + (r[2] ? badge('ok', t('gui.ov.in-place')) : badge('todo', t('gui.ov.missing'))) + '<span class="sp"></span>' +
+        (r[2] ? '' : '<button type="button" class="btn xs" data-act="desk" data-val="' + r[0] + '" data-k="desk-' + r[0] + '">' + UI.icon('plus') + esc(t('gui.ov.add')) + '</button>') + UI.infoBtn(r[4]).replace('class="pinfo"', 'class="pinfo" style="position:static"') + '</div>';
     }).join('') + '</div>';
 }
 
@@ -644,18 +658,18 @@ function screenCodeGraph() {
   var cg = codegraphLines();
   var fix = g.supported && g.needsWork;
   var actKey = !g.installed ? 'gui.cg.act.install' : (g.action === 'upgrade' ? 'gui.cg.act.upgrade' : 'gui.cg.act.repair');
-  out += '<div class="box"><div class="row"><b>' + esc(t('gui.cg.version')) + '</b>' + (g.installed ? '<span class="mono">' + esc(g.version) + '</span>' : badge('warn', t('gui.cg.missing'))) + '</div>' +
+  out += '<div class="box"><div class="row"><span class="oic sm">' + UI.icon('graph') + '</span><b>' + esc(t('gui.cg.version')) + '</b>' + (g.installed ? '<span class="mono">' + esc(g.version) + '</span>' : badge('warn', t('gui.cg.missing'))) + '</div>' +
     '<div class="row"><b>' + esc(t('gui.cg.pinned')) + '</b><span class="mono">' + esc(g.pinned) + '</span></div>' +
     (g.path ? '<div class="row"><b>' + esc(t('gui.cg.path')) + '</b><span class="mono">' + esc(g.path) + '</span></div>' : '') + '</div>' +
-    '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span>' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div>';
+    '<div class="note" role="status">' + UI.icon('info') + '<span>' + esc(cg.text) + (cg.shadow ? ' ' + esc(cg.shadow) : '') + '</span></div>';
   out += '<div class="lbl">' + esc(t('gui.cg.agents')) + '</div>';
   if (!(g.agents || []).length) out += '<p class="hint">' + esc(t('gui.cg.agents.none')) + '</p>';
   else {
     out += '<div class="box">' + g.agents.map(function (a) {
-      return '<div class="row"><b>' + esc(a.label) + '</b>' + (a.registered ? badge('ok', t('gui.cg.registered')) : badge('warn', t('gui.cg.unregistered'))) + '</div>';
+      return '<div class="row"><span class="oic sm">' + UI.icon(rtIcon(a.runtime)) + '</span><b>' + esc(a.label) + '</b>' + (a.registered ? badge('ok', t('gui.cg.registered')) : badge('warn', t('gui.cg.unregistered'))) + '</div>';
     }).join('') + '</div>';
   }
-  if (fix) out += '<div><button type="button" class="btn pri" data-act="cgfix" data-k="cg-fix">' + esc(t(actKey)) + '</button></div>';
+  if (fix) out += '<div><button type="button" class="btn pri" data-act="cgfix" data-k="cg-fix"' + UI.popAttr('cg-fix') + '>' + UI.icon('wrench') + esc(t(actKey)) + '</button></div>';
   else if (g.supported) out += '<p class="hint">' + esc(t('gui.cg.uptodate')) + '</p>';
   return out;
 }
@@ -670,7 +684,13 @@ actions.cgfix = function () {
 // ---- projects -----------------------------------------------------------------------------
 
 function srcBadges(p) {
-  return (p.sources || []).map(function (s) { return badge('todo', SRC_KEYS[s] ? t(SRC_KEYS[s]) : s); }).join(' ');
+  return (p.sources || []).map(function (s) { return badge('todo', SRC_KEYS[s] ? t(SRC_KEYS[s]) : s, SRC_ICON[s] || 'folder'); }).join(' ');
+}
+
+// platformBadge is the platform of a project's remote as a glyph and its host.
+function platformBadge(pd) {
+  if (!pd.platform) return badge('warn', t('gui.proj.platform.none'), 'ban');
+  return badge('todo', pd.host ? pd.platform + ' · ' + pd.host : pd.platform, CRED_ICON[pd.platform] || 'cloud');
 }
 
 function fmtDate(iso) {
@@ -683,10 +703,10 @@ function fmtDate(iso) {
 function projectRows(list, id) {
   return '<ul class="plist" role="list" aria-label="' + esc(t('gui.projects.list')) + '">' + list.map(function (p, i) {
     var seen = fmtDate(p.lastSeen);
-    return '<li class="prow"><div class="pmain"><b>' + esc(p.name) + '</b><span class="mono" title="' + esc(p.path) + '">' + esc(p.path) + '</span>' +
+    return '<li class="prow"><span class="oic sm" aria-hidden="true">' + UI.icon(p.isGit ? 'branch' : 'folder') + '</span><div class="pmain"><b>' + esc(p.name) + '</b><span class="mono" title="' + esc(p.path) + '">' + esc(p.path) + '</span>' +
       '<span class="pbadges">' + srcBadges(p) + (p.hasGabitotl ? '' : ' ' + badge('warn', t('gui.projects.notset'))) + (seen ? ' <span class="hint">' + esc(t('gui.projects.lastseen', { date: seen })) + '</span>' : '') + '</span></div>' +
       '<div class="acts"><button type="button" class="btn xs pri" data-act="popen" data-path="' + esc(p.path) + '" data-k="' + id + '-open-' + i + '" aria-label="' + esc(t('gui.projects.open') + ': ' + p.name) + '">' + esc(t('gui.projects.open')) + '</button>' +
-      (id === 'pl' ? '<button type="button" class="btn xs dng" data-act="pforget" data-path="' + esc(p.path) + '" data-k="pl-forget-' + i + '" aria-label="' + esc(t('gui.projects.forget') + ': ' + p.name) + '">' + esc(t('gui.projects.forget')) + '</button>' : '') + '</div></li>';
+      (id === 'pl' ? '<button type="button" class="btn xs dng" data-act="pforget"' + UI.popAttr('forget') + ' data-path="' + esc(p.path) + '" data-k="pl-forget-' + i + '" aria-label="' + esc(t('gui.projects.forget') + ': ' + p.name) + '">' + esc(t('gui.projects.forget')) + '</button>' : '') + '</div></li>';
   }).join('') + '</ul>';
 }
 
@@ -699,8 +719,8 @@ function filteredProjects() {
 }
 
 function screenProjects() {
-  var btns = '<button type="button" class="btn" data-act="rerun" data-k="prefresh"' + attr('disabled', true, S.m.busy) + '>' + esc(t('gui.projects.refresh')) + '</button>' +
-    '<button type="button" class="btn pri" data-act="padd" data-k="padd">' + esc(t('gui.projects.add')) + '</button>';
+  var btns = '<button type="button" class="btn" data-act="rerun" data-k="prefresh"' + attr('disabled', true, S.m.busy) + '>' + UI.icon('refresh') + esc(t('gui.projects.refresh')) + '</button>' +
+    '<button type="button" class="btn pri" data-act="padd" data-k="padd">' + UI.icon('plus') + esc(t('gui.projects.add')) + '</button>';
   var out = head('projects', btns) + busyLine();
   var list = filteredProjects();
   out += '<div class="hrow"><label class="field grow">' + esc(t('gui.projects.search')) +
@@ -709,7 +729,7 @@ function screenProjects() {
     '<option value="all"' + attr('selected', true, S.m.psrc === 'all') + '>' + esc(t('gui.projects.source.all')) + '</option>' +
     Object.keys(SRC_KEYS).map(function (k) { return '<option value="' + k + '"' + attr('selected', true, S.m.psrc === k) + '>' + esc(t(SRC_KEYS[k])) + '</option>'; }).join('') +
     '</select></label></div>';
-  if (!list.length) return out + (S.m.busy ? '' : '<p class="lead" role="status">' + esc(t('gui.projects.empty')) + '</p>');
+  if (!list.length) return out + (S.m.busy ? '' : UI.emptyState('search', t(S.m.pf || S.m.psrc !== 'all' ? 'gui.projects.empty' : 'gui.ov.projects.none'), addProjectBtn('pl-padd')));
   return out + '<p class="hint" role="status">' + esc(t('gui.projects.count', { n: list.length })) + '</p>' + projectRows(list, 'pl');
 }
 
@@ -721,12 +741,13 @@ function projectEntry() {
 
 function screenProject() {
   var pd = S.m.pd;
-  var out = '<div class="hrow"><div class="grow"><button type="button" class="btn xs" data-act="go" data-val="projects" data-k="pback">' + esc(t('gui.proj.back')) + '</button>' +
-    '<h1 id="ptitle" tabindex="-1">' + esc(pd ? pd.name : projectName()) + '</h1><p class="lead mono">' + esc(S.m.proj) + '</p></div></div>';
+  var out = '<div class="hrow"><div class="grow"><button type="button" class="btn xs" data-act="go" data-val="projects" data-k="pback">' + UI.icon('arrow-left') + esc(t('gui.proj.back')) + '</button>' +
+    '<h1 id="ptitle" tabindex="-1">' + esc(pd ? pd.name : projectName()) + '</h1><p class="lead mono">' + esc(S.m.proj) + '</p>' +
+    (pd ? '<div class="acts" style="margin-top:8px">' + platformBadge(pd) + (pd.hasGabitotl ? badge('ok', t('gui.proj.status.on')) : badge('warn', t('gui.projects.notset'))) + '</div>' : '') + '</div></div>';
   if (!pd) return out + busyLine();
   var tabs = '<div class="tabs" role="tablist" aria-label="' + esc(t('gui.proj.tabs')) + '">' + PROJECT_TABS.map(function (tb) {
     var on = S.m.tab === tb[0];
-    return '<button type="button" role="tab" class="tab" id="tab-' + tb[0] + '" aria-selected="' + on + '" aria-controls="tabpanel" tabindex="' + (on ? 0 : -1) + '" data-act="tab" data-val="' + tb[0] + '" data-k="tab-' + tb[0] + '">' + esc(t(tb[1])) + '</button>';
+    return '<button type="button" role="tab" class="tab" id="tab-' + tb[0] + '" aria-selected="' + on + '" aria-controls="tabpanel" tabindex="' + (on ? 0 : -1) + '" data-act="tab" data-val="' + tb[0] + '" data-k="tab-' + tb[0] + '">' + UI.icon(tb[3]) + esc(t(tb[1])) + '</button>';
   }).join('') + '</div>';
   var cur = PROJECT_TABS.filter(function (tb) { return tb[0] === S.m.tab; })[0] || PROJECT_TABS[0];
   var panel = '';
@@ -736,8 +757,8 @@ function screenProject() {
 }
 
 function needsSetup() {
-  return '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.needs-setup')) + '</span></div>' +
-    '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup">' + esc(t('gui.proj.setup')) + '</button></div>';
+  return '<div class="note">' + UI.icon('info') + '<span>' + esc(t('gui.proj.needs-setup')) + '</span></div>' +
+    '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup"' + UI.popAttr('project-setup') + '>' + UI.icon('plus') + esc(t('gui.proj.setup')) + '</button></div>';
 }
 
 function projectTab(tab) {
@@ -756,16 +777,15 @@ function projectTab(tab) {
 
 function projOverview() {
   var pd = S.m.pd, e = projectEntry();
-  var platform = pd.platform ? (pd.host ? pd.platform + ' · ' + pd.host : pd.platform) : t('gui.proj.platform.none');
   var out = '<dl class="sum"><dt>' + esc(t('gui.proj.path')) + '</dt><dd class="mono">' + esc(pd.path) + '</dd>' +
     '<dt>' + esc(t('gui.proj.git')) + '</dt><dd>' + esc(pd.isGit ? t('gui.proj.yes') : t('gui.proj.no')) + '</dd>' +
-    '<dt>' + esc(t('gui.proj.platform')) + '</dt><dd>' + esc(platform) + '</dd>' +
+    '<dt>' + esc(t('gui.proj.platform')) + '</dt><dd>' + platformBadge(pd) + '</dd>' +
     '<dt>' + esc(t('gui.proj.status')) + '</dt><dd>' + (pd.hasGabitotl ? badge('ok', t('gui.proj.status.on')) : badge('warn', t('gui.projects.notset'))) + '</dd>' +
     (e && e.sources && e.sources.length ? '<dt>' + esc(t('gui.proj.sources')) + '</dt><dd>' + srcBadges(e) + '</dd>' : '') +
     (e && e.lastSeen ? '<dt>' + esc(t('gui.proj.lastseen')) + '</dt><dd>' + esc(fmtDate(e.lastSeen)) + '</dd>' : '') + '</dl>';
   if (!pd.hasGabitotl) {
-    out += '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.setup.lead')) + '</span></div>' +
-      '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup">' + esc(t('gui.proj.setup')) + '</button></div>';
+    out += '<div class="note">' + UI.icon('info') + '<span>' + esc(t('gui.proj.setup.lead')) + '</span></div>' +
+      '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup"' + UI.popAttr('project-setup') + '>' + UI.icon('plus') + esc(t('gui.proj.setup')) + '</button></div>';
   }
   return out;
 }
@@ -783,7 +803,7 @@ function projDelivery() {
   var pd = S.m.pd, d = pd.delivery;
   var srcKey = { project: 'gui.proj.delivery.source.project', global: 'gui.proj.delivery.source.global', 'default': 'gui.proj.delivery.source.default' }[d.source] || 'gui.proj.delivery.source.default';
   var out = '<p class="lead">' + esc(t('gui.proj.delivery.lead')) + '</p>' +
-    '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span><b>' + esc(t('gui.proj.delivery.source')) + ':</b> ' + esc(t(srcKey)) + '</span></div>' +
+    '<div class="note" role="status">' + UI.icon('info') + '<span><b>' + esc(t('gui.proj.delivery.source')) + ':</b> ' + esc(t(srcKey)) + '</span></div>' +
     deliveryForm('m.f.pdel') +
     '<div class="acts"><button type="button" class="btn pri" data-act="pdsave" data-k="pd-save">' + esc(t('gui.proj.delivery.save')) + '</button>' +
     '<button type="button" class="btn" data-act="pdreset" data-k="pd-reset"' + attr('disabled', true, d.source !== 'project') + '>' + esc(t('gui.proj.delivery.reset')) + '</button></div>';
@@ -827,14 +847,14 @@ function projIndex() {
   var cgOk = S.m.cg ? !!S.m.cg.installed : true;
   var out = '<p class="lead">' + esc(t('gui.proj.index.lead')) + '</p>';
   if (!cgOk) {
-    out += '<div class="note" role="status"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.proj.index.needs')) + '</span></div><div>' + link('go', 'codegraph', t('gui.proj.index.goto'), 'pi-goto') + '</div>';
+    out += '<div class="note" role="status">' + UI.icon('info') + '<span>' + esc(t('gui.proj.index.needs')) + '</span></div><div>' + link('go', 'codegraph', t('gui.proj.index.goto'), 'pi-goto') + '</div>';
   }
   if (!pd.index.length) return out + '<p class="hint">' + esc(t('gui.guard.index.none')) + '</p>';
   out += '<div class="box">';
   pd.index.forEach(function (b, i) {
     var state = b.indexed ? badge('ok', t('gui.guard.indexed')) : (b.installed ? badge('todo', t('gui.guard.not-indexed')) : badge('warn', t('gui.guard.not-installed')));
-    out += '<div class="row"><b>' + esc(b.name) + '</b>' + state + (!b.installed && b.installHint ? '<span class="mono">' + esc(b.installHint) + '</span>' : '') + '<span class="sp"></span>' +
-      '<button type="button" class="btn xs' + (b.indexed ? '' : ' pri') + '" data-act="pindex" data-i="' + i + '" data-k="pindex-' + i + '"' + attr('disabled', true, !b.installed) + attr('title', t('gui.guard.not-installed'), !b.installed) + '>' + esc(b.indexed ? t('gui.proj.index.rerun') : t('gui.proj.index.run')) + '</button></div>';
+    out += '<div class="row"><span class="oic sm">' + UI.icon('graph') + '</span><b>' + esc(b.name) + '</b>' + state + (!b.installed && b.installHint ? '<span class="mono">' + esc(b.installHint) + '</span>' : '') + '<span class="sp"></span>' +
+      '<button type="button" class="btn xs' + (b.indexed ? '' : ' pri') + '" data-act="pindex" data-i="' + i + '" data-k="pindex-' + i + '"' + (b.installed ? UI.popAttr('reindex') : '') + attr('disabled', true, !b.installed) + attr('title', t('gui.guard.not-installed'), !b.installed) + '>' + esc(b.indexed ? t('gui.proj.index.rerun') : t('gui.proj.index.run')) + '</button></div>';
   });
   return out + '</div>';
 }
@@ -852,20 +872,20 @@ actions.pindex = function (el) {
 
 function projGuard() {
   var g = S.m.pd.guard;
-  return '<p class="lead">' + esc(t('gui.guard.lead')) + '</p><div class="box"><div class="row"><b>' + esc(t('gui.guard.hooks')) + '</b>' +
+  return '<p class="lead">' + esc(t('gui.guard.lead')) + '</p><div class="box"><div class="row"><span class="oic sm">' + UI.icon('shield') + '</span><b>' + esc(t('gui.guard.hooks')) + '</b>' +
     (g.hooksInstalled ? badge('ok', t('gui.guard.active')) : badge('todo', t('gui.guard.inactive'))) + '<span class="sp"></span>' +
-    '<button type="button" class="btn xs" data-act="hooks" data-val="' + (g.hooksInstalled ? 'remove' : 'install') + '" data-k="hooks">' + esc(g.hooksInstalled ? t('gui.guard.remove') : t('gui.guard.install')) + '</button></div>' +
-    '<div class="row"><b>' + esc(t('gui.guard.history')) + '</b><span class="sp"></span><button type="button" class="btn xs" data-act="scanhist" data-k="scanhist">' + esc(t('gui.guard.scan')) + '</button></div></div>';
+    '<button type="button" class="btn xs" data-act="hooks"' + UI.popAttr('hooks') + ' data-val="' + (g.hooksInstalled ? 'remove' : 'install') + '" data-k="hooks">' + esc(g.hooksInstalled ? t('gui.guard.remove') : t('gui.guard.install')) + '</button></div>' +
+    '<div class="row"><span class="oic sm">' + UI.icon('search') + '</span><b>' + esc(t('gui.guard.history')) + '</b><span class="sp"></span><button type="button" class="btn xs" data-act="scanhist"' + UI.popAttr('scan-history') + ' data-k="scanhist">' + esc(t('gui.guard.scan')) + '</button></div></div>';
 }
 
 // ---- doctor -------------------------------------------------------------------
 
-var ICONS = { ok: ['ok', '✓', 'gui.doc.ok'], warn: ['warn', '!', 'gui.doc.warn'], todo: ['todo', '→', 'gui.doc.todo'], error: ['err', '×', 'gui.doc.error'] };
+var ICONS = { ok: ['ok', 'check', 'gui.doc.ok'], warn: ['warn', 'warn', 'gui.doc.warn'], todo: ['todo', 'info', 'gui.doc.todo'], error: ['err', 'error', 'gui.doc.error'] };
 
 function screenDoctor() {
   var rep = S.m.doctor;
-  var btns = '<button type="button" class="btn" data-act="copy" data-k="copy"' + attr('disabled', true, !rep) + '>' + esc(t('gui.doc.copy')) + '</button>' +
-    '<button type="button" class="btn pri" data-act="rerun" data-k="rerun"' + attr('disabled', true, S.m.busy) + '>' + esc(t('gui.doc.rerun')) + '</button>';
+  var btns = '<button type="button" class="btn" data-act="copy" data-k="copy"' + attr('disabled', true, !rep) + '>' + UI.icon('copy') + esc(t('gui.doc.copy')) + '</button>' +
+    '<button type="button" class="btn pri" data-act="rerun" data-k="rerun"' + attr('disabled', true, S.m.busy) + '>' + UI.icon('refresh') + esc(t('gui.doc.rerun')) + '</button>';
   var out = head('doctor', btns) + busyLine();
   if (!rep) return out;
   var c = counts(rep);
@@ -874,7 +894,7 @@ function screenDoctor() {
     out += '<div class="sec">' + esc(sec.title) + '</div>';
     sec.lines.forEach(function (l, li) {
       var ic = ICONS[l.status] || ICONS.ok;
-      out += '<div class="row"><span class="ic ' + ic[0] + '" role="img" aria-label="' + esc(t(ic[2])) + '">' + ic[1] + '</span><span>' + esc(l.message) + '</span><span class="sp"></span>' +
+      out += '<div class="row"><span class="ic ' + ic[0] + '" role="img" aria-label="' + esc(t(ic[2])) + '">' + UI.icon(ic[1]) + '</span><span>' + esc(l.message) + '</span><span class="sp"></span>' +
         (l.detail && l.detail !== l.message ? '<span class="mono">' + esc(l.detail) + '</span>' : '') +
         (l.fix ? '<button type="button" class="btn xs" data-act="fix" data-s="' + si + '" data-l="' + li + '" data-k="fix-' + si + '-' + li + '">' + esc(l.fix.label) + '</button>' : '') + '</div>';
     });
@@ -913,14 +933,9 @@ actions.fix = function (el) {
 
 // ---- integrations -------------------------------------------------------------
 
-function initials(label) {
-  var w = String(label).split(/\s+/);
-  return (w.length > 1 ? w[0][0] + w[1][0] : String(label).slice(0, 2)).toUpperCase();
-}
-
 function screenIntegrations() {
   var inProject = S.m.screen === 'project';
-  var out = head('integrations', '<button type="button" class="btn" data-act="rerun" data-k="rescan">' + esc(t('gui.btn.scan')) + '</button>') + busyLine() +
+  var out = head('integrations', '<button type="button" class="btn" data-act="rerun" data-k="rescan">' + UI.icon('refresh') + esc(t('gui.btn.scan')) + '</button>') + busyLine() +
     '<p class="hint">' + esc(t('gui.int.scope')) + ': ' + esc(t(inProject ? 'gui.profile.scope.project' : 'gui.profile.scope.global')) + '</p>';
   (S.m.integrations || []).forEach(function (it) {
     var b = it.managed ? (it.healthy ? badge('ok', t('gui.int.connected')) : badge('warn', t('gui.int.modified'))) : (it.usable ? badge('todo', t('gui.int.unconnected')) : badge('err', t('gui.int.unavailable')));
@@ -928,14 +943,16 @@ function screenIntegrations() {
     if (it.managed && !it.healthy) acts += iact(it, 'apply', 'gui.int.repair', true);
     if (it.managed) acts += iact(it, 'apply', 'gui.int.reconfigure') + iact(it, 'remove', 'gui.int.remove', false, true);
     else if (it.usable) acts += iact(it, 'apply', 'gui.int.connect', true);
-    out += '<div class="card"><div class="head"><span class="av" aria-hidden="true">' + esc(initials(it.label)) + '</span><b>' + esc(it.label) + '</b>' + b + '<span class="sp"></span><div class="acts">' + acts + '</div></div>' +
+    out += '<div class="card"><div class="head"><span class="av" aria-hidden="true">' + UI.icon(rtIcon(it.name), 'lg') + '</span><b>' + esc(it.label) + '</b>' + b + '<span class="sp"></span><div class="acts">' + acts + '</div></div>' +
       (it.problem ? '<div class="meta"><span>' + esc(it.problem) + '</span></div>' : '') + '</div>';
   });
   return out;
 }
 
+var INT_POP = { 'gui.int.repair': 'int-repair', 'gui.int.remove': 'int-remove', 'gui.int.reconfigure': 'int-connect', 'gui.int.connect': 'int-connect' };
+
 function iact(it, op, key, primary, danger) {
-  return '<button type="button" class="btn' + (primary ? ' pri' : '') + (danger ? ' dng' : '') + '" data-act="int" data-name="' + esc(it.name) + '" data-op="' + op + '" data-k="int-' + esc(it.name) + '-' + op + (primary ? '-p' : '') + '">' + esc(t(key)) + '</button>';
+  return '<button type="button" class="btn' + (primary ? ' pri' : '') + (danger ? ' dng' : '') + '"' + UI.popAttr(INT_POP[key]) + ' data-act="int" data-name="' + esc(it.name) + '" data-op="' + op + '" data-k="int-' + esc(it.name) + '-' + op + (primary ? '-p' : '') + '">' + esc(t(key)) + '</button>';
 }
 
 actions.int = function (el) {
@@ -954,10 +971,11 @@ actions.int = function (el) {
 function screenPersona() {
   var f = S.m.f;
   return head('persona') + busyLine() +
-    '<div class="field">' + esc(t('gui.welcome.language')) + seg('m.f.lang', [['es', 'gui.persona.lang.es'], ['en', 'gui.persona.lang.en']], t('gui.welcome.language')) + '</div>' +
-    '<div class="field">' + esc(t('gui.profile.mode')) + seg('m.f.mode', [['lite', 'gui.profile.mode.lite'], ['normal', 'gui.profile.mode.normal'], ['full', 'gui.profile.mode.full']], t('gui.profile.mode')) + '<span class="hint">' + esc(t('gui.profile.mode.hint')) + '</span></div>' +
-    '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.persona.note')) + '</span></div>' +
-    '<div><button type="button" class="btn pri" data-act="persona" data-k="persona-save">' + esc(t('gui.btn.save')) + '</button></div>';
+    '<div class="lbl">' + UI.icon('globe') + esc(t('gui.welcome.language')) + '</div>' +
+    '<div class="grid2">' + radio('m.f.lang', 'es', t('gui.persona.lang.es'), '', { icon: 'globe' }) + radio('m.f.lang', 'en', t('gui.persona.lang.en'), '', { icon: 'globe' }) + '</div>' +
+    '<div class="lbl">' + UI.icon('chat') + esc(t('gui.profile.mode')) + '</div>' + personaCards('m.f.mode') + '<p class="hint">' + esc(t('gui.profile.mode.hint')) + '</p>' +
+    '<div class="note">' + UI.icon('info') + '<span>' + esc(t('gui.persona.note')) + '</span></div>' +
+    '<div><button type="button" class="btn pri" data-act="persona" data-k="persona-save">' + UI.icon('check') + esc(t('gui.btn.save')) + '</button></div>';
 }
 
 actions.persona = function () {
@@ -982,7 +1000,7 @@ function screenMemory() {
   var m = S.m.f.mem;
   var team = m.mode === 'team';
   var out = head('memory') + busyLine() +
-    '<div class="grid2">' + radio('m.f.mem.mode', 'solo', t('gui.memory.solo'), t('gui.memory.solo.desc')) + radio('m.f.mem.mode', 'team', t('gui.memory.team'), t('gui.memory.team.desc')) + '</div>';
+    '<div class="grid2">' + radio('m.f.mem.mode', 'solo', t('gui.memory.solo'), t('gui.memory.solo.desc'), { icon: 'laptop', pop: 'mem-solo' }) + radio('m.f.mem.mode', 'team', t('gui.memory.team'), t('gui.memory.team.desc'), { icon: 'users', pop: 'mem-team' }) + '</div>';
   if (team) {
     out += '<div class="panel"><div class="field">' + esc(t('gui.memory.role')) + seg('m.f.mem.role', [['host', 'gui.memory.role.host'], ['client', 'gui.memory.role.client']], t('gui.memory.role')) + '</div>';
     if (m.role === 'host') {
@@ -1037,15 +1055,15 @@ actions.scanhist = function () {
 // ---- backups --------------------------------------------------------------------
 
 function screenBackups() {
-  var btns = '<button type="button" class="btn" data-act="cleanup" data-k="cleanup">' + esc(t('gui.bk.cleanup')) + '</button>';
+  var btns = '<button type="button" class="btn" data-act="cleanup"' + UI.popAttr('cleanup') + ' data-k="cleanup">' + UI.icon('trash') + esc(t('gui.bk.cleanup')) + '</button>';
   var out = head('backups', btns) + busyLine();
   var snaps = (S.m.snaps || []).slice().reverse();
-  if (!snaps.length && !S.m.busy) return out + '<p class="lead">' + esc(t('gui.bk.empty')) + '</p>';
+  if (!snaps.length && !S.m.busy) return out + UI.emptyState('archive', t('gui.bk.empty'), '');
   out += '<div class="box tbl">';
   snaps.forEach(function (s, i) {
-    out += '<div class="row"><b style="width:auto;flex:1;min-width:0;overflow-wrap:anywhere">' + esc(s.id) + '</b><span class="mono">' + esc(s.createdAt) + '</span>' +
+    out += '<div class="row"><span class="oic sm">' + UI.icon('archive') + '</span><b style="width:auto;flex:1;min-width:0;overflow-wrap:anywhere">' + esc(s.id) + '</b><span class="mono">' + esc(s.createdAt) + '</span>' +
       badge(s.status === 'ok' || s.status === 'complete' ? 'ok' : 'todo', s.status || '-') + '<span class="mono">' + esc(t('gui.bk.files', { count: s.files })) + '</span>' +
-      '<button type="button" class="btn xs" data-act="restore" data-id="' + esc(s.id) + '" data-k="restore-' + i + '">' + esc(t('gui.bk.restore')) + '</button></div>';
+      '<button type="button" class="btn xs" data-act="restore"' + UI.popAttr('restore') + ' data-id="' + esc(s.id) + '" data-k="restore-' + i + '">' + UI.icon('undo') + esc(t('gui.bk.restore')) + '</button></div>';
   });
   return out + '</div>';
 }
@@ -1079,17 +1097,17 @@ function screenUninstall() {
   var d = S.m.settings && S.m.settings.desktop;
   var all = allRuntimesSelected();
   var rows = managedRuntimes().map(function (i) {
-    return '<label class="tog"><input type="checkbox" data-bind="m.un.runtimes.' + esc(i.name) + '" data-k="un-' + esc(i.name) + '"' + attr('checked', true, !!u.runtimes[i.name]) + '><b>' + esc(i.label) + '</b><span>' + esc(t('gui.un.runtime.desc')) + '</span></label>';
+    return '<div class="tog' + (u.runtimes[i.name] ? ' sel' : '') + '"><label class="tgl"><input type="checkbox" data-bind="m.un.runtimes.' + esc(i.name) + '" data-k="un-' + esc(i.name) + '"' + attr('checked', true, !!u.runtimes[i.name]) + '><span class="oic sm">' + UI.icon(rtIcon(i.name)) + '</span><b>' + esc(i.label) + '</b><span>' + esc(t('gui.un.runtime.desc')) + '</span></label></div>';
   }).join('');
-  if (!rows) rows = '<div class="tog"><span>' + esc(t('gui.un.no-runtimes')) + '</span></div>';
+  if (!rows) rows = '<div class="tog"><span class="tgl">' + esc(t('gui.un.no-runtimes')) + '</span></div>';
   var hasProgram = !!(d && d.supported && d.installed);
   return head('uninstall') + busyLine() + '<div class="lbl">' + esc(t('gui.un.what')) + '</div><div class="box">' + rows +
-    '<label class="tog' + (all ? '' : ' off') + '"' + attr('title', t('gui.un.guard.needs-all'), !all) + '><input type="checkbox" data-bind="m.un.guard" data-k="un-guard"' + attr('checked', true, !!u.guard && all) + attr('disabled', true, !all) + '><b>' + esc(t('gui.windows.guard')) + '</b><span>' + esc(t('gui.un.guard.desc')) + '</span></label>' +
-    '<label class="tog' + (hasProgram ? '' : ' off') + '"><input type="checkbox" data-bind="m.un.program" data-k="un-program"' + attr('checked', true, !!u.program && hasProgram) + attr('disabled', true, !hasProgram) + '><b>' + esc(t('gui.un.program')) + '</b><span>' + esc(t('gui.un.program.desc')) + '</span></label></div>' +
-    '<label class="danger"><input type="checkbox" data-bind="m.un.server" data-k="un-server"' + attr('checked', true, !!u.server) + '><span><b>' + esc(t('gui.un.server')) + '</b> ' + esc(t('gui.un.server.warn')) + '</span></label>' +
-    '<div class="note"><span aria-hidden="true">ⓘ</span><span>' + esc(t('gui.un.keep')) + ' <a href="#" data-act="go" data-val="backups">' + esc(t('gui.mgr.nav.backups')) + '</a></span></div>' +
+    '<div class="tog' + (all ? '' : ' off') + '"' + attr('title', t('gui.un.guard.needs-all'), !all) + '><label class="tgl"><input type="checkbox" data-bind="m.un.guard" data-k="un-guard"' + attr('checked', true, !!u.guard && all) + attr('disabled', true, !all) + '><span class="oic sm">' + UI.icon('shield') + '</span><b>' + esc(t('gui.windows.guard')) + '</b><span>' + esc(t('gui.un.guard.desc')) + '</span></label></div>' +
+    '<div class="tog' + (hasProgram ? '' : ' off') + '"><label class="tgl"><input type="checkbox" data-bind="m.un.program" data-k="un-program"' + attr('checked', true, !!u.program && hasProgram) + attr('disabled', true, !hasProgram) + '><span class="oic sm">' + UI.icon('desktop') + '</span><b>' + esc(t('gui.un.program')) + '</b><span>' + esc(t('gui.un.program.desc')) + '</span></label></div></div>' +
+    '<label class="danger"><input type="checkbox" data-bind="m.un.server" data-k="un-server"' + attr('checked', true, !!u.server) + '>' + UI.icon('warn', 'lg') + '<span><b>' + esc(t('gui.un.server')) + '</b> ' + esc(t('gui.un.server.warn')) + '</span></label>' +
+    '<div class="note">' + UI.icon('info') + '<span>' + esc(t('gui.un.keep')) + ' <a href="#" data-act="go" data-val="backups">' + esc(t('gui.mgr.nav.backups')) + '</a></span></div>' +
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:auto"><button type="button" class="btn" data-act="go" data-val="overview" data-k="un-cancel">' + esc(t('gui.btn.cancel')) + '</button>' +
-    '<button type="button" class="btn dng fill" data-act="uninstall" data-k="un-go">' + esc(t('gui.un.go')) + '</button></div>';
+    '<button type="button" class="btn dng fill" data-act="uninstall"' + UI.popAttr('uninstall') + ' data-k="un-go">' + UI.icon('trash') + esc(t('gui.un.go')) + '</button></div>';
 }
 
 function uninstallOptions() {
