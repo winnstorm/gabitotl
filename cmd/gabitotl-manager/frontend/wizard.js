@@ -162,9 +162,19 @@ function deliveryForm(base) {
 // credResultMsg turns a Save/Test result into the line shown next to a row: a
 // success names the account when the platform told, any other outcome shows the
 // secret-free detail (certificate problems included) or a generic status text.
+var CRED_CODES = {
+  cert_untrusted: 'gui.cred.err.cert_untrusted', rejected: 'gui.cred.err.rejected', no_permission: 'gui.cred.err.no_permission',
+  unreachable: 'gui.cred.err.unreachable', timeout: 'gui.cred.err.timeout', insecure_http: 'gui.cred.err.insecure_http',
+  host_conflict: 'gui.cred.err.host_conflict', invalid_url: 'gui.cred.err.invalid_url', not_stored: 'gui.cred.err.not_stored',
+  unknown_host: 'gui.cred.err.unknown_host'
+};
+
 function credResultMsg(r) {
   var ok = r.status === 'saved' || r.status === 'ok';
   if (ok) return { cls: 'ok', text: r.user ? t('gui.delivery.cred.ok.user', { user: r.user }) : t(r.status === 'saved' ? 'gui.delivery.cred.saved' : 'gui.delivery.cred.ok') };
+  // A known failure code is worded by the catalogue (in the language on screen); the
+  // backend's English detail is only the fallback for a code the page does not know.
+  if (r.code && CRED_CODES[r.code]) return { cls: 'warn', text: t(CRED_CODES[r.code]) };
   return { cls: 'warn', text: r.detail || t(CRED_STATUS[r.status] || CRED_STATUS.invalid) };
 }
 
@@ -223,8 +233,13 @@ function serversBlock() {
     }).join('') + '</select></label>' +
     '<label class="field" style="margin:0;flex:1">' + esc(t('gui.servers.url')) +
     '<input class="mono" type="text" autocomplete="off" spellcheck="false" placeholder="https://bitbucket.example.com:8443" data-bind="cred.srv.url" data-k="srv-url" data-norender value="' + esc(f.url) + '"' + attr('disabled', true, !!c.busy) + '></label></div>' +
+    '<div class="row"><label class="field" style="margin:0;flex:1">' + esc(t('gui.servers.ssh')) +
+    '<input class="mono" type="text" autocomplete="off" spellcheck="false" placeholder="ssh.example.com" data-bind="cred.srv.ssh" data-k="srv-ssh" data-norender value="' + esc(f.ssh) + '"' + attr('disabled', true, !!c.busy) + '>' +
+    '<span class="hint">' + esc(t('gui.servers.ssh.hint')) + '</span></label></div>' +
     '<div class="row"><input class="mono" style="flex:1;height:34px;border:1px solid var(--line2);border-radius:8px;padding:0 12px" type="password" autocomplete="off" spellcheck="false" aria-label="' + esc(t('gui.servers.token')) + '" placeholder="' + esc(t('gui.servers.token')) + '" data-bind="cred.srv.tok" data-srvadd="1" data-k="srv-tok" data-norender value="' + esc(f.tok) + '"' + attr('disabled', true, !!c.busy) + '>' +
-    '<button type="button" class="btn sm" data-act="srvsave" data-k="srv-save"' + attr('disabled', true, !!c.busy) + '>' + esc(c.busy === 'srv:new' ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + credMsgHTML('srv:new') + '</div></div>';
+    '<button type="button" class="btn sm" data-act="srvsave" data-k="srv-save"' + attr('disabled', true, !!c.busy) + '>' + esc(c.busy === 'srv:new' ? t('gui.delivery.cred.working') : t('gui.delivery.cred.save')) + '</button>' + credMsgHTML('srv:new') + '</div>' +
+    (f.conflict ? '<div class="row"><span class="hint" role="alert">' + esc(t('gui.servers.conflict')) + '</span><span class="sp"></span>' +
+      '<button type="button" class="btn sm" data-act="srvreplace" data-k="srv-replace"' + attr('disabled', true, !!c.busy) + '>' + esc(t('gui.servers.replace')) + '</button></div>' : '') + '</div>';
   return out;
 }
 
@@ -506,30 +521,39 @@ actions.credtest = async function (el) {
   render();
 };
 
-// srvsave verifies a token against the server and registers it only when accepted.
-actions.srvsave = async function () {
+// saveServer verifies a token against the server and registers it only when
+// accepted. A host name that already belongs to another server answers a conflict;
+// the person confirms with "Replace" and types the token again (it never stays in
+// the page state, so a replacement is always a fresh paste).
+async function saveServer(replace) {
   var f = S.cred.srv, tok = (f.tok || '').trim(), url = (f.url || '').trim();
   if (S.cred.busy) return;
   if (!url || !tok) {
-    S.cred.msg['srv:new'] = { cls: 'warn', text: t('gui.servers.missing') };
+    S.cred.msg['srv:new'] = { cls: 'warn', text: t(replace && url ? 'gui.servers.retoken' : 'gui.servers.missing') };
     return render();
   }
+  var ssh = (f.ssh || '').split(/[\s,]+/).filter(Boolean);
   // The token leaves the page state on every attempt, saved or not.
   f.tok = '';
+  f.conflict = false;
   S.cred.busy = 'srv:new';
   S.cred.msg['srv:new'] = null;
   render();
   try {
-    var r = await api().SaveServer(f.platform, url, tok);
+    var r = await api().SaveServer(f.platform, url, tok, ssh, !!replace);
     S.cred.msg['srv:new'] = credResultMsg(r);
-    if (r.status === 'saved') f.url = '';
+    if (r.status === 'conflict') f.conflict = true;
+    if (r.status === 'saved') { f.url = ''; f.ssh = ''; }
   } catch (e) {
     S.cred.msg['srv:new'] = { cls: 'warn', text: t('gui.error.generic', { detail: errText(e) }) };
   }
   tok = '';
   S.cred.busy = '';
   await loadCreds();
-};
+}
+
+actions.srvsave = function () { return saveServer(false); };
+actions.srvreplace = function () { return saveServer(true); };
 
 actions.srvremove = async function (el) {
   var host = el.getAttribute('data-host'), key = 'srv:' + host;

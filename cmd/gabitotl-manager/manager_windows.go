@@ -224,8 +224,8 @@ func (a *App) DeleteCredential(host string) error { return a.svc.DeleteCredentia
 func (a *App) Servers() ([]gui.ServerInfo, error) { return a.svc.Servers() }
 
 // SaveServer verifies a token against a self-hosted server and registers it only when accepted.
-func (a *App) SaveServer(platform, url, token string) (gui.CredentialResult, error) {
-	return a.svc.SaveServer(a.ctx, platform, url, token)
+func (a *App) SaveServer(platform, url, token string, sshHosts []string, replace bool) (gui.CredentialResult, error) {
+	return a.svc.SaveServer(a.ctx, platform, url, token, sshHosts, replace)
 }
 
 // DeleteServer unregisters a self-hosted server and removes its stored token.
