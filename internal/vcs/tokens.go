@@ -6,12 +6,26 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // DefaultTokens looks up the stored token of a platform host (the composition
 // root points it at the OS credential store). HostFor uses it when HostOptions
 // has no Tokens of its own; nil means no stored tokens are handed to gh or glab.
 var DefaultTokens func(host string) (token string, ok bool)
+
+// DefaultServers returns the registry of self-hosted servers (the composition
+// root points it at ~/.gabitotl/vcs-hosts.json). HostFor and Repo.Status use it
+// when they are not given a registry of their own; nil means none are registered.
+var DefaultServers func() vcshosts.Registry
+
+func defaultServers() vcshosts.Registry {
+	if DefaultServers == nil {
+		return nil
+	}
+	return DefaultServers()
+}
 
 // EnvRunner is a Runner that can add KEY=VALUE pairs to the environment of that
 // one child process (ExecRunner does).

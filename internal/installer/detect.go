@@ -13,6 +13,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/memory/engram"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/vcs"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // Phase is one step of the installer pipeline, in execution order (spec 5).
@@ -113,7 +114,7 @@ func DetectProject(ctx context.Context, env Env) Project {
 		p.GitRepo = true
 		if out, _, err := env.run(ctx, p.Root, "git", "remote", "get-url", "origin"); err == nil {
 			p.Remote = strings.TrimSpace(string(out))
-			p.Provider = vcs.InferProvider(p.Remote)
+			p.Provider = vcs.InferProviderWith(p.Remote, vcshosts.NewFile(env.Home))
 		}
 	}
 	if p.Exists {

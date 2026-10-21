@@ -13,6 +13,10 @@ type VerifyOptions struct {
 	HTTP *http.Client
 	// APIBase replaces the API root of any platform (tests); empty derives it from the host.
 	APIBase string
+	// BaseURL is the web base URL of a self-hosted server (from the registry): the
+	// only source of the API root for bitbucket-server, and of GitHub Enterprise /
+	// self-managed GitLab when set.
+	BaseURL string
 }
 
 // DefaultHost is the public host of a platform.
@@ -61,10 +65,27 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 			return st, err
 		}
 		return h.AuthStatus(ctx, "")
+	case "bitbucket-server":
+		if o.BaseURL == "" {
+			st.Status = AuthUnsupported
+			return st, fmt.Errorf("%w: a Bitbucket server needs its URL", ErrUnsupported)
+		}
+		user, ok, err := checkBitbucketServer(ctx, client, strings.TrimRight(o.BaseURL, "/"), host, token)
+		if err != nil {
+			return st, err
+		}
+		if !ok {
+			st.Status, st.Detail = AuthNotLoggedIn, "the token was rejected by "+host
+			return st, nil
+		}
+		st.Status, st.User, st.Detail = AuthLoggedIn, user, "signed in as "+user
+		return st, nil
 	case "github":
 		base := o.APIBase
 		switch {
 		case base != "":
+		case o.BaseURL != "":
+			base = strings.TrimRight(o.BaseURL, "/") + "/api/v3"
 		case host == "github.com":
 			base = "https://api.github.com"
 		default:
@@ -73,6 +94,9 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 		url, header, value = strings.TrimRight(base, "/")+"/user", "Authorization", "Bearer "+token
 	case "gitlab":
 		base := o.APIBase
+		if base == "" && o.BaseURL != "" {
+			base = strings.TrimRight(o.BaseURL, "/") + "/api/v4"
+		}
 		if base == "" {
 			base = "https://" + host + "/api/v4"
 		}
@@ -89,7 +113,7 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return st, fmt.Errorf("cannot reach %s: %w", host, scrubErr(err, token))
+		return st, fmt.Errorf("cannot reach %s: %s", host, scrubSecret(friendlyNetError(err, host), token))
 	}
 	resp.Body.Close()
 	switch {
@@ -101,14 +125,6 @@ func VerifyToken(ctx context.Context, platform, host, token string, o VerifyOpti
 		return st, fmt.Errorf("%s answered HTTP %d", host, resp.StatusCode)
 	}
 	return st, nil
-}
-
-// scrubErr keeps a transport error from carrying the token (it is only ever in a header, but be safe).
-func scrubErr(err error, token string) error {
-	if strings.Contains(err.Error(), token) {
-		return fmt.Errorf("request failed")
-	}
-	return err
 }
 
 // noRunner keeps the project-less check from reading the origin of whatever
