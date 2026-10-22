@@ -24,6 +24,7 @@ var S = {
     runtimes: {},
     migratePersona: true,
     retireGentleKiro: true,
+    skills: { 'gabito-design': false },
     memory: { mode: 'solo', role: 'host', engine: 'auto', port: '', instance: '', url: '', tokenEnv: '', importEngram: false },
     delivery: { automation: 'until-pr', mergeMethod: 'squash', deleteBranch: true, draft: true },
     win: { installDir: '', startMenu: true, desktopShortcut: false, addToPath: true },

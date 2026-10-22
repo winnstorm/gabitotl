@@ -126,6 +126,17 @@ func (a *App) RunFix(req gui.FixRequest, planID string) (gui.FixResult, error) {
 	return a.svc.RunFix(a.ctx, req, planID, a.progress())
 }
 
+// Skills lists the optional skills (GabitoDesign) with their state in each managed agent.
+func (a *App) Skills() ([]gui.SkillInfo, error) { return a.svc.Skills(a.ctx) }
+
+// PlanSkill shows what turning an optional skill on or off writes or removes.
+func (a *App) PlanSkill(req gui.SkillRequest) (gui.Plan, error) { return a.svc.PlanSkill(a.ctx, req) }
+
+// ApplySkill runs the plan PlanSkill returned.
+func (a *App) ApplySkill(req gui.SkillRequest, planID string) (gui.SkillResult, error) {
+	return a.svc.ApplySkill(a.ctx, req, planID, a.progress())
+}
+
 // Integrations lists the coding agents with their state.
 func (a *App) Integrations(root string) ([]gui.Integration, error) {
 	return a.svc.Integrations(a.ctx, root)

@@ -115,3 +115,58 @@ func TestOptionalSkillSelectInstallsDeselectRemovesAndDoctorAgrees(t *testing.T)
 		t.Fatalf("settled state: skipped=%v err=%v", res.Skipped, err)
 	}
 }
+
+func TestSkillSelectionPlansAppliesAndReports(t *testing.T) {
+	f := newFixture(t)
+	if _, err := runPlan(t, f, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	state := func() OptionalSkillState {
+		t.Helper()
+		st, err := OptionalSkillStates(f.env)
+		if err != nil || len(st) != 1 || st[0].Name != optName {
+			t.Fatalf("states %+v %v", st, err)
+		}
+		return st[0]
+	}
+	if s := state(); s.Enabled || len(s.Agents) == 0 {
+		t.Fatalf("default state: %+v", s)
+	} else {
+		for _, a := range s.Agents {
+			if a.Installed {
+				t.Errorf("%s reports it installed by default", a.Runtime)
+			}
+		}
+	}
+	changes, err := PlanSkillSelection(f.env, []string{optName})
+	if err != nil || len(changes) == 0 || !changes[0].Pending() {
+		t.Fatalf("enable plan: %+v %v", changes, err)
+	}
+	if n := present(t, designFiles(f.home)); n != 0 {
+		t.Fatal("planning must not write")
+	}
+	if _, _, err := ApplySkillSelection(f.env, []string{optName}); err != nil {
+		t.Fatal(err)
+	}
+	if s := state(); !s.Enabled {
+		t.Fatalf("enabled state: %+v", s)
+	} else {
+		for _, a := range s.Agents {
+			if !a.Installed {
+				t.Errorf("%s: not installed after enabling", a.Runtime)
+			}
+		}
+	}
+	if changes, _ = PlanSkillSelection(f.env, []string{optName}); changes[0].Pending() {
+		t.Error("a second enable must have nothing to do")
+	}
+	if _, removed, err := ApplySkillSelection(f.env, nil); err != nil || len(removed) == 0 {
+		t.Fatalf("disable: removed %v err %v", removed, err)
+	}
+	if n := present(t, designFiles(f.home)); n != 0 {
+		t.Errorf("%d files left after disabling", n)
+	}
+	if _, err := PlanSkillSelection(f.env, []string{"nope"}); err == nil {
+		t.Error("an unknown skill must be refused")
+	}
+}

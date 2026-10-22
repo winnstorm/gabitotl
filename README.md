@@ -227,6 +227,10 @@ Eight skills are installed next to the persona: `gabito-orquestador`, `gabito-re
 one rule, "load the matching skill", so the base prompt stays small. More: [Skills](docs/GUIDE.md#skills),
 [at a glance](docs/GUIDE.md#the-skills-at-a-glance).
 
+A ninth, **optional** skill, `gabito-design`, gives agents design judgment for any visual task (web, Word,
+PowerPoint, PDF, charts, diagrams, images). It is off until you turn it on in the setup, the Manager or with
+`gabitotl skills enable gabito-design`. More: [GabitoDesign](docs/GUIDE.md#gabitodesign-optional).
+
 ## 🔎 Code index and 🔄 migration
 
 `gabitotl index status` shows an optional code index (CodeGraph first); it never installs one. Coming from

@@ -37,6 +37,7 @@ var UI = (function () {
     ['desktop', 'desktop', 'desktop bot check+'],
     ['path', 'terminal', 'terminal folder check+'],
     ['codegraph', 'graph', 'code graph spark'],
+    ['gabito-design', 'palette', 'file palette check+'],
     ['int-connect', 'plug', 'plug file check+'],
     ['int-repair', 'wrench', 'warn wrench check+'],
     ['int-remove', 'trash', 'archive trash folder'],

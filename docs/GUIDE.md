@@ -12,7 +12,7 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 - [Team memory](#team-memory) and [Changing the provider](#changing-the-provider)
 - [Who is here](#who-is-here)
 - [The Gabito persona](#the-gabito-persona): [Saving tokens](#saving-tokens), [Kiro](#kiro), [Chat modes](#chat-modes), [Persona language](#persona-language)
-- [Skills](#skills)
+- [Skills](#skills) and [GabitoDesign (optional)](#gabitodesign-optional)
 - [Code index (optional)](#code-index-optional)
 - [Migrating from Gentle-AI](#migrating-from-gentle-ai)
 - [Delivery settings](#delivery-settings) and [Platforms and login](#platforms-and-login)
@@ -173,6 +173,7 @@ If memory contradicts the code, the code wins and the memory gets fixed.
 | `runtime list \| detect \| plan \| apply \| verify \| remove \| set` | Per-runtime configuration and model choice. |
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats] [--lang es\|en]` | Print the persona prompt (the language chosen at install unless `--lang` is given). |
+| `skills list \| enable <name> \| disable <name> [--dry-run]` | Optional skills (today `gabito-design`, see [GabitoDesign](#gabitodesign-optional)). Plan, backup and verify like the other agent changes. `install --skill <name>` turns one on at install. |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
 | `stats [--json] [--since 7d]` | Per person: context use and checkpoints, bytes and estimated tokens kept out of the context by `run` and `memory context`, the always-on cost per chat and the code index status. Missing data counts as zero; it never fails. |
@@ -690,6 +691,43 @@ Gabito: Falló por el escapado. No reintento: escribo .gabitotl/tmp/find_names.p
   is reported; directories GabitoTL created are removed only when they end up empty.
 - Every skill carries `metadata.author: gabitotl`, and a test fails if a skill mentions a `gabitotl` command that
   does not exist, so the skills cannot drift from the binary.
+
+## GabitoDesign (optional)
+
+`gabito-design` is an optional skill: design judgment for any visual task. It is **off by default** and nothing is
+installed for it until you turn it on. Your agent loads it by itself on UI and web pages, Word, PowerPoint, PDF,
+spreadsheets and charts, diagrams, images, logos and posters, and on requests such as "design", "critique",
+"polish", "audit" or "make it look better". It is meant to be used next to the skill that produces the file
+(docx, pptx, pdf, xlsx); this one decides how the result should look.
+
+What it contains (all under `gabito-design/` in each agent's skills folder):
+
+- `SKILL.md`: how to pick one of four modes by the surface (Persuade for marketing and decks, Experience for
+  immersive products, Operate for dashboards, tools and forms, Read for long documents), a routing table and a
+  universal quality floor (hierarchy, contrast to WCAG 2.2 AA, spacing scale, grid, type scale, restraint, real
+  content, accessibility).
+- `references/commands.md`: 23 commands you invoke by naming them ("gabito-design critique", "polish this"):
+  context, document, extract, shape, craft, critique, audit, polish, distill, harden, onboard, bolder, quieter,
+  animate, colorize, typeset, layout, delight, overdrive, clarify, adapt, optimize, variants.
+- One module per medium, each with principles, a quality floor and its own list of generic-output tells: web and
+  UI, documents (Word, PDF), presentations, data and charts (spreadsheets), diagrams, images and logos.
+- `references/design-md.md`: a template for a `DESIGN.md` in your project (type scale, color roles, spacing,
+  radii, motion) that the `context` command writes and later tasks reuse.
+
+The references are read only when a task needs them, so the always-on cost is the skill description.
+
+**Turn it on or off**
+
+- Windows setup: Profile step, "Extras", the GabitoDesign card (hover it or press (i) to see what changes).
+- Windows Manager: Integrations, "Optional skills". It shows the plan (the files per agent) before it applies.
+- Linux CLI: `gabitotl skills list`, `gabitotl skills enable gabito-design [--dry-run]`,
+  `gabitotl skills disable gabito-design`, or `gabitotl install --skill gabito-design` (repeatable, added to the
+  ones already on; the TUI takes the same flag). `gabitotl doctor` shows which optional skills are on.
+
+The choice is saved in `~/.gabitotl/skills.md` and applied to every agent GabitoTL manages (Claude Code,
+OpenCode, Kiro). Turning it off removes only the files GabitoTL wrote; a file of yours inside the skill folder
+stays. Each change takes a backup first. `gabito-design` is an original work inspired by Impeccable by Paul Bakaus
+(Apache-2.0, https://impeccable.style); no Impeccable text or code is included.
 
 ## Code index (optional)
 

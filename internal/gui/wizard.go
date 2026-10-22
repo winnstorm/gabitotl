@@ -120,6 +120,13 @@ func installOptions(a InstallAnswers) (installer.Options, error) {
 	if o.UserName == "" {
 		o.UserName = a.User
 	}
+	for _, n := range a.Skills {
+		if !slices.Contains(installer.OptionalSkills(), n) {
+			return installer.Options{}, fmt.Errorf("%w: %q is not an optional skill", ErrNotAvailable, n)
+		}
+	}
+	// The wizard always states the choice (an empty list turns every optional skill off).
+	o.OptionalSkills, o.SetOptionalSkills = a.Skills, true
 	switch a.GentleAction {
 	case ActionMigrate:
 		o.Source = installer.SourceGentleAI

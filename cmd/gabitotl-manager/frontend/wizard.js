@@ -170,7 +170,15 @@ function stepProfile() {
     '<div class="lbl">' + UI.icon('plug') + esc(t('gui.profile.integrate')) + '</div>' + rts +
     '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">' +
     check('a.migratePersona', t('gui.profile.migrate'), { disabled: noGentle, title: noGentle ? t('note.gentle-ai-not-found') : '' }) +
-    check('a.retireGentleKiro', t('gui.profile.retire-kiro'), { disabled: !d.gentleAI.gentleKiroPresent, title: d.gentleAI.gentleKiroPresent ? '' : t('note.gentle-kiro-none') }) + '</div>';
+    check('a.retireGentleKiro', t('gui.profile.retire-kiro'), { disabled: !d.gentleAI.gentleKiroPresent, title: d.gentleAI.gentleKiroPresent ? '' : t('note.gentle-kiro-none') }) + '</div>' +
+    '<div class="lbl">' + UI.icon('palette') + esc(t('gui.profile.extras')) + '</div><div class="box">' + skillCard('a.skills.gabito-design', 'gabito-design') + '</div><p class="hint">' + esc(t('gui.profile.extras.hint')) + '</p>';
+}
+
+// skillCard is the option card of an optional skill (off by default): icon, name,
+// one line and the popover with what it changes on the machine.
+function skillCard(path, id) {
+  var on = !!get(path);
+  return '<div class="tog' + (on ? ' sel' : '') + '"' + UI.popAttr(id) + ' data-pk="' + path + '"><label class="tgl"><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, on) + '><span class="oic sm">' + UI.icon('palette') + '</span><b>' + esc(t('gui.skill.design.title')) + '</b><span>' + esc(t('gui.skill.design.desc')) + '</span></label>' + UI.infoBtn(id) + '</div>';
 }
 
 function stepMemory() {
@@ -376,6 +384,7 @@ function stepInstall() {
     '<dt>' + esc(t('gui.install.sum.delivery')) + '</dt><dd>' + esc(delivery.join(' · ')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.creds')) + '</dt><dd>' + esc(t('gui.install.sum.creds.n', { n: storedCount() })) + '</dd>' +
     (S.cg && S.cg.supported ? '<dt>' + esc(t('gui.install.sum.codegraph')) + '</dt><dd>' + esc(t('gui.install.sum.codegraph.value', { version: S.cg.pinned })) + '</dd>' : '') +
+    '<dt>' + esc(t('gui.install.sum.skills')) + '</dt><dd>' + esc(Object.keys(S.a.skills).filter(function (n) { return !!S.a.skills[n]; }).join(', ') || t('gui.install.sum.none')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.windows')) + '</dt><dd class="mono">' + esc(S.a.win.installDir || t('gui.install.sum.none')) + '</dd>' +
     '<dt>' + esc(t('gui.install.sum.backup')) + '</dt><dd>' + esc(S.plan.snapshot ? S.plan.snapshot : t('gui.install.sum.backup.value')) + '</dd></dl>';
   if (!S.running && !S.finished) return out + planDetails(S.plan);
@@ -709,6 +718,7 @@ function buildAnswers() {
     personaMode: a.personaMode,
     runtimes: selectedRuntimes().map(function (r) { return r.name; }),
     scope: 'global',
+    skills: Object.keys(a.skills).filter(function (n) { return !!a.skills[n]; }),
     migratePersona: !!a.migratePersona && !!d.gentleAI.found,
     retireGentleKiro: !!a.retireGentleKiro && !!d.gentleAI.gentleKiroPresent,
     memory: {

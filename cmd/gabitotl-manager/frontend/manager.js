@@ -41,7 +41,7 @@ var SRC_KEYS = { gabitotl: 'gui.projects.src.gabitotl', 'claude-code': 'gui.proj
 S.m = {
   screen: 'overview', tab: 'overview', proj: '', busy: false,
   doctor: null, integrations: null, settings: null, snaps: null,
-  gd: null, cg: null, eng: null, projects: null, pd: null,
+  gd: null, cg: null, eng: null, skills: null, projects: null, pd: null,
   seq: 0, toast: '', modal: null, loadErr: '', focusTitle: false,
   pf: '', psrc: 'all',
   f: {
@@ -113,6 +113,7 @@ async function loadScreen() {
       S.m.cg = keep(seq, await api().CodeGraph(), S.m.cg);
     } else if (sc === 'integrations') {
       S.m.integrations = keep(seq, await api().Integrations(''), S.m.integrations);
+      S.m.skills = keep(seq, await soft(function () { return api().Skills(); }, []), S.m.skills);
     } else if (sc === 'persona') {
       S.m.settings = keep(seq, await api().Settings(''), S.m.settings);
       seedForms(S.m.settings);
@@ -952,6 +953,7 @@ function screenIntegrations() {
   var inProject = S.m.screen === 'project';
   var out = head('integrations', '<button type="button" class="btn" data-act="rerun" data-k="rescan">' + UI.icon('refresh') + esc(t('gui.btn.scan')) + '</button>') + busyLine() +
     '<p class="hint">' + esc(t('gui.int.scope')) + ': ' + esc(t(inProject ? 'gui.profile.scope.project' : 'gui.profile.scope.global')) + '</p>';
+  if (!inProject) out += skillsBlock();
   (S.m.integrations || []).forEach(function (it) {
     var b = it.managed ? (it.healthy ? badge('ok', t('gui.int.connected')) : badge('warn', t('gui.int.modified'))) : (it.usable ? badge('todo', t('gui.int.unconnected')) : badge('err', t('gui.int.unavailable')));
     var acts = '';
@@ -963,6 +965,29 @@ function screenIntegrations() {
   });
   return out;
 }
+
+// skillsBlock lists the optional skills (GabitoDesign): on or off, where it is
+// installed, and a plan-first toggle.
+function skillsBlock() {
+  var out = '<div class="lbl">' + UI.icon('palette') + esc(t('gui.skills.title')) + '</div><p class="hint">' + esc(t('gui.skills.lead')) + '</p>';
+  (S.m.skills || []).forEach(function (sk) {
+    var agents = (sk.agents || []).map(function (a) { return esc(a.label) + ': ' + esc(t(a.installed ? 'gui.skills.installed' : 'gui.skills.notinstalled')); }).join(' · ');
+    out += '<div class="card"><div class="head"><span class="av" aria-hidden="true">' + UI.icon('palette', 'lg') + '</span><b>' + esc(t('gui.skill.design.title')) + '</b>' +
+      badge(sk.enabled ? 'ok' : 'todo', t(sk.enabled ? 'gui.skills.on' : 'gui.skills.off')) + UI.infoBtn(sk.name) + '<span class="sp"></span><div class="acts">' +
+      '<button type="button" class="btn' + (sk.enabled ? '' : ' pri') + '"' + UI.popAttr(sk.name) + ' data-act="skilltoggle" data-name="' + esc(sk.name) + '" data-on="' + (sk.enabled ? '0' : '1') + '" data-k="skill-' + esc(sk.name) + '">' + esc(t(sk.enabled ? 'gui.skills.disable' : 'gui.skills.enable')) + '</button></div></div>' +
+      '<div class="meta"><span>' + esc(t('gui.skill.design.desc')) + '</span></div>' +
+      (agents ? '<div class="meta"><span>' + agents + '</span></div>' : '') + '</div>';
+  });
+  return out;
+}
+
+actions.skilltoggle = function (el) {
+  var req = { name: el.getAttribute('data-name'), enable: el.getAttribute('data-on') === '1' };
+  planAndRun({
+    title: t('gui.skill.design.title'), plan: function () { return api().PlanSkill(req); }, run: function (id) { return api().ApplySkill(req, id); },
+    confirmLabel: t('gui.btn.apply'), confirmAlways: true, after: loadScreen,
+  });
+};
 
 var INT_POP = { 'gui.int.repair': 'int-repair', 'gui.int.remove': 'int-remove', 'gui.int.reconfigure': 'int-connect', 'gui.int.connect': 'int-connect' };
 

@@ -245,6 +245,7 @@ type InstallAnswers struct {
 	Memory           MemoryAnswers   `json:"memory"`
 	Delivery         DeliveryAnswers `json:"delivery"`
 	Windows          WindowsAnswers  `json:"windows"`
+	Skills           []string        `json:"skills"` // optional skills to install (GabitoDesign); none by default
 	DryRun           bool            `json:"dryRun"`
 }
 

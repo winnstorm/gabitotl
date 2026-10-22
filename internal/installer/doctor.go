@@ -58,6 +58,8 @@ const (
 	DocRuntimeConflict    = "doctor.runtime.persona-conflict"
 	DocRuntimeGentleKiro  = "doctor.runtime.gentle-kiro"
 	DocRuntimePersonaLang = "doctor.runtime.persona-lang"
+	DocRuntimeSkills      = "doctor.runtime.skills"      // optional skills that are on
+	DocRuntimeSkillsNone  = "doctor.runtime.skills-none" // optional skills exist and none is on
 	DocGitRepo            = "doctor.git.repo"
 	DocGitNoRepo          = "doctor.git.no-repo"
 	DocGitProvider        = "doctor.git.provider"
@@ -83,7 +85,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocRuntimePersonaLang, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocRuntimePersonaLang, DocRuntimeSkills, DocRuntimeSkillsNone, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -285,6 +287,11 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	add("memory", mem...)
 	if managed > 0 {
 		rts = append(rts, L(LineOK, DocRuntimePersonaLang, string(plang)))
+		if on := SelectedSkills(gabitotl.LoadOptionalSkills(env.Home)); len(on) > 0 {
+			rts = append(rts, L(LineOK, DocRuntimeSkills, strings.Join(on, ", ")))
+		} else if len(OptionalSkills()) > 0 {
+			rts = append(rts, L(LineOK, DocRuntimeSkillsNone, strings.Join(OptionalSkills(), ", ")))
+		}
 	}
 	add("runtimes", rts...)
 
