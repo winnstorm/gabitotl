@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"strconv"
+	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/desktop"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -538,11 +539,23 @@ func (s *Service) Uninstall(ctx context.Context, o UninstallOptions, planID stri
 	}
 	out.Removed = append(out.Removed, res.GuardRemoved...)
 	out.Manual, out.Backup = append(out.Manual, res.Manual...), res.Backup
-	if err != nil {
+	switch {
+	case err != nil && len(out.Removed) == 0:
+		// Nothing was touched yet (the backup failed first): stop, so a retry
+		// starts from the same state.
 		p.emit("runtimes", "error", err.Error(), 50)
 		return out, err
+	case err != nil:
+		// Part of the agents' files are gone: finish the rest of the uninstall
+		// anyway, so it never takes two runs, and report what failed.
+		p.emit("runtimes", "error", err.Error(), 50)
+		out.Steps = append(out.Steps, StepResult{ID: "runtimes", Status: StatusError, Message: err.Error()})
+	case len(res.Warnings) > 0:
+		p.emit("runtimes", "done", "", 50)
+		out.Steps = append(out.Steps, StepResult{ID: "runtimes", Status: StatusError, Message: strings.Join(res.Warnings, "; ")})
+	default:
+		p.emit("runtimes", "done", "", 50)
 	}
-	p.emit("runtimes", "done", "", 50)
 	if o.RemoveMemoryServer && fresh.MemoryServer != "" {
 		out.Steps = append(out.Steps, s.removeServer(ctx, env, o, p))
 	}

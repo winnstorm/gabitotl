@@ -280,5 +280,17 @@ func (a *App) PlanUninstall(o gui.UninstallOptions) (gui.UninstallPlan, error) {
 
 // Uninstall removes what the plan listed.
 func (a *App) Uninstall(o gui.UninstallOptions, planID string) (gui.UninstallResult, error) {
-	return a.svc.Uninstall(a.ctx, o, planID, a.progress())
+	res, err := a.svc.Uninstall(a.ctx, o, planID, a.progress())
+	if err != nil {
+		a.log.Errorf("uninstall: %v", err)
+	}
+	for _, st := range res.Steps {
+		if st.Status != gui.StatusOK {
+			a.log.Infof("uninstall step %s: %s %s", st.ID, st.Status, st.Message)
+		}
+	}
+	for _, m := range res.Manual {
+		a.log.Infof("uninstall manual: %s", m)
+	}
+	return res, err
 }
