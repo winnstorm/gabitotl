@@ -330,3 +330,52 @@ func TestWizardIsGlobalAndIgnoresProjectOnlyAnswers(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectListsOtherSystemsAlways(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	d, err := r.svc.Detect(ctx, r.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Systems) < 7 {
+		t.Fatalf("every system is listed even when none is found: %+v", d.Systems)
+	}
+	for _, s := range d.Systems {
+		if s.Found || s.Possible || len(s.Signals) == 0 || s.Name == "" || s.Signals == nil {
+			t.Fatalf("nothing is installed in the rig: %+v", s)
+		}
+	}
+	write(t, filepath.Join(r.home, ".claude", "commands", "sc", "a.md"), "x")
+	write(t, filepath.Join(r.home, ".claude", "CLAUDE.md"), "<!-- OPENSPEC:START -->\n")
+	d, _ = r.svc.Detect(ctx, r.root)
+	found := map[string]bool{}
+	for _, s := range d.Systems {
+		if s.Found {
+			found[s.ID] = true
+		}
+	}
+	if !found["superclaude"] || !found["openspec"] || found["gentle-ai"] || d.Gentle.Found {
+		t.Fatalf("found: %v", found)
+	}
+	list, err := r.svc.OtherSystems(ctx)
+	if err != nil || len(list) != len(d.Systems) {
+		t.Fatalf("manager list: %v %d", err, len(list))
+	}
+}
+
+func TestProjectDetailListsProjectSystems(t *testing.T) {
+	c := newRig(t)
+	write(t, filepath.Join(c.root, ".taskmaster", "tasks.json"), "{}")
+	d, err := c.svc.Project(context.Background(), c.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tm bool
+	for _, s := range d.Systems {
+		tm = tm || (s.ID == "task-master" && s.Found)
+	}
+	if !tm || len(d.Systems) < 5 {
+		t.Fatalf("%+v", d.Systems)
+	}
+}

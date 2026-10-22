@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/winnstorm/gabitotl/internal/installer"
+	"github.com/winnstorm/gabitotl/internal/persona"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 )
 
@@ -259,5 +260,29 @@ func TestOnboardTeammateAsksOnlyTheTokenVariable(t *testing.T) {
 	NewPrompter(strings.NewReader(""), &out, m).Onboard(&o, need, "")
 	if o.MemoryTokenEnv != "FLAG_TOKEN" || o.MemoryRole != "client" {
 		t.Fatalf("flag: %+v", o)
+	}
+}
+
+func TestInventoryListsOtherSystemsFound(t *testing.T) {
+	m := For(persona.LangEN)
+	inv := installer.Inventory{}
+	inv.Other.Systems = []installer.SystemStatus{
+		{ID: "gentle-ai", Name: "Gentle AI"},
+		{ID: "openspec", Name: "OpenSpec", Found: true, Action: installer.ActionCoexist},
+		{ID: "bmad", Name: "BMAD Method", Possible: true, Action: installer.ActionCoexist},
+		{ID: "omo", Name: "omo", Action: installer.ActionCoexist},
+	}
+	var sec Section
+	for _, s := range InventorySections(m, inv) {
+		if s.Title == m.Format("inv.section.other") {
+			sec = s
+		}
+	}
+	var txt string
+	for _, l := range sec.Lines {
+		txt += l.Text + "\n"
+	}
+	if !strings.Contains(txt, "OpenSpec found") || !strings.Contains(txt, "BMAD Method may be present") || strings.Contains(txt, "omo") || strings.Contains(txt, m.Format("inv.other.none")) {
+		t.Fatalf("other section:\n%s", txt)
 	}
 }

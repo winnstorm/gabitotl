@@ -103,6 +103,7 @@ type DetectResult struct {
 	Container    string          `json:"containerEngine"` // docker | podman | ""
 	PackageMgr   string          `json:"packageManager"`
 	Gentle       GentleInfo      `json:"gentleAI"`
+	Systems      []SystemInfo    `json:"systems"`  // other agent systems, found or not
 	UserName     string          `json:"userName"` // git config user.name, the profile default
 	Language     string          `json:"language"` // saved language (es | en)
 	PersonaMode  string          `json:"personaMode"`
@@ -145,6 +146,28 @@ type GentleInfo struct {
 	Action            string   `json:"action"`
 	PersonaConflict   bool     `json:"personaConflict"`
 	GentleKiroPresent bool     `json:"gentleKiroPresent"`
+}
+
+// SystemInfo is one other agent system and where it was looked for.
+type SystemInfo struct {
+	ID       string       `json:"id"`
+	Name     string       `json:"name"`
+	URL      string       `json:"url"`
+	Conflict string       `json:"conflict"` // low | medium | high
+	Action   string       `json:"action"`   // coexist | review | decide
+	Found    bool         `json:"found"`
+	Possible bool         `json:"possible"`
+	Signals  []SignalInfo `json:"signals"`
+}
+
+// SignalInfo is one place checked: a command on PATH, a folder, a file or a marker.
+type SignalInfo struct {
+	Kind   string `json:"kind"`
+	Target string `json:"target"`
+	Path   string `json:"path,omitempty"`
+	Marker string `json:"marker,omitempty"`
+	Strong bool   `json:"strong"`
+	Found  bool   `json:"found"`
 }
 
 // InventoryPart is a titled group of summary rows.

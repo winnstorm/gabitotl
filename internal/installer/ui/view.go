@@ -101,7 +101,20 @@ func InventorySections(m Messages, inv installer.Inventory) []Section {
 			}
 			other.Lines = append(other.Lines, Line{" ", m.Format("inv.gentle.agents", "detail", strings.Join(ids, ", "))})
 		}
-	} else {
+	}
+	found := len(other.Lines) > 0
+	for _, sy := range inv.Other.Systems {
+		if sy.ID == "gentle-ai" || !(sy.Found || sy.Possible) {
+			continue
+		}
+		found = true
+		key := "inv.system.found"
+		if !sy.Found {
+			key = "inv.system.possible"
+		}
+		other.Lines = append(other.Lines, Line{SymWarn, m.Format(key, "name", sy.Name, "action", m.Format("inv.system.action."+sy.Action))})
+	}
+	if !found {
 		other.Lines = append(other.Lines, Line{SymOK, m.Format("inv.other.none")})
 	}
 	return []Section{sys, agents, memS, other}

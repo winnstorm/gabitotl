@@ -40,7 +40,7 @@ func (s *Service) Detect(ctx context.Context, _ string) (DetectResult, error) {
 		Container: inv.Server.Engine, Language: string(gabitotl.ActivePersonaLang(env.Home)),
 		Git:      GitInfo{Found: inv.Platform.Git, Path: inv.Platform.GitPath, Repo: inv.Project.GitRepo, Provider: inv.Project.Provider},
 		Engram:   EngramInfo{Present: inv.Memory.Present(), HasBinary: inv.Memory.HasBinary, Observations: inv.Memory.Observations, CanImport: inv.Server.CanImport},
-		Runtimes: []RuntimeInfo{}, Desktop: s.DesktopStatus(),
+		Runtimes: []RuntimeInfo{}, Desktop: s.DesktopStatus(), Systems: systemInfos(inv.Other.Systems),
 		PersonaMode: string(gabitotl.LoadPersonaMode(gabitotl.NewLayout(root), gabitotl.ActiveUserID(), env.Home)),
 		UserName:    gitUserName(ctx, env, inv.Project.Root),
 	}

@@ -51,6 +51,15 @@ var UI = (function () {
     ['cg-fix', 'wrench', 'graph wrench check+'],
     ['eng-fix', 'wrench', 'db wrench check+'],
     ['forget', 'folders', 'folders x folder'],
+    ['sys-gentle-ai', 'merge', 'search folder check+'],
+    ['sys-superclaude', 'bot', 'search folder check+'],
+    ['sys-spec-kit', 'file', 'search folder check+'],
+    ['sys-openspec', 'file', 'search folder check+'],
+    ['sys-bmad', 'users', 'search folder check+'],
+    ['sys-task-master', 'commit', 'search folder check+'],
+    ['sys-ruflo', 'graph', 'search folder check+'],
+    ['sys-omo', 'terminal', 'search folder check+'],
+    ['sys-ccpm', 'pr', 'search folder check+'],
   ];
   var POPS = {};
   POP_DEF.forEach(function (d) { POPS[d[0]] = { icon: d[1], flow: d[2].split(' ') }; });
@@ -87,6 +96,34 @@ var UI = (function () {
 
   // popAttr marks an element as a popover trigger.
   function popAttr(id) { return POPS[id] ? ' data-pop="' + esc(id) + '"' : ''; }
+
+  // ---- other agent systems -----------------------------------------------------------
+  // systemsCard draws the "Other agent systems" list: every system found, possible
+  // or not found, with an expandable "where we looked". scope is 'wizard' (global,
+  // Gentle AI has its own decision), 'global' or 'project'. open is S.sysOpen.
+  var SYS_ACTION = { coexist: 'gui.sys.action.coexist', review: 'gui.sys.action.review', decide: 'gui.sys.action.decide' };
+  var SYS_KIND = { binary: 'gui.sys.kind.binary', dir: 'gui.sys.kind.dir', file: 'gui.sys.kind.file', marker: 'gui.sys.kind.marker', glob: 'gui.sys.kind.glob', dirs: 'gui.sys.kind.dirs' };
+  function systemsCard(list, scope, open) {
+    var rows = (Array.isArray(list) ? list : []).map(function (sy) {
+      var st = sy.found ? badge('ok', t('gui.sys.found')) : (sy.possible ? badge('warn', t('gui.sys.possible')) : badge('todo', t('gui.sys.none')));
+      var action = sy.action === 'decide' && scope !== 'wizard' ? 'coexist' : sy.action;
+      var note = sy.found || sy.possible ? t(SYS_ACTION[action] || SYS_ACTION.coexist) : t(scope === 'project' ? 'gui.sys.absent.project' : 'gui.sys.absent');
+      var key = scope + ':' + sy.id;
+      var isOpen = !!(open && open[key]);
+      var where = '';
+      if (isOpen) {
+        where = '<ul class="where mono">' + (sy.signals || []).map(function (g) {
+          var ic = g.found ? '<span class="ic ok" role="img" aria-label="' + esc(t('gui.sys.hit')) + '">' + icon('check', 'sm') + '</span>' : '<span class="ic todo" role="img" aria-label="' + esc(t('gui.sys.miss')) + '">' + icon('minus', 'sm') + '</span>';
+          var what = g.kind === 'binary' ? g.target : (g.path || g.target);
+          return '<li>' + ic + '<span>' + esc(t(SYS_KIND[g.kind] || SYS_KIND.file)) + ': ' + esc(what) + (g.marker ? ' (' + esc(g.marker) + ')' : '') + (g.strong ? '' : ' - ' + esc(t('gui.sys.weak'))) + '</span></li>';
+        }).join('') + '</ul>';
+      }
+      return '<div class="sys" data-sys="' + esc(sy.id) + '"><div class="row"' + popAttr('sys-' + sy.id) + '><b>' + esc(sy.name) + '</b><span class="sysnote">' + esc(note) + '</span>' + st +
+        '<button type="button" class="btn xs" data-act="sysopen" data-val="' + esc(key) + '" data-k="sys-' + esc(key) + '" aria-expanded="' + isOpen + '">' + esc(t(isOpen ? 'gui.sys.hide' : 'gui.sys.where')) + '</button>' + infoBtn('sys-' + sy.id) + '</div>' + where + '</div>';
+    }).join('');
+    return '<section class="syscard" aria-label="' + esc(t('gui.sys.title')) + '"><div class="lbl">' + icon('search') + esc(t('gui.sys.title')) + '</div><p class="hint">' + esc(t(scope === 'project' ? 'gui.sys.lead.project' : 'gui.sys.lead')) + '</p>' +
+      '<div class="box list">' + (rows || '<div class="row">' + esc(t('gui.sys.empty')) + '</div>') + '</div></section>';
+  }
 
   // ---- popover behaviour -----------------------------------------------------------
   var pop = null, cur = null, openT = 0, closeT = 0;
@@ -310,5 +347,5 @@ var UI = (function () {
     return '<div class="skel" role="status"><span class="sr">' + esc(t('gui.loading')) + '</span><i class="w60"></i><i class="w90"></i><i class="w75"></i><i class="w90"></i><i class="w40"></i></div>';
   }
 
-  return { icon: icon, infoBtn: infoBtn, popAttr: popAttr, afterRender: afterRender, pulse: pulse, emptyState: emptyState, skeleton: skeleton, has: function (id) { return !!POPS[id]; }, ids: function () { return Object.keys(POPS); }, close: close };
+  return { icon: icon, systemsCard: systemsCard, infoBtn: infoBtn, popAttr: popAttr, afterRender: afterRender, pulse: pulse, emptyState: emptyState, skeleton: skeleton, has: function (id) { return !!POPS[id]; }, ids: function () { return Object.keys(POPS); }, close: close };
 })();

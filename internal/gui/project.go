@@ -60,6 +60,7 @@ type ProjectDetail struct {
 	Credential  ProjectCredential `json:"credential"`
 	Index       []IndexBackend    `json:"index"` // code index tools (works without .gabitotl)
 	Guard       GuardSettings     `json:"guard"`
+	Systems     []SystemInfo      `json:"systems"` // other agent systems found in this folder
 }
 
 // Project describes root. It only reads; a remote URL is reduced to its host and
@@ -76,7 +77,8 @@ func (s *Service) Project(ctx context.Context, root string) (ProjectDetail, erro
 	p := installer.DetectProject(ctx, env)
 	out := ProjectDetail{
 		Path: abs, Name: p.Name, HasGabitoTL: p.Exists, IsGit: p.GitRepo, Index: s.codeIndex().Backends(abs),
-		Guard: GuardSettings{Mode: gabitotl.DefaultWorkflow().BrandingGuard, HooksAnswer: gabitotl.HooksAsk},
+		Guard:   GuardSettings{Mode: gabitotl.DefaultWorkflow().BrandingGuard, HooksAnswer: gabitotl.HooksAsk},
+		Systems: systemInfos(installer.DetectProjectSystems(env, abs)),
 	}
 	if out.Index == nil {
 		out.Index = []IndexBackend{}

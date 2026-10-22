@@ -197,6 +197,14 @@ function badge(cls, text, ic) {
 
 var actions = {};
 
+// sysopen expands or folds the "where we looked" of an other-agent-system row.
+actions.sysopen = function (el) {
+  var k = el.getAttribute('data-val');
+  S.sysOpen = S.sysOpen || {};
+  S.sysOpen[k] = !S.sysOpen[k];
+  render();
+};
+
 document.addEventListener('click', function (ev) {
   var el = ev.target.closest && ev.target.closest('[data-act]');
   if (!el || el.disabled) return;

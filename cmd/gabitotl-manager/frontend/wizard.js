@@ -135,7 +135,7 @@ function stepDetect() {
   rows.push(row(t('gui.detect.engram'), d.engram.present ? String(d.engram.observations) : none, d.engram.present ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional')), 'db'));
   rows.push(row(t('gui.detect.container'), d.containerEngine || none, d.containerEngine ? badge('ok', t('gui.detect.badge.found')) : badge('todo', t('gui.detect.badge.optional')), 'server'));
   rows.push(row(t('gui.detect.pkg'), d.packageManager || none, d.packageManager ? badge('ok', t('gui.detect.badge.ready')) : badge('todo', t('gui.detect.badge.optional')), 'download'));
-  var out = head + '<div class="box">' + rows.join('') + '</div>';
+  var out = head + '<div class="box">' + rows.join('') + '</div>' + UI.systemsCard(d.systems, 'wizard', S.sysOpen);
   if (d.gentleAI.found) {
     out += '<div class="call" role="group" aria-label="Gentle AI"><b>' + esc(t('gui.detect.gentle')) + '</b><div class="opts">' +
       [['migrate', 'gui.detect.gentle.migrate'], ['keep', 'gui.detect.gentle.keep']].map(function (o) {

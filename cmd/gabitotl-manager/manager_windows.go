@@ -49,6 +49,10 @@ func (a *App) ForgetProject(path string) error { return a.svc.ForgetProject(path
 // token is stored, the code index state and the guard hooks.
 func (a *App) Project(root string) (gui.ProjectDetail, error) { return a.svc.Project(a.ctx, root) }
 
+// OtherSystems lists the other agent systems on this PC (found or not) and where
+// each was looked for. It only reads.
+func (a *App) OtherSystems() ([]gui.SystemInfo, error) { return a.svc.OtherSystems(a.ctx) }
+
 // PlanProjectSetup shows what setting GabitoTL up in a folder creates.
 func (a *App) PlanProjectSetup(root string) (gui.Plan, error) {
 	return a.svc.PlanProjectSetup(a.ctx, root)

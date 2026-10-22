@@ -103,6 +103,7 @@ async function loadScreen() {
       S.m.cg = keep(seq, await soft(function () { return api().CodeGraph(); }, null), S.m.cg);
       S.m.gd = keep(seq, await soft(function () { return api().GlobalDelivery(); }, null), S.m.gd);
       S.m.projects = keep(seq, await soft(function () { return api().Projects(); }, []), S.m.projects);
+      S.m.systems = keep(seq, await soft(function () { return api().OtherSystems(); }, []), S.m.systems);
       await loadCredsQuiet();
     } else if (sc === 'delivery') {
       S.m.gd = keep(seq, await api().GlobalDelivery(), S.m.gd);
@@ -117,6 +118,7 @@ async function loadScreen() {
       seedForms(S.m.settings);
     } else if (sc === 'doctor') {
       S.m.doctor = keep(seq, await api().Doctor(''), S.m.doctor);
+      S.m.systems = keep(seq, await soft(function () { return api().OtherSystems(); }, []), S.m.systems);
     } else if (sc === 'windows') {
       S.m.settings = keep(seq, await api().Settings(''), S.m.settings);
     } else if (sc === 'backups') {
@@ -585,6 +587,7 @@ function screenOverview() {
     '<dt>' + esc(t('gui.ov.codegraph')) + '</dt><dd>' + esc(cgSummary()) + '</dd>' +
     '<dt>' + esc(t('gui.ov.delivery')) + '</dt><dd>' + esc(deliverySummary()) + '</dd>' +
     '<dt>' + esc(t('gui.ov.creds')) + '</dt><dd>' + esc(t('gui.ov.creds.n', { n: stored, total: (S.cred.list || []).length })) + '</dd></dl>' +
+    UI.systemsCard(S.m.systems, 'global', S.sysOpen) +
     '<div class="lbl">' + esc(t('gui.ov.actions')) + '</div><div class="acts">' +
     '<button type="button" class="btn" data-act="go" data-val="doctor" data-k="qa-doctor">' + esc(t('gui.ov.run-doctor')) + '</button>' +
     '<button type="button" class="btn" data-act="go" data-val="integrations" data-k="qa-int">' + esc(t('gui.ov.connect')) + '</button>' +
@@ -788,7 +791,7 @@ function projOverview() {
     out += '<div class="note">' + UI.icon('info') + '<span>' + esc(t('gui.proj.setup.lead')) + '</span></div>' +
       '<div><button type="button" class="btn pri" data-act="psetup" data-k="psetup"' + UI.popAttr('project-setup') + '>' + UI.icon('plus') + esc(t('gui.proj.setup')) + '</button></div>';
   }
-  return out;
+  return out + UI.systemsCard(pd.systems, 'project', S.sysOpen);
 }
 
 actions.psetup = function () {
@@ -901,7 +904,9 @@ function screenDoctor() {
         (l.fix ? '<button type="button" class="btn xs" data-act="fix" data-s="' + si + '" data-l="' + li + '" data-k="fix-' + si + '-' + li + '">' + esc(l.fix.label) + '</button>' : '') + '</div>';
     });
   });
-  return out + '</div>';
+  out += '</div>';
+  if (S.m.screen === 'doctor') out += UI.systemsCard(S.m.systems, 'global', S.sysOpen);
+  return out;
 }
 
 actions.openlog = async function () {

@@ -298,7 +298,8 @@ type GentleAI struct {
 
 // OtherHarness is the result of DetectOtherHarness.
 type OtherHarness struct {
-	GentleAI GentleAI `json:"gentle_ai"`
+	GentleAI GentleAI       `json:"gentle_ai"`
+	Systems  []SystemStatus `json:"systems"` // every other agent system, found or not
 }
 
 // GentleHome is ~/.gentle-ai.
@@ -338,7 +339,7 @@ func DetectOtherHarness(env Env) OtherHarness {
 			g.Components = stateNames(st["components"])
 		}
 	}
-	return OtherHarness{GentleAI: g}
+	return OtherHarness{GentleAI: g, Systems: DetectSystems(env)}
 }
 
 // stateNames extracts names from a JSON list of strings or objects (name/id/

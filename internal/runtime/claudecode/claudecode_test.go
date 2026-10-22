@@ -302,3 +302,25 @@ func TestToolServerRegisteredOnceAndIdempotent(t *testing.T) {
 		}
 	}
 }
+
+// A foreign tool's marker block (OpenSpec) in the global CLAUDE.md must survive
+// both the install and the uninstall byte for byte.
+func TestForeignMarkerBlockSurvivesInstallAndUninstall(t *testing.T) {
+	env, home := fixture(t, true)
+	md := filepath.Join(home, ".claude", "CLAUDE.md")
+	foreign := "<!-- OPENSPEC:START -->\n# OpenSpec Instructions\nUse `openspec list`.\n<!-- OPENSPEC:END -->\n"
+	must(t, os.WriteFile(md, []byte(userMD+foreign+userAfter), 0o644))
+	a := New()
+	plan, err := a.Plan(env, opts)
+	must(t, err)
+	_, err = a.Apply(env, plan)
+	must(t, err)
+	if got := read(t, md); !strings.Contains(got, foreign) || !strings.Contains(got, "<!-- gabitotl:start persona -->") {
+		t.Fatalf("install lost the foreign block or ours:\n%s", got)
+	}
+	_, err = a.RemoveGabitoConfig(env)
+	must(t, err)
+	if got := read(t, md); !strings.Contains(got, foreign) || strings.Contains(got, "gabitotl") || !strings.HasPrefix(got, userMD+foreign) {
+		t.Fatalf("uninstall damaged the foreign block:\n%q", got)
+	}
+}
