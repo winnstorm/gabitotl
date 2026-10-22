@@ -122,9 +122,9 @@ adds that folder to your user PATH, creates the Start menu entry (and optionally
 registers in Settings > Apps. No administrator rights are needed. Afterwards the same app is the Manager
 (doctor, integrations, settings, backups, uninstall).
 
-A preview build is published as the [v0.3.0-dev pre-release](https://github.com/winnstorm/gabitotl/releases/tag/v0.3.0-dev).
-It includes the Windows Manager, Bitbucket Data Center support and the optional GabitoDesign skill. Install,
-the Manager and uninstall have been tried on a real Windows machine; it is still a pre-release.
+The setup is published since [v0.3.0](https://github.com/winnstorm/gabitotl/releases/tag/v0.3.0), together with
+Bitbucket Data Center support and the optional GabitoDesign skill. Install, the Manager and uninstall have been
+tried on a real Windows machine. It is not code-signed yet, so SmartScreen may warn on first run.
 
 > Screenshot: to be added once the first signed-off Windows build is published (no mock image on purpose).
 
