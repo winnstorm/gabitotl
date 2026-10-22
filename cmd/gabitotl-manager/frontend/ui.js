@@ -49,6 +49,7 @@ var UI = (function () {
     ['cred-test', 'key', 'key cloud check+'],
     ['project-setup', 'folder', 'folder file check+'],
     ['cg-fix', 'wrench', 'graph wrench check+'],
+    ['eng-fix', 'wrench', 'db wrench check+'],
     ['forget', 'folders', 'folders x folder'],
   ];
   var POPS = {};

@@ -24,6 +24,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/codegraph"
 	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/desktop"
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
@@ -62,6 +63,9 @@ type Deps struct {
 	// CodeGraph installs the required CodeGraph component; nil uses the real
 	// installer of this machine (Windows only, unsupported elsewhere).
 	CodeGraph *codegraph.Installer
+	// Engram installs Engram when a project uses it and it is missing; nil uses
+	// the real installer of this machine.
+	Engram *engraminstall.Installer
 	// Projects discovers the projects on this machine (read-only); nil means none.
 	// RememberProject / ForgetProject keep the Manager's own list; nil disables them.
 	Projects        func(ctx context.Context) ([]projects.Project, error)

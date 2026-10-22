@@ -249,8 +249,13 @@ func (s *Service) ApplyMemory(ctx context.Context, root string, m MemoryAnswers,
 	if err := checkPlan(planID, fresh); err != nil {
 		return InstallResult{}, err
 	}
+	pr, engStep, err := s.ensureEngram(ctx, false, func() (prep, error) { return s.memoryRun(ctx, root, m) }, pr, p, 1, 15)
+	if err != nil {
+		return InstallResult{Error: err.Error(), Steps: engStep, Applied: []string{}, Checks: []Check{}, Warnings: []string{}, Notices: []Note{}}, err
+	}
 	res, err := installer.Run(ctx, pr.env, pr.inv, pr.plan, observer(pr.m, p), installer.Hooks{})
 	out := resultOf(pr.m, res)
+	out.Steps = engStep
 	if err != nil {
 		out.Error = err.Error()
 		return out, err

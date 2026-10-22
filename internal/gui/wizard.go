@@ -203,6 +203,9 @@ func (s *Service) extraSteps(a InstallAnswers, p prep) ([]PlanStep, []Note, []st
 	if cg := s.codegraphStep(p.m); cg != nil {
 		steps = append(steps, *cg)
 	}
+	if es := s.engramStep(context.Background(), p.m, p); es != nil {
+		steps = append(steps, *es)
+	}
 	if a.PersonaMode != "" {
 		steps = append(steps, PlanStep{ID: "persona-mode", Title: p.m.Format("gui.step.persona-mode", "mode", a.PersonaMode)})
 	}
@@ -319,6 +322,13 @@ func (s *Service) Install(ctx context.Context, a InstallAnswers, planID string, 
 			return InstallResult{Error: r.Message, Steps: cgStep, Applied: []string{}, Checks: []Check{}, Warnings: []string{}, Notices: []Note{}}, err
 		}
 	}
+	// Engram is installed next when the chosen memory is Engram and it is
+	// missing; the run then sees the binary and registers its server.
+	pr, engStep, err := s.ensureEngram(ctx, a.DryRun, func() (prep, error) { return s.prepare(ctx, a) }, pr, p, 5, 12)
+	if err != nil {
+		return InstallResult{Error: err.Error(), Steps: append(cgStep, engStep...), Applied: []string{}, Checks: []Check{}, Warnings: []string{}, Notices: []Note{}}, err
+	}
+	cgStep = append(cgStep, engStep...)
 	res, err := installer.Run(ctx, pr.env, pr.inv, pr.plan, observer(pr.m, p), installer.Hooks{})
 	out := resultOf(pr.m, res)
 	if err != nil {

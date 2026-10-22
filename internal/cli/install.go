@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
@@ -26,6 +27,7 @@ import (
 
 // Composition-root hooks, replaced by tests so no real home, PATH or command runs.
 var (
+	engramInstallerFn = engraminstall.Default
 	installerRunnerFn = func() installer.Runner { return installer.ExecRunner{} }
 	installerEnvFn    = func(root string) (installer.Env, error) {
 		renv, err := runtimeEnvFn(root)
@@ -37,6 +39,7 @@ var (
 			Home: renv.Home, ProjectRoot: root, GOOS: renv.GOOS, GOARCH: goruntime.GOARCH,
 			Getenv: renv.Getenv, Environ: os.Environ, LookPath: renv.LookPath, Runner: installerRunnerFn(), Now: renv.Now,
 			Runtimes: registryFn(), Migrators: migratorRegistry(), Version: version.Version, Team: teamEnv(),
+			EngramSetup:  engramInstallerFn(),
 			GuardHooks:   autoHooks,
 			OpenMemory:   func(cfg gabitotl.MemoryConfig) (memory.Provider, error) { return newProvider(cfg) },
 			RenderReport: ui.ReportRenderer(m),
@@ -364,6 +367,7 @@ func execute(env Env, f installFlags, source string) int {
 		hooks.ConfirmRetire = pr.RetireHook()
 	}
 	fmt.Fprintln(env.Stdout)
+	inv, plan = ensureEngramCLI(ctx, env, m, ienv, inv, plan)
 	res, err := installer.Run(ctx, ienv, inv, plan, func(e installer.Event) { ui.RenderEvent(env.Stdout, m, e) }, hooks)
 	ui.RenderOutcome(env.Stdout, env.Stderr, m, res, inv, paths, err)
 	if err != nil {

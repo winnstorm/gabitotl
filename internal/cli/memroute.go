@@ -135,7 +135,7 @@ func (r *memoryRouter) transport(url, tokenRef string) (*mcp.SDKTransport, error
 func (r *memoryRouter) engram(ctx context.Context, root string, cfg gabitotl.MemoryConfig, tool string, m map[string]any) (json.RawMessage, error) {
 	p, err := newProvider(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("engram is not available: %w (install it from https://github.com/Gentleman-Programming/engram; GabitoTL never installs it)", err)
+		return nil, fmt.Errorf("engram is not available: %w (run gabitotl install to have GabitoTL install it, or get it from https://github.com/Gentleman-Programming/engram)", err)
 	}
 	actor := activeID(root)
 	ctx, cancel := context.WithTimeout(ctx, memoryTimeout)

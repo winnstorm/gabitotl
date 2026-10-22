@@ -247,6 +247,17 @@ func (a *App) ApplyCodeGraph(planID string) ([]gui.StepResult, error) {
 	return a.svc.ApplyCodeGraph(a.ctx, planID, a.progress())
 }
 
+// Engram reports the installed Engram.
+func (a *App) Engram() (gui.EngramStatus, error) { return a.svc.Engram(a.ctx) }
+
+// PlanEngram shows what installing Engram would do.
+func (a *App) PlanEngram() (gui.Plan, error) { return a.svc.PlanEngram(a.ctx) }
+
+// ApplyEngram runs that plan.
+func (a *App) ApplyEngram(planID string) ([]gui.StepResult, error) {
+	return a.svc.ApplyEngram(a.ctx, planID, a.progress())
+}
+
 // PlanUninstall shows what an uninstall would remove and keep.
 func (a *App) PlanUninstall(o gui.UninstallOptions) (gui.UninstallPlan, error) {
 	return a.svc.PlanUninstall(a.ctx, o)

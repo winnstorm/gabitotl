@@ -25,6 +25,7 @@ package installer
 import (
 	"bytes"
 	"context"
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,6 +71,9 @@ type Env struct {
 	Runtimes    *rt.Registry
 	Migrators   *migrate.Registry
 	Version     string
+	// Engram installs Engram when the chosen memory needs it and it is missing
+	// (see EnsureEngram). Nil means the caller does not install it.
+	EngramSetup *engraminstall.Installer
 	// OpenMemory builds the memory provider used to save imported knowledge.
 	// Nil means imports are only recorded in imports.md.
 	OpenMemory func(cfg gabitotl.MemoryConfig) (memory.Provider, error)

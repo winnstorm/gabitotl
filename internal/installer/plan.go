@@ -239,7 +239,8 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		pl.note(NoteNoRuntimes, "")
 	}
 
-	// Memory: adopt what exists. A missing Engram is never installed here.
+	// Memory: adopt what exists. A missing Engram is not installed by the plan
+	// itself: the front end does it first (EnsureEngram) and plans again.
 	pl.MemoryChoice = opts.Memory
 	l := gabitotl.NewLayout(env.ProjectRoot)
 	if pl.MemoryChoice == "" && inv.Project.Exists {

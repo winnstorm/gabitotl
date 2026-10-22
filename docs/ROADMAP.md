@@ -41,8 +41,8 @@ Sources: `GABITOTL_SPEC_V1.md` section 31 ("Después") and
   packages (section 44), and bootstrap scripts (`curl | sh`, `irm | iex`) that
   detect the platform, download a release, verify its checksum, install only the
   binary and run `gabitotl install`.
-- Installing missing runtimes or Engram on request (today a missing tool is
-  reported, never installed behind the user's back).
+- Installing missing agent runtimes on request (today a missing agent is
+  reported, never installed behind the user's back; Engram is installed, D61).
 - Per-agent Gentle-AI uninstall: no per-agent form is verified (`gentle-ai
   uninstall -h` documents only `--all`), so GabitoTL never runs one. When `--all`
   would remove an agent GabitoTL does not replace, the user is told to uninstall

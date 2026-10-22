@@ -393,7 +393,8 @@ func (r *run) configure(ctx context.Context) error {
 // verifyMemory runs engram doctor again (the "after" of before/after) and
 // checks that memory.md names the provider the plan chose. Engram is reported
 // on its own: it only fails the run when this project uses it, and a missing
-// binary is never a failure (GabitoTL does not install it).
+// binary is never a failure (the front end installs it beforehand when the
+// project uses Engram, see EnsureEngram; if that was not possible it is a hint).
 func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 	var out []Check
 	needed := r.pl.MemoryChoice == gabitotl.MemoryEngram
@@ -405,7 +406,7 @@ func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 			out = append(out, Check{Group: group, Name: "engram data dir", OK: err == nil || !r.inv.Memory.HasDir, Detail: orStr(errText(err), "present")})
 		}
 	} else {
-		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; projects that use Engram stay unconnected until you install it (GabitoTL never installs it)"})
+		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; projects that use Engram stay unconnected until it is installed (run gabitotl install again, or get it from https://github.com/Gentleman-Programming/engram)"})
 	}
 	if r.env.ProjectRoot != "" {
 		m, err := gabitotl.LoadMemory(gabitotl.NewLayout(r.env.ProjectRoot))

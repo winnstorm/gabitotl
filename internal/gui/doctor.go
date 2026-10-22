@@ -19,6 +19,7 @@ const (
 	FixGuardHooks     = "guard.install-hooks" // install the authorship Git hooks
 	FixCleanupLegacy  = "cleanup.legacy"      // delete expired legacy snapshots
 	FixDesktop        = "desktop.reapply"     // repair the Windows integration
+	FixEngramInstall  = "engram.install"      // install Engram (pinned, checksum verified)
 )
 
 // FixAction is the button next to a doctor line.
@@ -121,6 +122,8 @@ func fixFor(m map[string]string, l installer.Line, byLabel map[string]string) *F
 		return &FixAction{ID: FixGuardHistory, Label: label("fix.guard.scan-history")}
 	case installer.DocGuardHooksMissing:
 		return &FixAction{ID: FixGuardHooks, Label: label("fix.guard.install-hooks"), Mutates: true}
+	case installer.DocMemEngramMissing, installer.DocMemEngramNoBin:
+		return &FixAction{ID: FixEngramInstall, Label: label("fix.engram.install"), Mutates: true}
 	case installer.DocLegacySnapshots:
 		return &FixAction{ID: FixCleanupLegacy, Label: label("fix.cleanup.legacy"), Mutates: true}
 	}
@@ -186,6 +189,8 @@ func (s *Service) PlanFix(ctx context.Context, req FixRequest) (Plan, error) {
 		return s.PlanCleanup(ctx, req.Root, 0)
 	case FixDesktop:
 		return s.planDesktopFix()
+	case FixEngramInstall:
+		return s.PlanEngram(ctx)
 	}
 	return Plan{}, errUnknownFix
 }
@@ -225,6 +230,20 @@ func (s *Service) RunFix(ctx context.Context, req FixRequest, planID string, p P
 	case FixCleanupLegacy:
 		r, err := s.ApplyCleanup(ctx, req.Root, 0, planID)
 		res.Removed, res.OK = r, err == nil
+		return res, err
+	case FixEngramInstall:
+		if !fresh.Supported {
+			return res, ErrUnsupportedOS
+		}
+		if !fresh.Mutates { // already there
+			res.OK = true
+			return res, nil
+		}
+		steps, err := s.ApplyEngram(ctx, planID, p)
+		res.OK = err == nil
+		if len(steps) > 0 {
+			res.Message = steps[0].Message
+		}
 		return res, err
 	case FixDesktop:
 		r := s.reapplyDesktop(p)

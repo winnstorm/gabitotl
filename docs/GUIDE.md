@@ -210,8 +210,13 @@ Both providers are available on every machine and the choice is **per project**,
 `provider` field of `.gabitotl/memory.md`: a solo project uses Engram, a team project uses the
 shared server. The installer registers the same bridge entry for everyone (plus Engram's own
 `engram mcp` entry when the binary is on `PATH`) and reports each provider separately; a missing
-Engram or an unreachable server never fails an install. GabitoTL never installs Engram: get it
-from https://github.com/Gentleman-Programming/engram.
+Engram or an unreachable server never fails an install. When the chosen memory is Engram and the
+`engram` program is missing, GabitoTL installs it: a pinned release (3.5.2) of the official repository
+https://github.com/Gentleman-Programming/engram, downloaded over https and checked against its
+SHA-256 (a mismatch installs nothing). It goes to `%LOCALAPPDATA%\Programs\engram` on Windows
+(added to your user PATH) and to `~/.local/bin` on Linux and macOS (GabitoTL warns if that folder is
+not on your PATH). An Engram you already have, of any version, is used as it is and never replaced.
+The Manager's Memory screen and the Doctor show whether it is installed and offer "Install Engram".
 
 The provider is chosen by one question, never by a command: "Do you work on this project alone or
 with other people?" (`init` and the installer). Alone means Engram; with other people means the

@@ -41,7 +41,7 @@ var SRC_KEYS = { gabitotl: 'gui.projects.src.gabitotl', 'claude-code': 'gui.proj
 S.m = {
   screen: 'overview', tab: 'overview', proj: '', busy: false,
   doctor: null, integrations: null, settings: null, snaps: null,
-  gd: null, cg: null, projects: null, pd: null,
+  gd: null, cg: null, eng: null, projects: null, pd: null,
   seq: 0, toast: '', modal: null, loadErr: '', focusTitle: false,
   pf: '', psrc: 'all',
   f: {
@@ -155,6 +155,7 @@ async function loadProject(root, seq) {
     S.m.cg = keep(seq, await soft(function () { return api().CodeGraph(); }, null), S.m.cg);
   } else if (tab === 'memory' && S.m.pd.hasGabitotl) {
     S.m.settings = keep(seq, await api().Settings(root), S.m.settings);
+    S.m.eng = keep(seq, await soft(function () { return api().Engram(); }, null), S.m.eng);
     seedForms(S.m.settings);
   } else if (tab === 'doctor' && S.m.pd.hasGabitotl) {
     S.m.doctor = keep(seq, await api().Doctor(root), S.m.doctor);
@@ -1008,7 +1009,7 @@ actions.persona = function () {
 function screenMemory() {
   var m = S.m.f.mem;
   var team = m.mode === 'team';
-  var out = head('memory') + busyLine() +
+  var out = head('memory') + busyLine() + engramBlock() +
     '<div class="grid2">' + radio('m.f.mem.mode', 'solo', t('gui.memory.solo'), t('gui.memory.solo.desc'), { icon: 'laptop', pop: 'mem-solo' }) + radio('m.f.mem.mode', 'team', t('gui.memory.team'), t('gui.memory.team.desc'), { icon: 'users', pop: 'mem-team' }) + '</div>';
   if (team) {
     out += '<div class="panel"><div class="field">' + esc(t('gui.memory.role')) + seg('m.f.mem.role', [['host', 'gui.memory.role.host'], ['client', 'gui.memory.role.client']], t('gui.memory.role')) + '</div>';
@@ -1024,6 +1025,31 @@ function screenMemory() {
   }
   return out + '<div><button type="button" class="btn pri" data-act="memory" data-k="mem-apply">' + esc(t('gui.btn.apply')) + '</button></div>';
 }
+
+// engramBlock shows whether Engram is installed and offers to install it.
+function engramBlock() {
+  var g = S.m.eng;
+  if (!g) return '';
+  var out = '<div class="box"><div class="row"><span class="oic sm">' + UI.icon('db') + '</span><b>' + esc(t('gui.eng.title')) + '</b>' +
+    (g.installed ? '<span class="mono">' + esc(g.version || '') + '</span>' + badge('ok', t('gui.cg.registered')) : badge('warn', t('gui.eng.missing'))) + '</div>' +
+    (g.path ? '<div class="row"><b>' + esc(t('gui.eng.path')) + '</b><span class="mono">' + esc(g.path) + '</span></div>' : '') +
+    '<div class="row"><b>' + esc(t('gui.eng.pinned')) + '</b><span class="mono">' + esc(g.pinned) + '</span></div>' +
+    '<div class="row"><b>' + esc(t('gui.eng.source')) + '</b><span class="mono">' + esc(g.source) + '</span></div></div>';
+  if (g.needsWork) {
+    out += '<div class="note" role="status">' + UI.icon('info') + '<span>' + esc(t('gui.eng.need')) + '</span></div>' +
+      '<div><button type="button" class="btn pri" data-act="engfix" data-k="eng-fix"' + UI.popAttr('eng-fix') + '>' + UI.icon('wrench') + esc(t('gui.eng.act.install')) + '</button></div>';
+  } else if (g.installed) {
+    out += '<p class="hint">' + esc(t('gui.eng.ok')) + '</p>';
+  }
+  return out;
+}
+
+actions.engfix = function () {
+  planAndRun({
+    title: t('gui.eng.title'), plan: function () { return api().PlanEngram(); },
+    run: async function (id) { var steps = await api().ApplyEngram(id); return { steps: steps }; },
+  });
+};
 
 function memoryAnswers() {
   var m = S.m.f.mem;

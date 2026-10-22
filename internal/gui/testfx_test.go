@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/winnstorm/gabitotl/internal/codegraph"
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,6 +101,7 @@ func newRig(t *testing.T) *rig {
 			return nil
 		},
 		CodeGraph: &codegraph.Installer{GOOS: "linux", GOARCH: "amd64"},
+		Engram:    &engraminstall.Installer{GOOS: "plan9", GOARCH: "386"}, // no managed install: tests never download
 		Version:   "test",
 	})
 	return r
