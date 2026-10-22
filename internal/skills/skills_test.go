@@ -56,13 +56,19 @@ func TestEmbeddedSkillsAreValid(t *testing.T) {
 				t.Errorf("name %q must equal the directory %q", top["name"], s.Name)
 			}
 			d := top["description"]
-			if d == "" || len(d) >= 300 {
-				t.Errorf("description must be non-empty and under 300 chars, got %d", len(d))
+			limit := 300
+			if s.Optional {
+				limit = 1025 // optional skills carry a longer trigger list (agentskills.io allows 1024)
 			}
-			if i := strings.Index(d, "Trigger:"); i < 1 {
-				t.Errorf("description must say what the skill does and then carry a Trigger: clause: %q", d)
-			} else if strings.Contains(d[i+len("Trigger:"):], "Trigger:") {
-				t.Errorf("description must have exactly one Trigger: clause: %q", d)
+			if d == "" || len(d) >= limit {
+				t.Errorf("description must be non-empty and under %d chars, got %d", limit, len(d))
+			}
+			if !s.Optional {
+				if i := strings.Index(d, "Trigger:"); i < 1 {
+					t.Errorf("description must say what the skill does and then carry a Trigger: clause: %q", d)
+				} else if strings.Contains(d[i+len("Trigger:"):], "Trigger:") {
+					t.Errorf("description must have exactly one Trigger: clause: %q", d)
+				}
 			}
 			if top["license"] != "Apache-2.0" {
 				t.Errorf("license = %q, want Apache-2.0", top["license"])
@@ -159,5 +165,86 @@ func TestIsOptionalReadsOnlyTheMetadataFlag(t *testing.T) {
 func TestRequiredAndOptionalPartitionAll(t *testing.T) {
 	if len(Required())+len(OptionalNames()) != len(All()) {
 		t.Fatal("Required and Optional must partition All")
+	}
+}
+
+func skillByName(t *testing.T, name string) Skill {
+	t.Helper()
+	for _, s := range All() {
+		if s.Name == name {
+			return s
+		}
+	}
+	t.Fatalf("skill %s is not embedded", name)
+	return Skill{}
+}
+
+func TestGabitoDesignIsOptionalAndWellFormed(t *testing.T) {
+	s := skillByName(t, "gabito-design")
+	if !s.Optional {
+		t.Error("gabito-design must be optional")
+	}
+	top, meta, _ := frontMatter(t, s.Content)
+	if top["name"] != "gabito-design" || top["license"] != "Apache-2.0" || meta["optional"] != "true" {
+		t.Errorf("front matter: %v %v", top, meta)
+	}
+	if n := len(strings.Split(s.Content, "\n")); n > 300 {
+		t.Errorf("SKILL.md has %d lines, want at most 300", n)
+	}
+	// Front matter is string-only for cross-agent safety: every metadata value is a scalar.
+	for k, v := range meta {
+		if strings.ContainsAny(v, "[{") {
+			t.Errorf("metadata.%s must be a plain string, got %q", k, v)
+		}
+	}
+	d := top["description"]
+	for _, w := range []string{"docx", "pptx", "PDF", "xlsx", "diagrams", "logos", "critique", "audit", "polish", "layout"} {
+		if !strings.Contains(d, w) {
+			t.Errorf("description must name %q", w)
+		}
+	}
+	for _, f := range []string{"commands.md", "modes.md", "web-ui.md", "documents.md", "presentations.md", "data-charts.md", "diagrams.md", "images.md", "anti-patterns.md", "design-md.md"} {
+		if s.Files["references/"+f] == "" {
+			t.Errorf("references/%s is missing or empty", f)
+		}
+	}
+}
+
+func TestEveryLinkedReferenceExists(t *testing.T) {
+	for _, s := range All() {
+		for _, line := range strings.Split(s.Content, "\n") {
+			for _, part := range strings.Split(line, "`")[1:] {
+				if !strings.HasPrefix(part, "references/") || !strings.HasSuffix(part, ".md") || strings.Contains(part, "<") {
+					continue
+				}
+				if _, ok := s.Files[part]; !ok {
+					t.Errorf("%s links %s, which is not embedded", s.Name, part)
+				}
+			}
+		}
+		// Every reference is linked from SKILL.md, so none is dead weight.
+		for rel := range s.Files {
+			if !strings.Contains(s.Content, "`"+rel+"`") {
+				t.Errorf("%s: %s is not linked from SKILL.md", s.Name, rel)
+			}
+		}
+	}
+}
+
+func TestOriginalWorkMentionsItsInspirationOnlyInTheCredit(t *testing.T) {
+	const credit = "GabitoDesign is an original work inspired by Impeccable by Paul Bakaus (Apache-2.0, https://impeccable.style). No Impeccable text or code is included."
+	s := skillByName(t, "gabito-design")
+	all := map[string]string{"SKILL.md": s.Content}
+	for rel, c := range s.Files {
+		all[rel] = c
+	}
+	for name, c := range all {
+		c = strings.ReplaceAll(c, credit, "")
+		if strings.Contains(strings.ToLower(c), "impeccable") {
+			t.Errorf("%s names the inspiration outside the credit line", name)
+		}
+	}
+	if !strings.Contains(s.Content, credit) {
+		t.Error("SKILL.md must carry the credit line")
 	}
 }
