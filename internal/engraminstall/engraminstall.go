@@ -342,6 +342,8 @@ func (in *Installer) Install(ctx context.Context, step func(id string)) (Result,
 		return res, nil
 	}
 	asset, _ := in.asset()
+	_, statErr := os.Stat(in.Dir)
+	created := os.IsNotExist(statErr)
 	if err := os.MkdirAll(in.Dir, 0o755); err != nil {
 		return Result{}, fmt.Errorf("engram: %w", err)
 	}
@@ -355,6 +357,9 @@ func (in *Installer) Install(ctx context.Context, step func(id string)) (Result,
 	step(StepDownload)
 	h := sha256.New()
 	if err := in.Download.Download(ctx, in.baseURL()+asset.Name, io.MultiWriter(dl, h), MaxDownload); err != nil {
+		if created {
+			os.Remove(in.Dir) // only succeeds while empty: leaves nothing behind
+		}
 		return Result{}, fmt.Errorf("engram: download: %w", err)
 	}
 	step(StepVerify)

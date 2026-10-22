@@ -617,10 +617,12 @@ func (in *Installer) Uninstall(o Options, progress func(Step)) error {
 				r := in.removal(dir)
 				if m := in.pendingMarker(); m != "" {
 					if _, err := in.FS.WriteFile(m, []byte("pending\n")); err != nil {
-						in.logf("could not write %s: %v (the cleanup runs unguarded)", m, err)
-					} else {
-						r.Marker = m
+						// No marker, no guard: an unguarded cleanup could delete a
+						// reinstall, so nothing is scheduled.
+						in.logf("could not write %s: %v (no cleanup scheduled)", m, err)
+						return fmt.Errorf("could not write the uninstall marker %s: %w", m, err)
 					}
+					r.Marker = m
 				}
 				return in.FS.ScheduleRemoval(r)
 			})

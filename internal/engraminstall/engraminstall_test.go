@@ -293,3 +293,14 @@ func TestDefaultDir(t *testing.T) {
 		t.Fatal("an unresolved %LOCALAPPDATA% must give no directory")
 	}
 }
+
+func TestFailedDownloadRemovesTheDirItCreated(t *testing.T) {
+	in, _ := serve(t, "linux", "e.tar.gz", []byte("x"), sum([]byte("x")))
+	in.BaseURL += "missing/" // 404
+	if _, err := in.Install(context.Background(), nil); err == nil {
+		t.Fatal("want a download error")
+	}
+	if _, err := os.Stat(in.Dir); !os.IsNotExist(err) {
+		t.Fatalf("the empty install dir must be removed: %v", err)
+	}
+}

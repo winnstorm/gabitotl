@@ -90,9 +90,12 @@ func (s *Service) applyEngram(ctx context.Context, m ui.Messages, p Progress, fr
 	}
 	msg := m.Format("gui.step.engram-done", "version", res.Version)
 	out := StepResult{ID: "engram", Status: StatusOK}
+	out.Message = m.Format("gui.engram.restart")
+	msg += " " + out.Message
 	if res.NotOnPath {
-		out.Message = m.Format("gui.engram.notonpath", "dir", s.engram().Dir)
-		msg += " " + out.Message
+		n := m.Format("gui.engram.notonpath", "dir", s.engram().Dir)
+		out.Message += " " + n
+		msg += " " + n
 	}
 	p.emit("engram", "done", msg, to)
 	return out

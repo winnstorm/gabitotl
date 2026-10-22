@@ -1307,6 +1307,7 @@ gui.engram.activate = Colocando Engram
 gui.engram.path = Agregando Engram al PATH de usuario
 gui.engram.unsupported = No hay instalación administrada de Engram para este sistema; conseguilo en {url}
 gui.engram.notonpath = Agregá {dir} a tu PATH para que tus agentes puedan iniciarlo.
+gui.engram.restart = Reiniciá los agentes que tengas abiertos (Claude Code, OpenCode, Kiro) para que encuentren Engram.
 gui.eng.title = Engram
 gui.eng.version = Versión instalada
 gui.eng.pinned = Versión que instala GabitoTL

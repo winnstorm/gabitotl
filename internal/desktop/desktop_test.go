@@ -1085,3 +1085,37 @@ func TestApplyFailsWhenCopiedExeIsMissing(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestRemovalCommandLineTargetsAreIndependentStatements(t *testing.T) {
+	dir := `C:\Users\Ana\AppData\Local\Programs\GabitoTL`
+	got, err := RemovalCommandLine(Removal{Dir: dir, Files: []string{dir + `\a.exe`, dir + `\b.exe`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "else") {
+		t.Fatalf("no else chain allowed:\n%s", got)
+	}
+	a, b := strings.Index(got, `if exist "`+dir+`\a.exe"`), strings.Index(got, `if exist "`+dir+`\b.exe"`)
+	if a < 0 || b < a || !strings.Contains(got[a:b], ") & (") {
+		t.Fatalf("each target must be its own parenthesized statement joined by &:\n%s", got)
+	}
+}
+
+type failMarkerFS struct{ *fake }
+
+func (f failMarkerFS) WriteFile(string, []byte) (int64, error) { return 0, errors.New("disk full") }
+
+func TestUninstallMarkerWriteFailureSchedulesNothing(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.Env.DataDir = abs(filepath.Join("local", "GabitoTL"))
+	in.FS = failMarkerFS{f}
+	f.removal = Removal{}
+	err := in.Uninstall(Options{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "marker") {
+		t.Fatalf("want the marker error, got %v", err)
+	}
+	if f.removal.Dir != "" {
+		t.Fatalf("no cleanup may be scheduled: %+v", f.removal)
+	}
+}

@@ -57,3 +57,21 @@ func TestEnsureEngramFailureKeepsInventoryAndPlan(t *testing.T) {
 		t.Fatalf("err=%v out=%+v", err, out)
 	}
 }
+
+type countDL struct{ n int }
+
+func (c *countDL) Download(context.Context, string, io.Writer, int64) error {
+	c.n++
+	return errors.New("offline")
+}
+
+func TestEnsureEngramDryRunNeverDownloads(t *testing.T) {
+	setup := engramSetup(t, false)
+	dl := &countDL{}
+	setup.Download = dl
+	pl := Plan{MemoryChoice: gabitotl.MemoryEngram, Options: Options{DryRun: true}}
+	_, _, out, err := EnsureEngram(context.Background(), Env{EngramSetup: setup}, Inventory{}, pl, nil)
+	if err != nil || out.Installed || dl.n != 0 {
+		t.Fatalf("err=%v out=%+v downloads=%d", err, out, dl.n)
+	}
+}

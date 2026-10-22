@@ -181,10 +181,12 @@ func RemovalCommandLine(r Removal) (string, error) {
 	}
 	var conds []string
 	for _, t := range append(append([]string{}, files...), folders...) {
-		conds = append(conds, guard(`if exist `+t+` (`+strings.Join(act, " & ")+`)`))
+		// Each target is its own statement: no else chain, so a missing first
+		// target never hides the second.
+		conds = append(conds, `(`+guard(`if exist `+t+` (`+strings.Join(act, " & ")+`)`)+`)`)
 	}
 	if len(conds) > 0 {
-		steps = append(steps, fmt.Sprintf(`for /l %%i in (1,1,%d) do (%s)`, cleanupRounds, strings.Join(conds, " else ")))
+		steps = append(steps, fmt.Sprintf(`for /l %%i in (1,1,%d) do (%s)`, cleanupRounds, strings.Join(conds, " & ")))
 	}
 	if dir != "" {
 		steps = append(steps, guard(`rmdir "`+dir+`" >nul 2>&1`))

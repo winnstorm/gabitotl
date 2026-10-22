@@ -32,6 +32,9 @@ func EngramNeeded(ctx context.Context, env Env, pl Plan) (engraminstall.Plan, bo
 // Engram's own server entry. On failure the original inventory and plan come
 // back with the error: the rest of the install does not depend on the binary.
 func EnsureEngram(ctx context.Context, env Env, inv Inventory, pl Plan, step func(id string)) (Inventory, Plan, EngramOutcome, error) {
+	if pl.Options.DryRun {
+		return inv, pl, EngramOutcome{}, nil // a dry run never downloads anything
+	}
 	if _, need := EngramNeeded(ctx, env, pl); !need {
 		return inv, pl, EngramOutcome{}, nil
 	}

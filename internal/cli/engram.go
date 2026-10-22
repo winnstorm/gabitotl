@@ -32,6 +32,9 @@ func ensureEngramCLI(ctx context.Context, env Env, m ui.Messages, ienv installer
 	if out.Installed {
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("gui.step.engram-done", "version", out.Version))
 	}
+	if out.Installed {
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymWarn, m.Format("gui.engram.restart"))
+	}
 	if out.NotOnPath {
 		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymWarn, m.Format("gui.engram.notonpath", "dir", out.Dir))
 	}
