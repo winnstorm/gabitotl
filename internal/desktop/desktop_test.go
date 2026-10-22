@@ -232,6 +232,7 @@ func TestApplyIdempotentWhenRunningFromInstallDir(t *testing.T) {
 	f := newFake()
 	in := newInstaller(f)
 	in.Env.ExePath = filepath.Join(in.Env.DefaultInstallDir, ManagerExe)
+	f.files[in.Env.ExePath] = true
 	for i := 0; i < 2; i++ {
 		if err := in.Apply(Options{AddToPath: true}, nil); err != nil {
 			t.Fatal(err)
@@ -991,5 +992,96 @@ func TestStripExtended(t *testing.T) {
 		if got := stripExtended(in); got != want {
 			t.Errorf("stripExtended(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestRemovalCommandLineGuardsEveryDeleteWithMarker(t *testing.T) {
+	dir := `C:\Users\Ana\AppData\Local\Programs\GabitoTL`
+	data := `C:\Users\Ana\AppData\Local\GabitoTL`
+	marker := data + `\uninstall.pending`
+	got, err := RemovalCommandLine(Removal{
+		Dir: dir, Files: []string{dir + `\gabitotl-manager.exe`, dir + `\gabitotl.exe`},
+		DataDir: data, Folders: []string{data + `\webview`, data + `\logs`}, WaitPID: 7, Marker: marker,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guard := `if exist "` + marker + `" `
+	// every del / rmdir sits in a command that is guarded by the marker
+	for _, cmd := range []string{"del /f /q", "rmdir /s /q", `rmdir "` + dir + `"`, `rmdir "` + data + `"`} {
+		for from := 0; ; {
+			i := strings.Index(got[from:], cmd)
+			if i < 0 {
+				break
+			}
+			i += from
+			from = i + len(cmd)
+			// the guard must open the enclosing segment: look back to the previous " & " or "do ("
+			seg := got[:i]
+			if j := strings.LastIndex(seg, guard); j < 0 {
+				t.Fatalf("%q at %d has no marker guard before it:\n%s", cmd, i, got)
+			}
+		}
+	}
+	if n := strings.Count(got, `del /f /q "`+marker+`"`); n != 1 {
+		t.Fatalf("marker must be deleted once at the end, got %d:\n%s", n, got)
+	}
+	if strings.Count(got, guard) < 4 {
+		t.Fatalf("expected a guard on every round and cleanup step:\n%s", got)
+	}
+	if _, err := RemovalCommandLine(Removal{Dir: dir, Marker: `C:\x&y`}); err == nil {
+		t.Fatal("marker with cmd metacharacters accepted")
+	}
+}
+
+func TestUninstallWritesMarkerInstallRemovesIt(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.Env.DataDir = abs(filepath.Join("local", "GabitoTL"))
+	marker := filepath.Join(in.Env.DataDir, PendingMarkerName)
+	var slept []time.Duration
+	in.Sleep = func(d time.Duration) { slept = append(slept, d) }
+	if err := in.Uninstall(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.removal.Marker != marker || !f.files[marker] {
+		t.Fatalf("uninstall must write the marker and hand it to the cleanup: %+v", f.removal)
+	}
+	f.calls, f.removed = nil, nil
+	if err := in.Apply(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.files[marker] || len(f.removed) == 0 || f.removed[0] != marker {
+		t.Fatalf("install must remove the marker first: removed=%v", f.removed)
+	}
+	if len(slept) != 1 {
+		t.Fatalf("install must wait out an in-flight round once, slept %v", slept)
+	}
+	if f.calls[0] != "removeall" || f.calls[1] != "copy" {
+		t.Fatalf("marker removal must precede the copy: %v", f.calls)
+	}
+	// no marker: no wait
+	slept = nil
+	_ = in.Apply(Options{}, nil)
+	if len(slept) != 0 {
+		t.Fatalf("no marker, no wait: %v", slept)
+	}
+}
+
+// vanishFS loses the manager after it is copied, like a cleanup deleting it.
+type vanishFS struct{ *fake }
+
+func (v vanishFS) Exists(p string) bool {
+	return v.fake.Exists(p) && filepath.Base(p) != ManagerExe
+}
+
+func TestApplyFailsWhenCopiedExeIsMissing(t *testing.T) {
+	f := newFake()
+	in := newInstaller(f)
+	in.FS = vanishFS{f}
+	in.Env.ExePath = abs(filepath.Join("src", ManagerExe))
+	err := in.Apply(Options{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "incomplete") || !strings.Contains(err.Error(), ManagerExe) {
+		t.Fatalf("err = %v", err)
 	}
 }

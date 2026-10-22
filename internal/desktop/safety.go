@@ -69,7 +69,15 @@ type Removal struct {
 	DataDir string   // %LOCALAPPDATA%\GabitoTL, removed if empty at the end
 	Folders []string // folders under DataDir deleted recursively
 	WaitPID int      // the cleanup waits for this process to exit first (0: none)
+	// Marker is the pending-uninstall file. When set, every delete of the
+	// cleanup happens only while it exists, so a reinstall cancels the cleanup
+	// by deleting it; the cleanup removes it at the end.
+	Marker string
 }
+
+// PendingMarkerName is the file in Env.DataDir that says an uninstall cleanup
+// is allowed to delete.
+const PendingMarkerName = "uninstall.pending"
 
 // safeDataDir applies the install-dir quoting rules to p and requires it to lie
 // inside root (the data dir itself is allowed when p == root).
@@ -144,6 +152,20 @@ func RemovalCommandLine(r Removal) (string, error) {
 			return "", err
 		}
 	}
+	var marker string
+	if r.Marker != "" {
+		if marker, err = cleanWinPath(r.Marker); err != nil {
+			return "", err
+		}
+		marker = `"` + marker + `"`
+	}
+	// guard makes a delete conditional on the marker (when there is one).
+	guard := func(s string) string {
+		if marker == "" {
+			return s
+		}
+		return `if exist ` + marker + ` ` + s
+	}
 	files, folders := quote(rawFiles), quote(rawFolders)
 	var steps []string
 	if r.WaitPID > 0 {
@@ -159,19 +181,25 @@ func RemovalCommandLine(r Removal) (string, error) {
 	}
 	var conds []string
 	for _, t := range append(append([]string{}, files...), folders...) {
-		conds = append(conds, `if exist `+t+` (`+strings.Join(act, " & ")+`)`)
+		conds = append(conds, guard(`if exist `+t+` (`+strings.Join(act, " & ")+`)`))
 	}
 	if len(conds) > 0 {
 		steps = append(steps, fmt.Sprintf(`for /l %%i in (1,1,%d) do (%s)`, cleanupRounds, strings.Join(conds, " else ")))
 	}
 	if dir != "" {
-		steps = append(steps, `rmdir "`+dir+`" >nul 2>&1`)
+		steps = append(steps, guard(`rmdir "`+dir+`" >nul 2>&1`))
 	}
-	if data != "" {
+	// The log lists leftovers; the data dir is judged after the marker is gone.
+	left := quote(append(append(append([]string{}, rawFiles...), rawFolders...), keepSet(dir)...))
+	steps = append(steps, guard(`(for %p in (`+strings.Join(left, " ")+`) do @if exist %p echo left behind: %p>>"`+cleanupLog+`")`))
+	switch {
+	case marker != "" && data != "":
+		steps = append(steps, `if exist `+marker+` (del /f /q `+marker+` >nul 2>&1 & rmdir "`+data+`" >nul 2>&1)`)
+	case marker != "":
+		steps = append(steps, `del /f /q `+marker+` >nul 2>&1`)
+	case data != "":
 		steps = append(steps, `rmdir "`+data+`" >nul 2>&1`)
 	}
-	left := quote(append(append(append([]string{}, rawFiles...), rawFolders...), keepSet(dir, data)...))
-	steps = append(steps, `(for %p in (`+strings.Join(left, " ")+`) do @if exist %p echo left behind: %p>>"`+cleanupLog+`")`)
 	return `cmd /d /s /c "` + strings.Join(steps, " & ") + `"`, nil
 }
 

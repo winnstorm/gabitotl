@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 )
 
 // File names and display strings used by the install.
@@ -160,6 +161,8 @@ type Installer struct {
 	// Procs finds and stops running copies of the installed executables. Nil
 	// means none are ever found.
 	Procs Processes
+	// Sleep pauses (nil means time.Sleep); tests replace it.
+	Sleep func(time.Duration)
 	// Log receives one line per process step (PIDs and paths, never secrets).
 	Log func(format string, a ...any)
 }
@@ -253,6 +256,7 @@ func (in *Installer) Apply(o Options, progress func(Step)) error {
 	if err := in.check(o); err != nil {
 		return err
 	}
+	in.cancelPendingRemoval()
 	as := in.installActions(o)
 	for i, a := range as {
 		if progress != nil {
@@ -267,12 +271,69 @@ func (in *Installer) Apply(o Options, progress func(Step)) error {
 			return fmt.Errorf("%s: %w", a.Title, err)
 		}
 	}
+	if missing := in.missingAfterCopy(o); missing != "" {
+		for j := len(as) - 1; j >= 0; j-- {
+			if as[j].undo != nil {
+				as[j].undo()
+			}
+		}
+		in.logf("install verification failed: %s is missing", missing)
+		return fmt.Errorf("the install is incomplete: %s is missing after copying (a cleanup from an earlier uninstall may have removed it); close GabitoTL and run the setup again", missing)
+	}
 	for _, a := range as {
 		if a.commit != nil {
 			a.commit()
 		}
 	}
 	return nil
+}
+
+// settleWait is how long an install waits for a cleanup round that was already
+// running when the pending-uninstall marker was removed (one round is ~1 s).
+const settleWait = 3 * time.Second
+
+// pendingMarker is the file that lets an uninstall cleanup delete; "" when
+// there is no data dir.
+func (in *Installer) pendingMarker() string {
+	if d := in.Env.DataDir; d != "" && safeDataDir(d, d) == nil {
+		return filepath.Join(d, PendingMarkerName)
+	}
+	return ""
+}
+
+// cancelPendingRemoval removes the pending-uninstall marker so a cleanup left
+// over from an earlier uninstall stops deleting, then waits out its in-flight
+// round. Without this the cleanup would delete the files about to be copied.
+func (in *Installer) cancelPendingRemoval() {
+	m := in.pendingMarker()
+	if m == "" || !in.FS.Exists(m) {
+		return
+	}
+	in.logf("cancelling a pending uninstall cleanup: removing %s", m)
+	if err := in.FS.RemoveAll(m); err != nil {
+		in.logf("could not remove %s: %v", m, err)
+	}
+	sleep := in.Sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+	sleep(settleWait)
+	in.logf("pending uninstall cleanup cancelled")
+}
+
+// missingAfterCopy returns the first executable that should have been
+// installed but is not on disk, or "".
+func (in *Installer) missingAfterCopy(o Options) string {
+	want := []string{filepath.Join(in.dir(o), ManagerExe)}
+	if cli := in.CLITarget(o); cli != "" {
+		want = append(want, cli)
+	}
+	for _, p := range want {
+		if !in.FS.Exists(p) {
+			return p
+		}
+	}
+	return ""
 }
 
 func (in *Installer) installActions(o Options) []action {
@@ -552,7 +613,17 @@ func (in *Installer) Uninstall(o Options, progress func(Step)) error {
 		case StepUnreg:
 			run(s, in.Reg.Unregister)
 		case StepRemove:
-			run(s, func() error { return in.FS.ScheduleRemoval(in.removal(dir)) })
+			run(s, func() error {
+				r := in.removal(dir)
+				if m := in.pendingMarker(); m != "" {
+					if _, err := in.FS.WriteFile(m, []byte("pending\n")); err != nil {
+						in.logf("could not write %s: %v (the cleanup runs unguarded)", m, err)
+					} else {
+						r.Marker = m
+					}
+				}
+				return in.FS.ScheduleRemoval(r)
+			})
 		}
 	}
 	return errors.Join(errs...)
