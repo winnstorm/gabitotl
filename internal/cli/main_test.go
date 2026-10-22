@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"os"
 	"os/exec"
 	"testing"
@@ -29,6 +30,8 @@ func TestMain(m *testing.M) {
 		os.Setenv("USERPROFILE", home)
 		defer os.RemoveAll(home)
 	}
+	// No test downloads Engram: this installer has no pinned release.
+	engramInstallerFn = func() *engraminstall.Installer { return &engraminstall.Installer{GOOS: "plan9", GOARCH: "386"} }
 	vcsRunnerFn = func() vcs.Runner { return noTools{} }
 	vcsTTYFn = func() vcs.TTYRunner { return noTools{} }
 	code := m.Run()

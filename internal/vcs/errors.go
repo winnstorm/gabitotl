@@ -30,6 +30,12 @@ var (
 	ErrUnsupported = errors.New("vcs: unsupported")
 	// ErrNotLoggedIn means no usable credential exists for the platform.
 	ErrNotLoggedIn = errors.New("vcs: not logged in to the platform")
+	// ErrCertificate means the server's TLS certificate is not trusted or not usable.
+	ErrCertificate = errors.New("vcs: certificate problem")
+	// ErrNoPermission means the server knows the token but refuses the operation (HTTP 403).
+	ErrNoPermission = errors.New("vcs: the token lacks permission")
+	// ErrTimeout means the server did not answer in time.
+	ErrTimeout = errors.New("vcs: the server did not answer in time")
 	// ErrNoRemote means the operation needs an origin remote.
 	ErrNoRemote = errors.New("vcs: no origin remote configured")
 )
@@ -42,3 +48,15 @@ type PermissionError struct {
 
 func (e *PermissionError) Error() string { return fmt.Sprintf("%s: %v", e.Op, e.Err) }
 func (e *PermissionError) Unwrap() error { return e.Err }
+
+// kindErr is an error that keeps its own (secret-free) message and also matches a
+// sentinel, so callers branch with errors.Is instead of reading English text.
+type kindErr struct {
+	kind error
+	err  error
+}
+
+func (e *kindErr) Error() string   { return e.err.Error() }
+func (e *kindErr) Unwrap() []error { return []error{e.kind, e.err} }
+
+func tagged(kind, err error) error { return &kindErr{kind: kind, err: err} }

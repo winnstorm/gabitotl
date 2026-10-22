@@ -25,7 +25,7 @@ const (
 )
 
 // VCSProviders lists the supported remote providers.
-var VCSProviders = []string{"github", "bitbucket", "gitlab", "azure-devops", "git", "local"}
+var VCSProviders = []string{"github", "bitbucket", "bitbucket-server", "gitlab", "azure-devops", "git", "local"}
 
 func oneOf(field, v string, allowed ...string) error {
 	if !slices.Contains(allowed, v) {

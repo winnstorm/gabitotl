@@ -17,6 +17,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/budget"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // maxHookInput bounds what the hook reads from stdin.
@@ -191,7 +192,7 @@ func runContextCheckpoint(env Env, args []string) int {
 }
 
 func gitBranch(root string) string {
-	out, err := exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	out, err := procattr.NoWindow(exec.Command("git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD")).Output()
 	if err != nil {
 		return ""
 	}

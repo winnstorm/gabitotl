@@ -134,7 +134,7 @@ func (r *run) warn(format string, a ...any) {
 }
 
 func (r *run) ropts() rt.Options {
-	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(persona.Lang(r.pl.Options.PersonaLang)), Skills: SkillAssets(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
+	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(persona.Lang(r.pl.Options.PersonaLang)), Skills: r.pl.skills, RetireSkills: r.pl.retireSkills, Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, Tools: r.pl.Tools, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
 }
 
 // Run executes the plan. Order is fixed and enforced here:
@@ -196,6 +196,7 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 		return res, err
 	}
 	r.savePersonaLang()
+	r.saveOptionalSkills()
 	return res, nil
 }
 
@@ -211,6 +212,16 @@ func (r *run) savePersonaLang() {
 	}
 	if _, err := gabitotl.SavePersonaLang(r.env.Home, lang); err != nil {
 		r.warn("persona language not saved: %v", err)
+	}
+}
+
+// saveOptionalSkills remembers the optional skills chosen in this run.
+func (r *run) saveOptionalSkills() {
+	if !r.pl.Options.SetOptionalSkills || slices.Equal(gabitotl.LoadOptionalSkills(r.env.Home), r.pl.optionalSkills) {
+		return
+	}
+	if _, err := gabitotl.SaveOptionalSkills(r.env.Home, r.pl.optionalSkills); err != nil {
+		r.warn("optional skills not saved: %v", err)
 	}
 }
 
@@ -393,7 +404,8 @@ func (r *run) configure(ctx context.Context) error {
 // verifyMemory runs engram doctor again (the "after" of before/after) and
 // checks that memory.md names the provider the plan chose. Engram is reported
 // on its own: it only fails the run when this project uses it, and a missing
-// binary is never a failure (GabitoTL does not install it).
+// binary is never a failure (the front end installs it beforehand when the
+// project uses Engram, see EnsureEngram; if that was not possible it is a hint).
 func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 	var out []Check
 	needed := r.pl.MemoryChoice == gabitotl.MemoryEngram
@@ -405,7 +417,7 @@ func (r *run) verifyMemory(ctx context.Context, group string) []Check {
 			out = append(out, Check{Group: group, Name: "engram data dir", OK: err == nil || !r.inv.Memory.HasDir, Detail: orStr(errText(err), "present")})
 		}
 	} else {
-		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; projects that use Engram stay unconnected until you install it (GabitoTL never installs it)"})
+		out = append(out, Check{Group: group, Name: "engram", OK: true, Detail: "not installed; projects that use Engram stay unconnected until it is installed (run gabitotl install again, or get it from https://github.com/Gentleman-Programming/engram)"})
 	}
 	if r.env.ProjectRoot != "" {
 		m, err := gabitotl.LoadMemory(gabitotl.NewLayout(r.env.ProjectRoot))

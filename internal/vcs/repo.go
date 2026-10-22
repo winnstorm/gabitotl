@@ -9,6 +9,7 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/branding"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // Repo is a Git work tree plus the permissions from vcs.md.
@@ -23,6 +24,8 @@ type Repo struct {
 	// Branding is the authorship guard policy (workflow.md); the zero value
 	// refuses attribution (block).
 	Branding BrandingPolicy
+	// Servers is the registry of self-hosted servers used to infer the provider; may be nil.
+	Servers vcshosts.Registry
 	// OnBranding is told what the guard removed (strip) or only reported (warn),
 	// so nothing is ever changed silently. May be nil.
 	OnBranding func(op string, removed, warned []branding.Finding)
@@ -31,6 +34,13 @@ type Repo struct {
 // New returns a Repo using the real git/gh executables.
 func New(dir string, cfg gabitotl.VCSConfig) *Repo {
 	return &Repo{Dir: dir, Runner: ExecRunner{}, Config: cfg}
+}
+
+func (r *Repo) servers() vcshosts.Registry {
+	if r.Servers != nil {
+		return r.Servers
+	}
+	return defaultServers()
 }
 
 func (r *Repo) runner() Runner {
@@ -75,7 +85,7 @@ func (r *Repo) Status(ctx context.Context) (Status, error) {
 	st.Branch, _ = r.Git(ctx, "symbolic-ref", "--short", "-q", "HEAD")
 	st.Head, _ = r.Git(ctx, "rev-parse", "--verify", "-q", "HEAD")
 	st.Remote, _ = r.Git(ctx, "remote", "get-url", "origin")
-	st.Provider = InferProvider(st.Remote)
+	st.Provider = InferProviderWith(st.Remote, r.servers())
 	porcelain, _ := r.Git(ctx, "status", "--porcelain")
 	st.Dirty = porcelain != ""
 	return st, nil
@@ -100,6 +110,15 @@ func InferProvider(remote string) string {
 		return "azure-devops"
 	}
 	return "git"
+}
+
+// InferProviderWith is InferProvider that first consults the registry of
+// self-hosted servers: a remote on a registered host takes the registered platform.
+func InferProviderWith(remote string, reg vcshosts.Registry) string {
+	if e, ok := vcshosts.Lookup(reg, remoteHost(strings.TrimSpace(remote))); ok {
+		return e.Platform
+	}
+	return InferProvider(remote)
 }
 
 func remoteHost(remote string) string {
@@ -259,3 +278,7 @@ func firstLine(s string) string {
 	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
 	return s
 }
+
+// RemoteHost is the lower-case host of a Git remote URL (https or scp-like),
+// without credentials or port; "" when it cannot be read.
+func RemoteHost(remote string) string { return remoteHost(strings.TrimSpace(remote)) }

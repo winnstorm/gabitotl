@@ -14,7 +14,9 @@ func indexFixture(t *testing.T, tools ...string) string {
 	bin := t.TempDir()
 	os.MkdirAll(root, 0o755)
 	for _, n := range tools {
-		script := "#!/bin/sh\necho \"" + n + " ran $@\" > \"$PWD/ran.txt\"\n"
+		// The --version probe runs in the test's working directory (the
+		// package dir), so it must not write ran.txt there.
+		script := "#!/bin/sh\n[ \"$1\" = --version ] && exit 0\necho \"" + n + " ran $@\" > \"$PWD/ran.txt\"\n"
 		if err := os.WriteFile(filepath.Join(bin, n), []byte(script), 0o755); err != nil {
 			t.Fatal(err)
 		}

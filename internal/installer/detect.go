@@ -13,6 +13,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/memory/engram"
 	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/vcs"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // Phase is one step of the installer pipeline, in execution order (spec 5).
@@ -113,7 +114,7 @@ func DetectProject(ctx context.Context, env Env) Project {
 		p.GitRepo = true
 		if out, _, err := env.run(ctx, p.Root, "git", "remote", "get-url", "origin"); err == nil {
 			p.Remote = strings.TrimSpace(string(out))
-			p.Provider = vcs.InferProvider(p.Remote)
+			p.Provider = vcs.InferProviderWith(p.Remote, vcshosts.NewFile(env.Home))
 		}
 	}
 	if p.Exists {
@@ -297,7 +298,8 @@ type GentleAI struct {
 
 // OtherHarness is the result of DetectOtherHarness.
 type OtherHarness struct {
-	GentleAI GentleAI `json:"gentle_ai"`
+	GentleAI GentleAI       `json:"gentle_ai"`
+	Systems  []SystemStatus `json:"systems"` // every other agent system, found or not
 }
 
 // GentleHome is ~/.gentle-ai.
@@ -337,7 +339,7 @@ func DetectOtherHarness(env Env) OtherHarness {
 			g.Components = stateNames(st["components"])
 		}
 	}
-	return OtherHarness{GentleAI: g}
+	return OtherHarness{GentleAI: g, Systems: DetectSystems(env)}
 }
 
 // stateNames extracts names from a JSON list of strings or objects (name/id/

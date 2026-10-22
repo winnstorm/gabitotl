@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Runner executes the engram binary. Tests use a fake so that no real Engram
@@ -51,7 +53,7 @@ func NewExecRunner(dataDir string) (*ExecRunner, error) {
 
 // Run implements Runner.
 func (r *ExecRunner) Run(ctx context.Context, args ...string) ([]byte, []byte, error) {
-	cmd := exec.CommandContext(ctx, r.Binary, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, r.Binary, args...))
 	env := r.Env
 	if env == nil {
 		env = os.Environ()

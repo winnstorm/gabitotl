@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
@@ -337,14 +338,85 @@ func PlanFile(env rt.Env, runtime, path, content string) rt.Action {
 // SkillFile is the name of the file inside every skill directory.
 const SkillFile = "SKILL.md"
 
-// PlanSkills plans one whole-file asset per skill under dir:
-// <dir>/<name>/SKILL.md.
+// PlanSkills plans one whole-file asset per file of every skill under dir:
+// <dir>/<name>/SKILL.md and <dir>/<name>/<rel> for the other files.
 func PlanSkills(env rt.Env, runtime, dir string, skills []rt.Asset) []rt.Action {
 	var out []rt.Action
 	for _, sk := range skills {
 		out = append(out, PlanFile(env, runtime, filepath.Join(dir, sk.Name, SkillFile), sk.Content))
+		rels := make([]string, 0, len(sk.Files))
+		for rel := range sk.Files {
+			rels = append(rels, rel)
+		}
+		slices.Sort(rels)
+		for _, rel := range rels {
+			out = append(out, PlanFile(env, runtime, filepath.Join(dir, sk.Name, filepath.FromSlash(rel)), sk.Files[rel]))
+		}
 	}
 	return out
+}
+
+// PlanRetireSkills plans the removal of every whole file the ownership state
+// says this runtime wrote under <dir>/<name>/ for the named skills. A file
+// that is gone, or that the user edited since, is not planned: nothing the
+// state cannot attribute is ever removed, and user files next to ours survive.
+func PlanRetireSkills(env rt.Env, runtime, dir string, names []string) []rt.Action {
+	st, err := env.Store().Load()
+	if err != nil {
+		return nil
+	}
+	var out []rt.Action
+	for _, name := range names {
+		prefix := filepath.Join(dir, name) + string(filepath.Separator)
+		for _, e := range st.Entries {
+			if !e.Whole || !strings.HasPrefix(e.Path, prefix) || !containsStr(e.Runtimes, runtime) {
+				continue
+			}
+			data, exists, err := readFile(e.Path)
+			if err != nil || !exists || ownership.Hash(data) != e.HashAfter {
+				continue
+			}
+			out = append(out, rt.Action{Kind: rt.RemoveAfterVerify, Runtime: runtime, Path: e.Path,
+				Target: "file " + name + "/" + filepath.ToSlash(strings.TrimPrefix(e.Path, prefix)),
+				Detail: "optional skill not selected; only the file GabitoTL wrote is removed",
+				Edit:   rt.Edit{Op: rt.OpRemoveFile}})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+// removeManagedFile removes one whole file the state attributes to runtime, drops
+// the runtime from the entry (deleting the entry when it was the last owner) and
+// prunes the directories we created for it once they are empty.
+func removeManagedFile(store ownership.Store, runtime string, a rt.Action) ([]string, error) {
+	st, err := store.Load()
+	if err != nil {
+		return nil, err
+	}
+	i, ok := st.Find(a.Path)
+	if !ok || !st.Entries[i].Whole || !containsStr(st.Entries[i].Runtimes, runtime) {
+		return nil, nil
+	}
+	e := st.Entries[i]
+	if len(e.Runtimes) > 1 {
+		e.Runtimes = without(e.Runtimes, runtime)
+		st.Entries[i] = e
+		return nil, store.Save(st)
+	}
+	data, exists, err := readFile(a.Path)
+	if err != nil {
+		return nil, err
+	}
+	if err := removeWhole(e, data, exists); err != nil {
+		var ue *ownership.UnsafeError
+		if errors.As(err, &ue) {
+			return nil, nil // edited since: kept, still recorded
+		}
+		return nil, err
+	}
+	st.Entries = slices.Delete(slices.Clone(st.Entries), i, i+1)
+	return slices.Clone(e.Dirs), store.Save(st)
 }
 
 // ownsWhole reports whether the state records path as a whole file written by
@@ -524,14 +596,21 @@ func Apply(env rt.Env, runtime, version string, plan []rt.Action) (rt.Result, er
 	if failed {
 		return res, errors.New("verification failed; REMOVE-AFTER-VERIFY actions were not run")
 	}
+	var pruneLater []string
+	defer func() { pruneDirs(pruneLater) }()
 	for _, a := range plan {
 		if a.Kind != rt.RemoveAfterVerify {
 			continue
 		}
 		var err error
-		if a.Edit.Op == rt.OpRemoveKey {
+		switch a.Edit.Op {
+		case rt.OpRemoveKey:
 			err = removeManagedKey(store, a)
-		} else {
+		case rt.OpRemoveFile:
+			var d []string
+			d, err = removeManagedFile(store, runtime, a)
+			pruneLater = append(pruneLater, d...)
+		default:
 			err = removeForeign(a)
 		}
 		if err != nil {

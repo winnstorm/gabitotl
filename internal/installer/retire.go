@@ -70,6 +70,10 @@ func (r *run) retire(ctx context.Context) error {
 				r.emit(PhaseRetire, "ok", "retire memory entry "+name, rm.Target)
 				continue
 			}
+			if rm.Edit.Op == rt.OpRemoveFile { // an optional skill that was deselected
+				r.emit(PhaseRetire, "ok", "retire skill file "+name, rm.Target)
+				continue
+			}
 			r.res.Retired.Personas = append(r.res.Retired.Personas, rm)
 			blocks++
 		}

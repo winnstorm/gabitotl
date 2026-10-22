@@ -9,6 +9,9 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // MergeOptions say how a pull request is merged. Method is one of
@@ -52,6 +55,8 @@ type AuthState struct {
 	InstallURL string
 	// Detail is a short secret-free note about what was observed.
 	Detail string
+	// User is the authenticated account name when the platform tells (secret-free).
+	User string
 }
 
 // OK reports whether the person is logged in.
@@ -82,20 +87,47 @@ type HostOptions struct {
 	BitbucketAPI string
 	// Credentials returns the Bitbucket credential; nil means not logged in.
 	Credentials func() (Credential, error)
+	// Tokens returns the stored token of a host, handed to gh and glab in their own
+	// child environment when the person has not set one; nil uses DefaultTokens.
+	Tokens func(host string) (string, bool)
+	// Servers is the registry of self-hosted servers and ServerToken returns the
+	// token of one (Bitbucket Data Center); nil Servers means none are registered.
+	Servers     vcshosts.Registry
+	ServerToken func(host string) (string, error)
 }
 
-// HostFor returns the host of a vcs.md provider value: github, gitlab or
-// bitbucket (Bitbucket Cloud). Anything else fails with ErrUnsupported.
+// HostFor returns the host of a vcs.md provider value: github, gitlab,
+// bitbucket (Bitbucket Cloud) or bitbucket-server (Data Center). Anything else fails with ErrUnsupported.
 func HostFor(name string, o HostOptions) (Host, error) {
+	tokens := o.Tokens
+	if tokens == nil {
+		tokens = DefaultTokens
+	}
+	servers := o.Servers
+	if servers == nil {
+		servers = defaultServers()
+	}
+	serverToken := o.ServerToken
+	if serverToken == nil {
+		serverToken = func(host string) (string, error) {
+			if tokens == nil {
+				return "", nil
+			}
+			t, _ := tokens(host)
+			return t, nil
+		}
+	}
 	switch name {
 	case "github":
-		return GitHub{Runner: o.Runner}, nil
+		return GitHub{Runner: withStoredTokens(o.Runner, tokens)}, nil
 	case "gitlab":
-		return GitLab{Runner: o.Runner}, nil
+		return GitLab{Runner: withStoredTokens(o.Runner, tokens)}, nil
 	case "bitbucket":
 		return Bitbucket{Runner: o.Runner, HTTP: o.HTTP, BaseURL: o.BitbucketAPI, Creds: o.Credentials}, nil
+	case "bitbucket-server":
+		return BitbucketServer{Runner: o.Runner, HTTP: o.HTTP, Servers: servers, Token: serverToken}, nil
 	}
-	return nil, fmt.Errorf("%w: no pull request support for provider %q (supported: github, gitlab, bitbucket)", ErrUnsupported, name)
+	return nil, fmt.Errorf("%w: no pull request support for provider %q (supported: github, gitlab, bitbucket, bitbucket-server)", ErrUnsupported, name)
 }
 
 // TTYRunner runs an interactive command attached to the terminal (stdin, stdout
@@ -109,7 +141,7 @@ type ExecTTY struct{}
 
 // RunTTY implements TTYRunner.
 func (ExecTTY) RunTTY(ctx context.Context, dir, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, name, args...))
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()

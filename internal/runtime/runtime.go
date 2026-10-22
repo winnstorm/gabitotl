@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -163,6 +164,8 @@ type MemoryMCP struct {
 const (
 	EntryEngram = "engram"
 	EntryBridge = "gabitotl-memory"
+	// EntryCodeGraph is the CodeGraph code-index MCP entry (see Options.Tools).
+	EntryCodeGraph = "codegraph"
 )
 
 // MemoryFor returns the memory MCP entries to configure and the entries that
@@ -196,9 +199,13 @@ func MemoryFor(provider string, engramPresent bool) (main MemoryMCP, extra []Mem
 // Name is its directory under the runtime's skills directory and Content the
 // SKILL.md text. The installer fills it from package skills (runtime must not
 // import it), so adapters only decide WHERE each asset goes.
+//
+// Files are the other files of the skill directory (references/x.md), keyed by
+// their path relative to it with forward slashes.
 type Asset struct {
 	Name    string
 	Content string
+	Files   map[string]string
 }
 
 // Options drive Plan.
@@ -209,6 +216,9 @@ type Options struct {
 	// MemoryExtra are further memory MCP entries to configure next to Memory
 	// (Engram's own server, see MemoryFor).
 	MemoryExtra []MemoryMCP
+	// Tools are non-memory stdio MCP servers GabitoTL registers the same way
+	// (today only CodeGraph). They are planned through MemoryServers.
+	Tools []MemoryMCP
 	// RetireMemory lists memory MCP entry names GabitoTL may have created earlier
 	// and that are now obsolete. An adapter plans their removal (REMOVE-AFTER-VERIFY)
 	// only when the ownership state says GabitoTL created that exact entry: an entry
@@ -220,15 +230,18 @@ type Options struct {
 
 	// Skills are the skill files to install under the runtime's skills directory.
 	Skills []Asset
+	// RetireSkills names optional skills that are not selected: an adapter plans
+	// the removal of the files it wrote for them (and only those) after verify.
+	RetireSkills []string
 }
 
-// MemoryServers lists every memory MCP entry to configure: Memory, then MemoryExtra.
+// MemoryServers lists every stdio MCP entry to configure: Memory, MemoryExtra, then Tools.
 func (o Options) MemoryServers() []MemoryMCP {
 	var out []MemoryMCP
 	if o.Memory.Command != "" {
 		out = append(out, o.Memory)
 	}
-	for _, m := range o.MemoryExtra {
+	for _, m := range append(slices.Clone(o.MemoryExtra), o.Tools...) {
 		if m.Command != "" {
 			out = append(out, m)
 		}
@@ -253,9 +266,10 @@ const (
 	OpRemoveBlock   = "remove-foreign-block"
 	OpSetKey        = "set-key"
 	OpAddItem       = "add-item"
-	OpRemoveKey     = "remove-key" // remove a managed JSON key (REMOVE-AFTER-VERIFY)
-	OpWriteFile     = "write-file" // write a whole file GabitoTL owns (Edit.Body is the content)
-	OpManual        = "manual"     // nothing is written; the user must act
+	OpRemoveKey     = "remove-key"  // remove a managed JSON key (REMOVE-AFTER-VERIFY)
+	OpRemoveFile    = "remove-file" // remove a whole file GabitoTL wrote (REMOVE-AFTER-VERIFY)
+	OpWriteFile     = "write-file"  // write a whole file GabitoTL owns (Edit.Body is the content)
+	OpManual        = "manual"      // nothing is written; the user must act
 )
 
 // Edit is the executable payload of an Action. Plan builds it, Apply runs it.
@@ -357,6 +371,12 @@ type Adapter interface {
 	RemoveGabitoConfig(env Env) (Result, error)
 	// ListModels is best effort and may return ErrUnsupported.
 	ListModels(env Env) ([]string, error)
+}
+
+// SkillsDirer is implemented by adapters that install skills; it names the
+// directory that holds <skill>/SKILL.md for a scope.
+type SkillsDirer interface {
+	SkillsDir(env Env, s Scope) string
 }
 
 // AttributionState is the read-only state of a runtime's own attribution

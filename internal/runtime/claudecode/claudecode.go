@@ -90,6 +90,9 @@ func (*Adapter) mcpPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(env.Home, ".claude.json")
 }
 
+// SkillsDir is the exported skills directory of the adapter.
+func (a *Adapter) SkillsDir(env rt.Env, s rt.Scope) string { return a.skillsDir(env, s) }
+
 func (a *Adapter) skillsDir(env rt.Env, s rt.Scope) string {
 	if s == rt.ScopeProject && env.ProjectRoot != "" {
 		return filepath.Join(env.ProjectRoot, ".claude", "skills")
@@ -281,6 +284,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, Name, a.skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanRetireSkills(env, Name, a.skillsDir(env, opts.Scope), opts.RetireSkills)...)
 	return plan, nil
 }
 

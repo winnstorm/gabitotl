@@ -16,6 +16,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/budget"
 	"github.com/winnstorm/gabitotl/internal/digest"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // runRun executes a command without a shell, keeps its full output in a log
@@ -39,7 +40,7 @@ func runRun(env Env, args []string) int {
 	name := strings.Join(cmdArgs, " ")
 
 	var buf bytes.Buffer
-	c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	c := procattr.NoWindow(exec.Command(cmdArgs[0], cmdArgs[1:]...))
 	c.Stdout, c.Stderr = &buf, &buf
 	if wd, err := env.Getwd(); err == nil {
 		c.Dir = wd

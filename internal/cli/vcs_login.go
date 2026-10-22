@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/credstore"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
@@ -24,13 +25,26 @@ func runVCSLogin(env Env, args []string) int {
 	fl := flag.NewFlagSet("vcs login", flag.ContinueOnError)
 	fl.SetOutput(env.Stderr)
 	root := fl.String("root", "", "project root (default: Git top-level of the current directory)")
-	tokenEnv := fl.String("token-env", "", "Bitbucket: name of the environment variable that holds the token (default BITBUCKET_TOKEN)")
-	store := fl.Bool("store-token", false, "Bitbucket: copy the token from that variable into the 0600 secrets file of your user")
+	tokenEnv := fl.String("token-env", "", "Bitbucket: name of the environment variable that holds the token (default BITBUCKET_TOKEN; with --url BITBUCKET_SERVER_TOKEN)")
+	store := fl.Bool("store-token", false, "Bitbucket: copy the token from that variable into the credential store of your user")
+	serverURL := fl.String("url", "", "self-hosted server: its web URL (for example https://bitbucket.corp:8443); registers it and stores the token")
+	serverPlatform := fl.String("platform", "", "with --url: bitbucket-server (default), github or gitlab")
+	tokenStdin := fl.Bool("token-stdin", false, "with --url: read the token from standard input (one line) instead of an environment variable")
+	var sshHosts stringList
+	fl.Var(&sshHosts, "ssh-host", "with --url: a host name the server's Git remotes use when it differs from the web host (repeatable)")
+	allowHTTP := fl.Bool("allow-insecure-http", false, "with --url: accept plain http:// for a host that is not loopback; the token then travels in CLEAR TEXT")
+	replace := fl.Bool("replace", false, "with --url: replace a different server already registered under the same host name")
 	check := fl.Bool("check", false, "only verify the login; never log in or change anything")
 	if err := fl.Parse(args); err != nil {
 		return flagExit(err)
 	}
 	m := ui.Active("")
+	if *serverURL != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), vcsServerTimeout)
+		defer cancel()
+		return loginServer(ctx, env, m, serverLogin{url: *serverURL, platform: *serverPlatform, tokenEnv: *tokenEnv,
+			fromStdin: *tokenStdin, check: *check, sshHosts: sshHosts, allowHTTP: *allowHTTP, replace: *replace})
+	}
 	dir, err := resolveRoot(env, *root)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl vcs login: %v\n", err)
@@ -50,6 +64,9 @@ func runVCSLogin(env Env, args []string) int {
 	if !known {
 		fmt.Fprintf(env.Stderr, "%s %s\n", ui.SymError, m.Format("vcs.login.noplatform", "provider", provider))
 		return ExitError
+	}
+	if provider == "bitbucket-server" {
+		return loginServerProject(ctx, env, m, dir, cfg)
 	}
 	if provider == "bitbucket" {
 		return loginBitbucket(ctx, env, m, dir, layout, user, cfg, *tokenEnv, *store, *check)
@@ -161,15 +178,11 @@ func finishBitbucket(ctx context.Context, env Env, m ui.Messages, dir string, la
 		return ExitOK
 	}
 	if store {
-		renv, err := runtimeEnvFn(dir)
-		if err == nil {
-			err = mcp.WriteClientSecret(renv.Home, nameVar, value)
-		}
-		if err != nil {
+		if err := credStoreFn(userHome()).Set("bitbucket.org", value); err != nil {
 			fmt.Fprintf(env.Stderr, "gabitotl vcs login: store token: %v\n", err)
 			return ExitError
 		}
-		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.login.bb.stored", "path", mcp.ClientSecretsPath(renv.Home)))
+		fmt.Fprintf(env.Stdout, "%s %s\n", ui.SymOK, m.Format("vcs.login.bb.stored", "target", credstore.Target("bitbucket.org")))
 	}
 	if !gabitotl.Exists(dir) {
 		return ExitOK // nothing to save the reference in; the login itself works
@@ -205,3 +218,9 @@ func authWithToken(ctx context.Context, dir string, cfg gabitotl.VCSConfig, valu
 	}
 	return st, true
 }
+
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (l *stringList) String() string     { return strings.Join(*l, ",") }
+func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }

@@ -17,6 +17,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/winnstorm/gabitotl/internal/procattr"
 	"github.com/winnstorm/gabitotl/internal/version"
 )
 
@@ -173,7 +174,7 @@ func NewStdioTransport(o StdioOptions) (*SDKTransport, error) {
 		return nil, errors.New("stdio transport needs a command")
 	}
 	return newSDK(func(ctx context.Context) (*sdk.ClientSession, error) {
-		cmd := exec.Command(o.Command, o.Args...)
+		cmd := procattr.NoWindow(exec.Command(o.Command, o.Args...))
 		cmd.Env = o.Env
 		c := sdk.NewClient(&sdk.Implementation{Name: "gabitotl", Version: version.Version}, nil)
 		return c.Connect(ctx, &sdk.CommandTransport{Command: cmd}, nil)

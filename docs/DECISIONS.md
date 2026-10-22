@@ -22,7 +22,7 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
 
 ## D4. Memory is a contract; Engram is adopted, not copied
 - **Decision:** the workflow depends on `memory.Provider` only. Engram is used through its official CLI;
-  its database file and `~/.engram` are never opened or modified. A missing Engram is reported, never installed.
+  its database file and `~/.engram` are never opened or modified. A missing Engram was originally only reported; since D61 GabitoTL installs it when a project uses it.
 - **Why:** the user asked for no database of our own when Engram/Memory MCP already solve memory.
 - **Consequence:** `Update`, `SessionSummary` and keyless `CurrentProject` return `ErrUnsupported`
   (no CLI equivalent); recorders fall back to a progress entry.
@@ -748,3 +748,112 @@ was deferred is in [ROADMAP.md](ROADMAP.md).
   in every runtime. Both texts stay under the 1500-token budget and are tested for the same required rules. Reinstall and
   upgrade keep the saved choice; `doctor` shows it and verifies the installed persona against it. The CLI's own screens,
   the guard messages and the `gabito-*` skills remain Spanish (OJO).
+
+## D55. Visual Windows setup and Manager (Wails, per-user self-install)
+
+- **Context:** Windows users had to install Go or unpack a release by hand, edit PATH and run a terminal installer.
+  They asked for a visual, double-click setup, and for the same app to manage GabitoTL afterwards.
+- **Decision:** one downloaded executable, `GabitoTL-Setup-<version>-windows-amd64.exe`, is both setup and Manager.
+  It is a Wails v2 app (WebView2) with a plain HTML/CSS/JS frontend and no npm step, kept in `cmd/gabitotl-manager`
+  under a `windows` build constraint. All logic lives in headless packages: `internal/gui` (the Manager backend,
+  reusing the CLI's installer, doctor and backup code per D50) and `internal/desktop` (self-install through ports:
+  copy, user PATH, shortcuts, Apps & features). The install is per user under `%LOCALAPPDATA%` and never needs admin
+  rights. Every change is a reviewed plan first. The CLI is embedded in the setup (`-tags embedcli`) and written next
+  to the manager so PATH and the guard hooks work from a single download. Version comes from the same
+  `internal/version.Version` ldflag as the CLI; `make manager-windows` builds it. CI builds and tests the
+  Windows-relevant packages on `windows-latest`.
+- **Why:** it keeps one implementation of install logic, keeps Linux and macOS builds free of Wails and CGO, and makes
+  the download self-contained. Per-user avoids UAC and keeps uninstall simple.
+- **Consequences:** the setup is about 20 MB larger because it carries the CLI. Windows behavior is verified only by
+  unit tests with fakes and a CI build; the GUI has not been run on a real Windows machine (OJO). Only the Windows-
+  relevant packages run in the Windows CI job; the full suite and e2e stay on Linux and macOS. Code signing is not set
+  up, so SmartScreen may warn on first run.
+- **Running copies:** install, upgrade and uninstall first find running copies of the owned executables (image path
+  inside the install dir, same user only, never the current process) and close them: WM_CLOSE to their windows, a
+  short grace period, then TerminateProcess. If one cannot be closed, an install stops before copying anything. The
+  detached cleanup waits for the Manager to exit, retries up to about a minute, and also removes the WebView2 profiles
+  and the log under `%LOCALAPPDATA%\GabitoTL` (only those named folders), then the install and data folders if empty;
+  leftovers are listed in `%TEMP%\gabitotl-uninstall.log`. This closes the "in-place upgrade of a running exe" gap
+  (still unverified on real Windows).
+
+## D56. Credentials in the OS credential store; global delivery defaults layered under the project
+
+- **Context:** the install is global and must work with no project, yet each project may live on a different Git
+  platform. The first Windows test showed the sign-in asked for a project and an "env var name" field confused users.
+- **Decision:** (1) Tokens live behind a port, `internal/credstore.Store` (`Get/Set/Delete` keyed by platform host).
+  Adapters: Windows Credential Manager through advapi32 (`CredWriteW/CredReadW/CredDeleteW/CredFree` via
+  `golang.org/x/sys/windows`, generic credential, target `gabitotl:vcs:<host>`, `CRED_PERSIST_LOCAL_MACHINE`, user
+  `gabitotl`, no CGO); on other systems a 0600 file `~/.gabitotl/secrets/vcs-credentials` in a 0700 directory,
+  written atomically; and an in-memory fake for tests. (2) Delivery defaults live in `~/.gabitotl/vcs.md`, parsed by
+  the same code as the project file. Load order: built-in default, global file, project team `vcs.md`, per-person
+  file. (3) Token lookup for the platform clients: process environment and `env:NAME` reference first, then the
+  credential store by host. (4) `vcs.VerifyToken` checks a token against the platform API with no project; the
+  Manager verifies before it stores.
+- **Why:** per-user OS storage (DPAPI) is safer than a file and needs no project; reusing the existing parser keeps
+  one implementation of the delivery settings; env-first keeps CI and existing setups working unchanged.
+- **Consequences:** `vcs login --store-token` now stores into the credential store (not the memory secrets file).
+  Tokens never appear in any `.md` file, log or Manager return value. GitHub and GitLab operations still go through
+  `gh` / `glab`, which do not read this store yet (resolved: `vcs.HostFor` hands the stored token of the remote's host to `gh` / `glab` in that child's environment only, `GH_TOKEN` / `GH_ENTERPRISE_TOKEN`+`GH_HOST` / `GITLAB_TOKEN`+`GITLAB_HOST`, and never when the person already set one);
+  custom hosts can be stored and verified but the Manager lists only the three public hosts. The Windows adapter is
+  compile-checked only and has not run on a real Windows machine.
+
+## D57. CodeGraph is a required, pinned component installed by the Windows setup
+
+- **Context:** the user made CodeGraph mandatory for the Windows setup. The official `install.ps1` downloads whatever
+  is latest and `codegraph install` rewrites `CLAUDE.md` / `AGENTS.md`, which GabitoTL manages (D50).
+- **Decision:** (1) `internal/codegraph` pins release v1.6.2 and the SHA-256 of `codegraph-win32-x64.zip`
+  (`7455e817ee80...deea`) and `codegraph-win32-arm64.zip` (`308f7bf92e78...c071`), taken from the release's
+  `SHA256SUMS`. A mismatch fails closed: nothing is extracted or activated. The zip is self-contained (bundled
+  `node.exe`), so no Node/npm. (2) Same layout as the official installer (`%LOCALAPPDATA%\codegraph\current`,
+  `current\bin` on the user PATH, added once through `internal/desktop.PathEnv`) so `codegraph upgrade` keeps working;
+  a replaced install renames locked files aside (`*.old-<token>`). An install at the pinned version or newer is left
+  alone. (3) The MCP server `codegraph serve --mcp` is registered by GabitoTL's own runtime adapters (new
+  `rt.Options.Tools`, planned like the memory entries and backed up by `BackupAndApply`), never by `codegraph install`.
+  On Windows the entry is `cmd /c codegraph serve --mcp` because the launcher is a `.cmd`; the PATH entry keeps it valid
+  across upgrades. (4) The wizard installs it before configuring any agent and stops if it fails; the Manager exposes
+  `CodeGraph`, `PlanCodeGraph` and `ApplyCodeGraph` (plan-first) to repair or upgrade.
+- **Why:** a pinned, verified artifact is reproducible and tamper-evident; reusing the runtime adapters keeps one config
+  writer and one backup path.
+- **Consequences:** bumping CodeGraph means changing the version and hashes in one file. Linux and macOS are not wired
+  (npm remains the hint). Unverified on a real Windows machine; `cmd /c` as the stdio command is the common Windows
+  pattern but has not been exercised with each agent.
+- **Hardening:** the store key is the host name without a port (a token for `git.corp:8443` serves any remote on `git.corp`); an empty or relative home is refused, never a path under the working directory; tokens over 2560 bytes are refused on Windows; token checks never follow redirects; error text is scrubbed of the raw, query- and path-escaped token. Known and left: a 403 from the platform counts as rejected, and the remote is looked up on every `gh`/`glab` call.
+
+## D58. Project discovery is read-only; SQLite lives only in the Manager binary
+- **Decision:** `internal/projects` defines a `Source` port and a merger (`Scan`). Sources: Claude Code (`~/.claude.json` `projects` keys), OpenCode (`opencode.db` table `project`, legacy `storage/project/*.json`), Kiro (`workspaceStorage/*/workspace.json`, `globalStorage/storage.json`, `file://` URIs), the folders the Manager remembers (`manager.json`, a list beside the old single `root`) and a bounded scan (depth 3, a few usual roots) for `.gabitotl/`. Paths are normalised (Windows: case-insensitive key, drive letter upper-cased), missing folders, the home folder and filesystem roots are dropped, duplicates merge their sources, and a deadline and a maximum bound the work. Every source is best effort and silent on absence or parse errors.
+- **SQLite:** OpenCode's database is read through `modernc.org/sqlite` (pure Go, CGO-free) opened `mode=ro` with `query_only`, in the separate package `internal/projects/opencodedb`, imported only by `cmd/gabitotl-manager`. The Linux/CLI binary does not link it (`go list -deps ./cmd/gabitotl` shows no sqlite).
+- **Why:** OpenCode may be running, so nothing is written or locked beyond a read; keeping the driver out of the CLI keeps it small.
+- **Consequences:** the Manager binary grows by about 4 MB. Kiro's layout is low confidence (fixture-tested only); the Windows paths of OpenCode and Kiro are unverified on a real machine. `gui.Service` exposes `Projects`, `AddProject`, `ForgetProject`.
+
+## D59. The Manager has two levels: Global and Projects
+- **Decision:** the install is global, so the Manager separates what is global (delivery defaults, credentials, CodeGraph, agents, persona, Windows, backups, uninstall) from what belongs to a project folder (delivery override, code index, guard hooks, memory, doctor, project-scope agents, backups). Selecting a project from the discovered list (D58) opens its page and remembers it; screens receive the open project as their root, the global ones always use none.
+- **Backend:** `gui.Service.Project` (git and platform from the remote, only the host is kept; effective delivery with its source `project | global | default`; whether the host's token is stored; code index and guard state), `ResetProjectDelivery` (`gabitotl.ResetDeliveryToGlobal`), `PlanProjectSetup`/`ApplyProjectSetup` (the CLI's own `gabitotl.Init`, then the new `vcs.md` takes the global defaults) and `IndexProject` (progress, cancellable through the context). No second init implementation.
+- **Provenance rule:** a project is "project" when its `vcs.md` is marked `configured` or the person has permission overrides; otherwise it follows the global layer. A `vcs.md` written by an older `gabitotl init` carries built-in values that mask the global ones (the layering is key by key); use "Use the global defaults" to realign it.
+- **Consequences:** the persona chat mode is saved globally from the Manager (the per-project, per-person mode stays CLI only); backups are shared between the levels because snapshots live under `~/.gabitotl`.
+
+- **Hardening:** every project-scoped Service entry point first runs `checkRoot` (non-empty absolute path to an existing directory, `gabitotl.ValidateRoot`, which now also refuses Windows drive roots and UNC share roots through the pure `gabitotl.IsFilesystemRoot`); setup never creates the folder. `IndexProject` is single-flight (`gui.error.busy`) and the app clears its cancel function only when it still is the one of its own operation. The page drops results of a superseded load (sequence token).
+- **Known limit:** the delivery and guard-hook plans of the Manager are built client-side (a summary of what the person chose) rather than by a backend plan; the writes themselves validate on the Go side.
+
+## D60. Bitbucket Data Center through a custom-host registry; TLS uses the OS trust store
+- **Decision:** a new provider value `bitbucket-server` (Bitbucket Server / Data Center, REST API 1.0: `/rest/api/latest` pull requests, `/rest/build-status/latest` checks, `/rest/branch-utils/latest` branch delete) next to `bitbucket` (Cloud). Authentication is an HTTP access token sent as `Authorization: Bearer`. Self-hosted servers are a non-secret registry `~/.gabitotl/vcs-hosts.json` (`internal/vcshosts`: port `Registry`, atomic JSON file adapter, fake) with `host` (the credential-store key, no port), `platform` (`bitbucket-server`, `github`, `gitlab`) and the web `url` (scheme, port, optional context path; no userinfo, query or fragment). A remote whose host is registered takes the registered platform (`vcs.InferProviderWith`); the API base URL always comes from the registry because an SSH port (`ssh://git@host:7999/...`) says nothing about the HTTP one.
+- **Behaviour:** merge reads the pull request `version` first (a stale one is a 409) and maps squash / merge / rebase to `squash` / `no-ff` / `rebase-no-ff`; deleting the source branch uses branch-utils after the merge; retargeting is a versioned PUT; checks come from the build statuses of the head commit; the auth check calls an authenticated-only endpoint and requires `X-AUSERNAME` (anonymous access does not prove the token). `vcs.VerifyToken` takes the registry URL (`VerifyOptions.BaseURL`); `vcs login --url`, `vcs test` and the Manager's `SaveServer`/`TestCredential` verify before anything is stored. No redirect is followed with a token.
+- **TLS:** the default Go client, therefore the Windows certificate store and the Linux system bundle (`SSL_CERT_FILE`). There is no insecure-skip option; a certificate problem is reported as "certificate not trusted by this system" so a missing corporate CA is recognisable.
+- **Why:** corporate and personal projects on different hosts need per-host tokens and a place that says where each host's API lives, without putting a secret or an address guess in `vcs.md`.
+- **Consequences:** `draft` is sent but ignored by servers older than 8.18; a merge strategy the server does not enable fails with the server's message. Endpoints follow Atlassian's Data Center REST reference (fetched through Context7); nothing was run against a real server.
+- **Hardening (round 4 fixes):** (1) A registered URL must be `https://`; plain `http://` is accepted only for loopback (`localhost`, 127.0.0.0/8, `::1`). `vcs login --allow-insecure-http` overrides it for a trusted network and warns that the token travels in clear text; the Manager never overrides and answers `insecure_http`. (2) The project key and repository slug read from a remote become API path segments, so they must match `^~?[A-Za-z0-9][A-Za-z0-9._-]*$` (never `.` or `..`). (3) **One token per host name:** the registry key and the credential key are the host without the port, so a host name holds exactly one server. Registering a different URL (port, scheme, context path) or platform under a known host name, or an SSH alias that belongs to another entry, is refused with `ErrHostConflict` unless replaced explicitly (`--replace`; the Manager shows a "Replace" button and asks for the token again, and never reuses the old server's token). (4) Only HTTP 401 means "not logged in"; a 403 is a permission problem (`ErrNoPermission`, with the server's scrubbed message). (5) A server may have Git remotes on a different host than its web address: an entry may list `sshHosts` aliases (`--ssh-host`, repeatable; a field in the Manager). They only identify a remote; the token is read by the entry's web host and sent only to its URL. (6) The registry file is re-read right before each write and fsynced before the rename; a corrupt or unreadable file is an error naming the path, never "not registered". (7) Failures carry a stable `code` (`cert_untrusted`, `rejected`, `no_permission`, `unreachable`, `timeout`, `insecure_http`, `host_conflict`, `invalid_url`, `not_stored`, `unknown_host`) set from typed errors; the Manager words them from `gui.cred.err.<code>` in the language on screen and falls back to the English detail for an unknown code.
+
+## D61. GabitoTL installs Engram when a project uses it and it is missing (supersedes "never installs Engram")
+- **Decision:** when the chosen memory is Engram ("just me") and no `engram` is on `PATH`, GabitoTL installs it. New package `internal/engraminstall`, modelled on `internal/codegraph`: pinned release 3.5.2 of the official repository (`Gentleman-Programming/engram`, GoReleaser assets) with a pinned SHA-256 per asset (windows/linux amd64 and arm64, darwin), https-only download with a size cap, the hash is computed while streaming and a mismatch fails closed, only the `engram` executable is extracted (every entry name is validated: no absolute path, drive letter, `..`, link or Windows reserved name), staged next to the target and swapped in atomically with rollback.
+- **Where:** `%LOCALAPPDATA%\Programs\engram\engram.exe` on Windows, added to the user PATH through `internal/desktop.PathEnv` (a sibling of the GabitoTL folder, so uninstalling GabitoTL never removes the memory tool); `~/.local/bin/engram` on Linux and macOS, where the user PATH is only checked and reported, never edited. The process PATH is updated so the same run registers Engram's own MCP entry (`engram mcp`) in the agents.
+- **Never replaces:** an Engram found on PATH (any version) or already installed by GabitoTL is detected and left alone. Team memory (`memory-mcp`) does not install it.
+- **Wired into:** the Windows wizard plan and install (a failed install is reported as a step error and does not stop the rest), the Linux CLI `install`/`migrate`/`memory use` flow and the TUI backend (`installer.EnsureEngram`), the Doctor (fix "Install Engram"), and the Manager's Memory screen (status and Install button). Notes and the doctor line now say GabitoTL installs it; the repository link stays as the source.
+- **Why:** the user wants Engram present without leaving the product; an extra manual step with a link to someone else's repository defeated the one-click setup.
+- **Consequences:** D4's "never installed" no longer holds for the binary; the database file and `~/.engram` are still never opened or modified. Hashes were read from the release `checksums.txt` and match the GitHub API digests. Not verified: the Windows asset on a real machine, and agents that were already open need a restart to see the new PATH.
+
+## D62. Optional skills; GabitoDesign is the first
+- **Decision:** a skill may be optional (`metadata: optional: "true"`, string-only for cross-agent safety). `internal/skills` embeds the whole skill directory (`SKILL.md` plus `references/**`), `Skill` gains `Files` and `Optional`, and `runtime.Asset` carries the extra files. Optional skills are off by default; the selection is personal and global, saved in `~/.gabitotl/skills.md` (`optional: [...]`), and every path agrees on it: `install` (wizard answers `Skills`, CLI `--skill`), `runtime plan/apply/verify`, the Manager, `doctor` and `uninstall`.
+- **Mechanics:** adapters plan one whole-file asset per file (`engine.PlanSkills`), so ownership, backup, idempotence and "a file of yours is never overwritten" are unchanged. A deselected optional skill is retired with a new `REMOVE-AFTER-VERIFY` action (`engine.PlanRetireSkills`, op `remove-file`): only files the ownership state attributes to that runtime and whose content still equals what was written, and the directories GabitoTL created are pruned once empty. `installer.PlanSkillSelection/ApplySkillSelection` plan and apply the change for the agents GabitoTL already manages (backup first); the Manager (`Skills`, `PlanSkill`, `ApplySkill`, plan-first) and `gabitotl skills list|enable|disable` use them.
+- **GabitoDesign (`gabito-design`):** an original skill for any visual task (UI and web, Word, PowerPoint, PDF, spreadsheets and charts, diagrams, images and logos): four modes chosen by the surface, 23 commands, one module per medium with its own generic-output tells, and a `DESIGN.md` template. `SKILL.md` stays short and the references load on demand. Description up to 1024 characters (the length the Agent Skills format allows) so it can list the artifact types and design verbs that trigger it; the other skills keep their 300-character rule.
+- **Credit and licence:** the idea of a design skill with commands and anti-patterns follows Impeccable by Paul Bakaus (Apache-2.0, https://impeccable.style). No text, rule list, detector or template of it is included; the content is written from scratch (a test fails if the name appears outside the credit line in `SKILL.md`). Out of scope: a deterministic detector CLI, a live browser mode, telemetry.
+- **Why:** design guidance is large, useful only to some people and costs tokens; off by default with an explicit, reversible, plan-first opt-in keeps the base install small and the user in control.
+- **Consequences:** the three agents get the same files; Kiro CLI and IDE share a folder, so an entry is dropped only when its last runtime lets go. An agent that GabitoTL does not manage yet gets the skill at its next install (the choice is already saved). The TUI takes `--skill` but asks no question about it.

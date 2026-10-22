@@ -2,6 +2,7 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -297,6 +298,37 @@ func TestUninstallRemovesGuardHooksAndKeepsUserHooksByteForByte(t *testing.T) {
 	}
 	if left, _ := PlanUninstall(f.env, nil); len(left.GuardHooks) != 0 || !left.Empty() {
 		t.Fatalf("%+v", left)
+	}
+}
+
+// A guard hook failure never aborts the uninstall: it is a warning plus the
+// hooks to remove by hand, so the rest (the Windows app) still goes in one run.
+func TestUninstallGuardHookFailureIsNotFatal(t *testing.T) {
+	f := newFixture(t)
+	hooks := filepath.Join(f.root, ".git", "hooks")
+	calls := 0
+	f.runner.Handlers["git"] = func(a []string) (string, error) {
+		if len(a) > 1 && a[0] == "rev-parse" && a[1] == "--git-path" {
+			calls++
+			if calls > 1 { // the plan finds the hooks; removing them fails
+				return "", errors.New("git broke")
+			}
+			return hooks, nil
+		}
+		return "true\n", nil
+	}
+	if _, err := guard.InstallHooks(hooks, "/fake/gabitotl"); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Uninstall(f.env, nil, nil)
+	if err != nil {
+		t.Fatalf("a hook failure must not fail the uninstall: %v", err)
+	}
+	if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "git hooks") {
+		t.Fatalf("warnings %+v", res.Warnings)
+	}
+	if len(res.Manual) == 0 || !strings.HasPrefix(res.Manual[len(res.Manual)-1], "git: ") {
+		t.Fatalf("manual %+v", res.Manual)
 	}
 }
 

@@ -195,7 +195,15 @@ func Uninstall(env Env, only []string, obs Observer) (UninstallResult, error) {
 			return res, err
 		}
 	}
-	return res, uninstallGuardHooks(env, pl, &res)
+	// The guard hooks live in one repository and never block the rest: a
+	// failure there is reported with the hooks to remove by hand.
+	if err := uninstallGuardHooks(env, pl, &res); err != nil {
+		res.Warnings = append(res.Warnings, err.Error())
+		for _, h := range pl.GuardHooks {
+			res.Manual = append(res.Manual, "git: "+h.Path)
+		}
+	}
+	return res, nil
 }
 
 // uninstallGuardHooks removes the guard hooks GabitoTL installed, restoring any

@@ -61,6 +61,11 @@ parts that chats and models do not keep.
     <td valign="top">📦 <b>Single Go binary</b><br>No runtime to install. Also a full-screen installer on a terminal.</td>
     <td valign="top">🩺 <b>Doctor</b><br>A read-only health check of the install and the project.</td>
   </tr>
+  <tr>
+    <td valign="top">🪟 <b>Windows setup and Manager</b><br>One downloaded <code>.exe</code> opens a bilingual setup wizard, installs per user (no admin) and then becomes the Manager app.</td>
+    <td valign="top">🎨 <b>GabitoDesign (optional)</b><br>Design judgment for any visual task: web and UI, Word, PowerPoint, PDF, charts, diagrams and images. Four modes, 23 commands and a per-project <code>DESIGN.md</code>. Off until you turn it on.</td>
+    <td></td>
+  </tr>
 </table>
 
 ## 🔧 How it works
@@ -108,6 +113,28 @@ make build        # writes bin/gabitotl
 
 Prebuilt binaries for Linux, macOS and Windows (amd64 and arm64) are published on the
 [releases page](https://github.com/winnstorm/gabitotl/releases).
+
+### 🪟 Windows setup
+
+Download `GabitoTL-Setup-<version>-windows-amd64.exe` from the releases page and double-click it. It is a
+single file: it carries the `gabitotl` CLI inside, installs both under `%LOCALAPPDATA%\Programs\GabitoTL`,
+adds that folder to your user PATH, creates the Start menu entry (and optionally a desktop shortcut) and
+registers in Settings > Apps. No administrator rights are needed. Afterwards the same app is the Manager
+(doctor, integrations, settings, backups, uninstall).
+
+A preview build is published as the [v0.3.0-dev pre-release](https://github.com/winnstorm/gabitotl/releases/tag/v0.3.0-dev).
+It includes the Windows Manager, Bitbucket Data Center support and the optional GabitoDesign skill. Install,
+the Manager and uninstall have been tried on a real Windows machine; it is still a pre-release.
+
+> Screenshot: to be added once the first signed-off Windows build is published (no mock image on purpose).
+
+Build it yourself (cross-compiles from Linux or macOS, no CGO, no wails CLI):
+
+```bash
+make manager-windows VERSION=0.3.0   # writes dist/GabitoTL-Setup-0.3.0-windows-amd64.exe
+```
+
+See [docs/GUIDE.md](docs/GUIDE.md#windows-setup-and-manager) for details.
 
 Requires Go 1.26 (see `go.mod`) to build, and Git. Engram, Claude Code, OpenCode, Kiro and `gh` are optional:
 GabitoTL detects what exists and never installs a missing tool behind your back.
@@ -204,6 +231,45 @@ Eight skills are installed next to the persona: `gabito-orquestador`, `gabito-re
 one rule, "load the matching skill", so the base prompt stays small. More: [Skills](docs/GUIDE.md#skills),
 [at a glance](docs/GUIDE.md#the-skills-at-a-glance).
 
+A ninth, **optional** skill, `gabito-design`, is described in the next section.
+
+## 🎨 GabitoDesign (optional)
+
+`gabito-design` gives agents design judgment for any visual task, so the result looks intended instead of
+generic. It loads on its own when the agent has to design, restyle, critique or polish something, and it works
+next to the format skills (docx, pptx, pdf, xlsx): those produce the file, GabitoDesign decides how it looks.
+
+| Medium | What it covers |
+|---|---|
+| 🌐 Web and UI | pages, apps, components and CSS |
+| 📄 Documents | Word, PDF, reports, letters and one-pagers |
+| 📊 Presentations | PowerPoint, Keynote and pitch decks |
+| 📈 Data | spreadsheets, charts, dashboards and tables |
+| 🧭 Diagrams | flows, architecture and maps |
+| 🖼️ Images | logos, icons, posters and covers |
+
+- **Four modes**, picked by the surface: *Persuade* (landing pages, decks, posters), *Experience* (onboarding,
+  portfolios, editorial), *Operate* (dashboards, tools, forms) and *Read* (long documents, reports, docs).
+- **23 commands** you invoke by naming them, for example `critique`, `audit`, `polish`, `typeset`, `layout`,
+  `colorize`, `distill`, `harden`, `bolder`, `quieter` and `variants`.
+- **A quality floor and an anti-patterns list per medium**, so typical AI tells (default gradients, everything
+  centered, emoji bullets, unreadable charts) get caught.
+- **`DESIGN.md` per project**: the type scale, color roles and spacing are written down once and reused, so the
+  design stays consistent across sessions.
+
+It is **off by default**. Turn it on in the setup (*Extras* card in the Profile step), in the Manager
+(*Integrations › Optional skills*, shows the plan first) or from the CLI:
+
+```bash
+gabitotl skills list
+gabitotl skills enable gabito-design --dry-run   # see what would change
+gabitotl skills enable gabito-design             # Claude Code, OpenCode and Kiro
+gabitotl skills disable gabito-design            # removes only its own, unedited files
+```
+
+The content is original and Apache-2.0, inspired by [Impeccable](https://impeccable.style) by Paul Bakaus.
+More: [GabitoDesign](docs/GUIDE.md#gabitodesign-optional).
+
 ## 🔎 Code index and 🔄 migration
 
 `gabitotl index status` shows an optional code index (CodeGraph first); it never installs one. Coming from
@@ -213,7 +279,7 @@ Gentle-AI? `gabitotl migrate gentle-ai` snapshots, imports, verifies and only th
 ## 🧭 Roadmap and status
 
 V1 is deliberately small: the core is in place, and some paths are tested only against fakes (Kiro, the real Git
-hosts), and Windows is untested. See [Status and limitations](docs/GUIDE.md#status-and-limitations) and
+hosts), and Windows has been tried by hand on one machine. See [Status and limitations](docs/GUIDE.md#status-and-limitations) and
 [docs/ROADMAP.md](docs/ROADMAP.md). Also: [Security](docs/GUIDE.md#security),
 [Project layout](docs/GUIDE.md#project-layout).
 

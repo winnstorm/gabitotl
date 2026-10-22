@@ -30,6 +30,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
+	"github.com/winnstorm/gabitotl/internal/procattr"
+
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
 	"github.com/winnstorm/gabitotl/internal/memory/engram"
@@ -48,7 +51,7 @@ type ExecRunner struct{}
 
 // Run implements Runner.
 func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) ([]byte, []byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, name, args...))
 	cmd.Dir = dir
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
@@ -70,6 +73,9 @@ type Env struct {
 	Runtimes    *rt.Registry
 	Migrators   *migrate.Registry
 	Version     string
+	// Engram installs Engram when the chosen memory needs it and it is missing
+	// (see EnsureEngram). Nil means the caller does not install it.
+	EngramSetup *engraminstall.Installer
 	// OpenMemory builds the memory provider used to save imported knowledge.
 	// Nil means imports are only recorded in imports.md.
 	OpenMemory func(cfg gabitotl.MemoryConfig) (memory.Provider, error)

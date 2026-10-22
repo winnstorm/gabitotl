@@ -7,6 +7,7 @@ import (
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory/mcp"
 	"github.com/winnstorm/gabitotl/internal/vcs"
+	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
 // vcsRunner adapts the installer's injected Runner to the vcs.Runner the hosts use.
@@ -31,14 +32,18 @@ func gitAuthLines(ctx context.Context, env Env, cfg gabitotl.VCSConfig, inferred
 		return nil
 	}
 	provider := cfg.Provider
-	if provider != "github" && provider != "gitlab" && provider != "bitbucket" {
+	if provider != "github" && provider != "gitlab" && provider != "bitbucket" && provider != "bitbucket-server" {
 		provider = inferred
 	}
 	switch provider {
-	case "github", "gitlab":
+	case "github", "gitlab", "bitbucket-server":
 		ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
-		h, err := vcs.HostFor(provider, vcs.HostOptions{Runner: vcsRunner{env}})
+		var run vcs.Runner = vcsRunner{env}
+		if _, real := env.Runner.(ExecRunner); real {
+			run = vcs.ExecRunner{} // lets a stored token reach gh and glab (D56)
+		}
+		h, err := vcs.HostFor(provider, vcs.HostOptions{Runner: run, Servers: vcshosts.NewFile(env.Home)})
 		if err != nil {
 			return nil
 		}
@@ -49,7 +54,8 @@ func gitAuthLines(ctx context.Context, env Env, cfg gabitotl.VCSConfig, inferred
 		return authLine(st)
 	case "bitbucket":
 		lookup := mcp.Resolver{Getenv: env.Getenv, Home: env.Home}.Lookup
-		if _, err := vcs.ResolveCredential(cfg.Auth, lookup); err != nil {
+		_, err := vcs.ResolveCredential(cfg.Auth, lookup)
+		if _, stored := storedVCSToken("bitbucket.org"); err != nil && !stored {
 			return []Line{{LineWarn, DocGitAuthTodo, "gabitotl vcs login"}}
 		}
 		return []Line{{LineOK, DocGitAuth, "bitbucket"}}
@@ -67,4 +73,11 @@ func authLine(st vcs.AuthState) []Line {
 		return []Line{{LineWarn, DocGitAuthTodo, st.Command}}
 	}
 	return nil
+}
+
+func storedVCSToken(host string) (string, bool) {
+	if vcs.DefaultTokens == nil {
+		return "", false
+	}
+	return vcs.DefaultTokens(host)
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/installer"
 	"github.com/winnstorm/gabitotl/internal/installer/ui"
@@ -26,6 +27,7 @@ import (
 
 // Composition-root hooks, replaced by tests so no real home, PATH or command runs.
 var (
+	engramInstallerFn = engraminstall.Default
 	installerRunnerFn = func() installer.Runner { return installer.ExecRunner{} }
 	installerEnvFn    = func(root string) (installer.Env, error) {
 		renv, err := runtimeEnvFn(root)
@@ -37,6 +39,7 @@ var (
 			Home: renv.Home, ProjectRoot: root, GOOS: renv.GOOS, GOARCH: goruntime.GOARCH,
 			Getenv: renv.Getenv, Environ: os.Environ, LookPath: renv.LookPath, Runner: installerRunnerFn(), Now: renv.Now,
 			Runtimes: registryFn(), Migrators: migratorRegistry(), Version: version.Version, Team: teamEnv(),
+			EngramSetup:  engramInstallerFn(),
 			GuardHooks:   autoHooks,
 			OpenMemory:   func(cfg gabitotl.MemoryConfig) (memory.Provider, error) { return newProvider(cfg) },
 			RenderReport: ui.ReportRenderer(m),
@@ -101,6 +104,7 @@ type installFlags struct {
 	retireGentleKiro                        bool
 	noGuardHooks                            bool
 	personaLang                             string
+	skills                                  listFlag // optional skills to turn on (kept for later runs)
 	delivery                                deliveryFlags
 
 	// Team memory (flags of the plain flow; the TUI asks the same things).
@@ -131,6 +135,7 @@ func (f *installFlags) bind(fs *flag.FlagSet, migrate bool) {
 	fs.StringVar(&f.memoryInstance, "memory-instance", "", "host: named instance of the managed server")
 	fs.BoolVar(&f.importEngram, "import-engram", false, "host: import the Engram memory into the team memory (safety export first; Engram stays intact)")
 	fs.StringVar(&f.personaLang, "persona-lang", "", "language of Gabito's chat voice: es (Argentine Spanish, default) or en (English); kept for later runs")
+	fs.Var(&f.skills, "skill", "optional skill to install, for example gabito-design (repeatable; added to the ones already on)")
 	fs.BoolVar(&f.noGuardHooks, "no-guard-hooks", false, "do not install the Git hooks of the authorship guard (remembered in workflow.md)")
 	f.delivery.bind(fs)
 	fs.BoolVar(&f.removeGentle, "remove-gentle-ai", false, "retire Gentle-AI with its own uninstall, only after every verification passes")
@@ -305,6 +310,10 @@ func execute(env Env, f installFlags, source string) int {
 	if opts.UserName == "" {
 		opts.UserName = f.user
 	}
+	if err := withSkills(&opts, ienv.Home, f.skills); err != nil {
+		fmt.Fprintf(env.Stderr, "gabitotl install: %v\n", err)
+		return ExitUsage
+	}
 
 	if interactive {
 		pr.Onboard(&opts, openQuestions(root, ienv.Home, inv, opts), suggestName(ctx, ienv, root))
@@ -364,6 +373,7 @@ func execute(env Env, f installFlags, source string) int {
 		hooks.ConfirmRetire = pr.RetireHook()
 	}
 	fmt.Fprintln(env.Stdout)
+	inv, plan = ensureEngramCLI(ctx, env, m, ienv, inv, plan)
 	res, err := installer.Run(ctx, ienv, inv, plan, func(e installer.Event) { ui.RenderEvent(env.Stdout, m, e) }, hooks)
 	ui.RenderOutcome(env.Stdout, env.Stderr, m, res, inv, paths, err)
 	if err != nil {

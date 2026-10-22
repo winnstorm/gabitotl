@@ -22,6 +22,7 @@ var subcommandGroups = map[string][]string{
 	"worktree": {"add", "list", "remove"},
 	"backup":   {"create", "list", "restore", "prune"},
 	"index":    {"status", "setup"},
+	"skills":   {"list", "enable", "disable"},
 	"memory":   {"doctor", "search", "context", "compact", "use", "server", "serve", "token", "mcp", "migrate"},
 }
 

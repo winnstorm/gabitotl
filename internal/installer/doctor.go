@@ -58,6 +58,8 @@ const (
 	DocRuntimeConflict    = "doctor.runtime.persona-conflict"
 	DocRuntimeGentleKiro  = "doctor.runtime.gentle-kiro"
 	DocRuntimePersonaLang = "doctor.runtime.persona-lang"
+	DocRuntimeSkills      = "doctor.runtime.skills"      // optional skills that are on
+	DocRuntimeSkillsNone  = "doctor.runtime.skills-none" // optional skills exist and none is on
 	DocGitRepo            = "doctor.git.repo"
 	DocGitNoRepo          = "doctor.git.no-repo"
 	DocGitProvider        = "doctor.git.provider"
@@ -83,7 +85,7 @@ var DoctorCodes = []string{
 	DocCoreVersion, DocCorePlatform, DocCoreGit, DocCoreGitMissing, DocProjectNone, DocProjectMissing, DocProjectOK,
 	DocProjectInvalid, DocMemEngram, DocMemEngramMissing, DocMemEngramOptional, DocMemEngramNoBin, DocMemDoctorOK, DocMemDoctorBad,
 	DocMemProject, DocMemProjectUnknown, DocMemMCP, DocMemMCPNone, DocMemMCPPending, DocMemTeamOK, DocMemTeamWarn, DocMemTeamBad, DocMemTeamContainer, DocMemTeamNone, DocMemChosen, DocMemMismatch, DocMemSharedLoopback, DocMemLegacyFields, DocMemTeammate, DocRuntimeOK, DocRuntimeDrift,
-	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocRuntimePersonaLang, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
+	DocRuntimeTodo, DocRuntimeHistory, DocRuntimeConflict, DocRuntimeGentleKiro, DocRuntimePersonaLang, DocRuntimeSkills, DocRuntimeSkillsNone, DocGitRepo, DocGitNoRepo, DocGitProvider, DocGitDelivery, DocGitDeliveryTodo, DocGitProviderDiffer, DocGitAuth, DocGitAuthTodo, DocGitAuthTool, DocGitIdentity,
 	DocGitNoIdentity, DocLegacyGentle, DocLegacyBackups, DocLegacySnapshots, DocLegacyNone,
 	DocGuardMode, DocGuardHooksOK, DocGuardHooksMissing, DocGuardHooksDeclined, DocGuardRuntimeOK, DocGuardRuntimeTodo,
 	DocGuardRuntimeCustom, DocGuardRuntimeNone, DocGuardScanClean, DocGuardScanFound, DocGuardHistory,
@@ -241,6 +243,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	managed := 0
 	plang, _ := gabitotl.LoadPersonaLang(env.Home)
 	mcp, extra, retire := rt.MemoryFor(provider, m.HasBinary)
+	skillSet, retireSkills := SavedSkillSet(env.Home)
 	for _, r := range inv.Runtimes {
 		if r.State == rt.StateNone {
 			continue
@@ -251,7 +254,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		case isManaged:
 			managed++
 			bad := ""
-			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(plang), Skills: SkillAssets(), Memory: mcp, MemoryExtra: extra, RetireMemory: retire, Version: env.Version}) {
+			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(plang), Skills: skillSet, RetireSkills: retireSkills, Memory: mcp, MemoryExtra: extra, Tools: CodeGraphTools(renv, false), RetireMemory: retire, Version: env.Version}) {
 				if !c.OK {
 					bad = c.Name + ": " + c.Detail
 					break
@@ -284,6 +287,11 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	add("memory", mem...)
 	if managed > 0 {
 		rts = append(rts, L(LineOK, DocRuntimePersonaLang, string(plang)))
+		if on := SelectedSkills(gabitotl.LoadOptionalSkills(env.Home)); len(on) > 0 {
+			rts = append(rts, L(LineOK, DocRuntimeSkills, strings.Join(on, ", ")))
+		} else if len(OptionalSkills()) > 0 {
+			rts = append(rts, L(LineOK, DocRuntimeSkillsNone, strings.Join(OptionalSkills(), ", ")))
+		}
 	}
 	add("runtimes", rts...)
 

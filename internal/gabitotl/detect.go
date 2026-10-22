@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Signals are the facts DetectKind looks at (spec section 11).
@@ -62,7 +64,7 @@ func DetectSignals(root string) (Signals, error) {
 // gitListing lists tracked plus untracked-not-ignored files (honouring
 // .gitignore without walking directories); ok is false outside a repository.
 func gitListing(root string) ([]string, bool) {
-	out, err := exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
+	out, err := procattr.NoWindow(exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")).Output()
 	if err != nil {
 		return nil, false
 	}
@@ -136,7 +138,7 @@ func hasGitHistory(root string) bool {
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		return false
 	}
-	cmd := exec.Command("git", "-C", root, "rev-list", "-n", "1", "HEAD")
+	cmd := procattr.NoWindow(exec.Command("git", "-C", root, "rev-list", "-n", "1", "HEAD"))
 	return cmd.Run() == nil
 }
 
@@ -163,7 +165,7 @@ func FindRoot(start string) (string, error) {
 		return "", err
 	}
 	root := abs
-	cmd := exec.Command("git", "-C", abs, "rev-parse", "--show-toplevel")
+	cmd := procattr.NoWindow(exec.Command("git", "-C", abs, "rev-parse", "--show-toplevel"))
 	if out, err := cmd.Output(); err == nil {
 		if top := strings.TrimSpace(string(out)); top != "" {
 			root = top
@@ -178,6 +180,9 @@ func FindRoot(start string) (string, error) {
 // ValidateRoot refuses directories that are never legitimate project roots:
 // the filesystem root, $HOME and the system temporary directories themselves.
 func ValidateRoot(root string) error {
+	if IsFilesystemRoot(root) {
+		return fmt.Errorf("refusing to use %s as a project root", root)
+	}
 	clean := resolve(root)
 	unsafe := []string{"/", os.TempDir(), "/tmp", "/var/tmp"}
 	if home, err := os.UserHomeDir(); err == nil {
@@ -197,4 +202,22 @@ func resolve(p string) string {
 		return r
 	}
 	return p
+}
+
+// IsFilesystemRoot reports a path that is a filesystem root on any OS: "/", a
+// Windows drive root (C:, C:\, C:/) or a UNC share root (\\host\share). It is a
+// pure string check, so it behaves the same on every platform.
+func IsFilesystemRoot(p string) bool {
+	q := strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
+	if q == "" {
+		return false
+	}
+	if strings.HasPrefix(q, "//") {
+		parts := strings.FieldsFunc(q, func(r rune) bool { return r == '/' })
+		return len(parts) <= 2
+	}
+	if len(q) >= 2 && q[1] == ':' && ((q[0] >= 'a' && q[0] <= 'z') || (q[0] >= 'A' && q[0] <= 'Z')) {
+		return strings.Trim(q[2:], "/") == ""
+	}
+	return strings.Trim(q, "/") == "" && strings.HasPrefix(q, "/")
 }

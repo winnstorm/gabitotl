@@ -35,5 +35,10 @@ func (b envBackend) BuildPlan(ctx context.Context, inv installer.Inventory, o in
 }
 
 func (b envBackend) Run(ctx context.Context, inv installer.Inventory, pl installer.Plan, obs installer.Observer, h installer.Hooks) (installer.Result, error) {
+	// Engram first when the project uses it and it is missing; a failure only
+	// leaves the install as it was (the plan notes the missing binary).
+	if inv2, pl2, _, err := installer.EnsureEngram(ctx, b.env, inv, pl, nil); err == nil {
+		inv, pl = inv2, pl2
+	}
 	return installer.Run(ctx, b.env, inv, pl, obs, h)
 }

@@ -5,13 +5,14 @@ The detailed reference for GabitoTL. The [README](../README.md) is the short tou
 ## Contents
 
 - [The installer screen (TUI)](#the-installer-screen-tui)
+- [Windows setup and Manager](#windows-setup-and-manager)
 - [Core concepts](#core-concepts)
 - [Commands](#commands)
 - [Authorship: no AI branding](#authorship-no-ai-branding)
 - [Team memory](#team-memory) and [Changing the provider](#changing-the-provider)
 - [Who is here](#who-is-here)
 - [The Gabito persona](#the-gabito-persona): [Saving tokens](#saving-tokens), [Kiro](#kiro), [Chat modes](#chat-modes), [Persona language](#persona-language)
-- [Skills](#skills)
+- [Skills](#skills) and [GabitoDesign (optional)](#gabitodesign-optional)
 - [Code index (optional)](#code-index-optional)
 - [Migrating from Gentle-AI](#migrating-from-gentle-ai)
 - [Delivery settings](#delivery-settings) and [Platforms and login](#platforms-and-login)
@@ -41,6 +42,82 @@ follows terminal resizes, and honors `NO_COLOR` (symbols, never color alone, car
 
 The TUI opens only when stdin **and** stdout are terminals. `--no-tui`, `--yes`, `--dry-run`,
 pipes and `migrate` keep the plain text flow; `doctor` is always plain text.
+
+## Windows setup and Manager
+
+**Install.** Download `GabitoTL-Setup-<version>-windows-amd64.exe` and run it. The wizard (Spanish or English)
+detects your agents, shows a plan of everything it will change, and only applies it after you confirm.
+It needs no administrator rights: everything is per user.
+
+In the wizard, the steps on the left are clickable once you have finished them: select one to go back and
+change an answer (your answers are kept and the plan is always recomputed before the install). Every option
+(agents, chat mode, memory, delivery, shortcuts, CodeGraph) is a card; hover it, focus it or press its (i)
+button to see what it does, when to pick it, which files change on your machine and a small diagram. Press
+Escape to close it. The same popovers explain the main actions of the Manager. Animations respect the
+system's reduced-motion setting, and the app follows the system's light or dark theme.
+
+The setup is always global and never asks for a project folder. Its delivery step saves your defaults
+(automation, merge method, draft PRs, branch cleanup) for all projects; a project can override them later from
+the Manager. You can also paste an access token per platform (GitHub, GitLab, Bitbucket): it is verified with
+the platform and stored in the Windows Credential Manager, never in a file or shown again. Skipping it is fine. Each stored token has a "Test connection" button.
+For a company server (Bitbucket Data Center, GitHub Enterprise, GitLab self-managed) use "Add your own server":
+choose the platform, enter the server address (for example `https://bitbucket.example.com:8443`) and an access
+token, then "Save and verify". Nothing is stored unless the server accepts the token; certificate problems are
+shown as they are. The Manager has the same section under Global, Delivery & credentials, and a project's
+delivery tab shows which server its remote uses.
+CodeGraph (the code index for your agents) is a required component and is installed by the setup; guard hooks and
+per-project indexing are project-level and live in the Manager.
+
+**Where things go.**
+
+- `%LOCALAPPDATA%\Programs\GabitoTL\gabitotl-manager.exe` (the app) and `gabitotl.exe` (the CLI, bundled inside the setup).
+- That folder is appended to your user `PATH`, so `gabitotl` works in new terminals.
+- A Start menu entry, an optional desktop shortcut, and an entry in Settings > Apps.
+- GabitoTL's own data stays where the CLI keeps it (`~/.gabitotl`, per-project `.gabitotl/`).
+
+**The Manager.** After setup the same app opens as the Manager, in two levels. Every change is shown as a plan
+first and nothing runs until you accept it.
+
+- **Global** (applies to every project): Overview, Delivery & credentials (your defaults for automation, merge
+  method, draft PRs and branch cleanup, plus one access token per platform), CodeGraph (status, install, repair or
+  upgrade, and which agents have its server), Integrations (Claude Code, OpenCode, Kiro), Persona, Doctor, Windows
+  integration, Backups and Uninstall.
+- **Projects**: a searchable list of the folders GabitoTL knows (`.gabitotl/`) plus the projects your agents
+  already know from Claude Code, OpenCode and Kiro, with a badge per source and "Not set up" for folders without
+  `.gabitotl`. Use "Add folder..." for anything else, "Forget" to drop a row (nothing on disk changes). Opening a
+  project shows its tabs: Overview (git, platform detected from the remote, and "Set up GabitoTL in this project"
+  when it is missing), Delivery (the effective values and where they come from: this project, your global defaults
+  or the built-in ones; override them for this project or go back to the global defaults; shows whether the token of
+  the project's host is stored), Code index (index or re-index with CodeGraph; the run can be cancelled), Guard
+  hooks, Memory, Doctor, Integrations (project scope) and Backups. Tabs that need `.gabitotl` explain that and offer
+  the setup first.
+
+**CodeGraph (required).** The setup installs CodeGraph 1.6.2 for your user (`%LOCALAPPDATA%\codegraph\current`,
+added to your user PATH; no Node or npm needed) after checking the download against a pinned SHA-256, and
+registers its MCP server (`cmd /c codegraph serve --mcp`) in each agent GabitoTL manages. If the check fails nothing
+is installed and no agent is configured. The Manager can repair or upgrade it. On Linux and macOS install it with
+`npm install -g @colbymchenry/codegraph`.
+
+**Uninstall.** Use Settings > Apps > GabitoTL Manager > Uninstall, or the Manager's uninstall screen. It removes
+the shortcuts, the PATH entry, the registration and the installed files; your projects and backups are kept
+unless you explicitly choose to purge them (it asks you to type the volume name).
+
+**Troubleshooting.** The setup and the Manager write a diagnostics log to
+`%LOCALAPPDATA%\GabitoTL\logs\manager.log` (rotated at about 1 MB, one previous file kept as `manager.log.1`).
+It records the version, the screen chosen, the WebView2 runtime found, startup steps, every error returned to the
+screen, panics with their stack and what Finish tried to launch; it never records tokens or credential values.
+If GabitoTL does not open or stops, a message box names this file. The Manager's Health check has an
+"Open log folder" button. When something fails, attach the log to your report. The setup and the installed
+Manager keep separate WebView2 data folders under `%LOCALAPPDATA%\GabitoTL` (`webview-setup`, `webview`).
+
+**Stuck copies or leftovers after uninstall.** Install, upgrade and uninstall close running copies of GabitoTL for
+you (the plan says how many; unsaved work in them is lost). If a copy is stuck without a window and something is
+left behind, clean up by hand: run `taskkill /F /IM gabitotl-manager.exe` in a terminal, then delete the folder
+`%LOCALAPPDATA%\Programs\GabitoTL` (and `%LOCALAPPDATA%\GabitoTL` if you also want the logs and WebView2 data
+gone). The automatic cleanup writes what it could not delete to `%TEMP%\gabitotl-uninstall.log`.
+
+Limits: Windows is covered by unit tests and a CI build only; the GUI has not been exercised on a real machine
+yet.
 
 ## Core concepts
 
@@ -96,6 +173,7 @@ If memory contradicts the code, the code wins and the memory gets fixed.
 | `runtime list \| detect \| plan \| apply \| verify \| remove \| set` | Per-runtime configuration and model choice. |
 | `import detect \| run` | Read-only knowledge importers (Kiro, Gentle-AI, Engram, instruction files). |
 | `persona print [--stats] [--lang es\|en]` | Print the persona prompt (the language chosen at install unless `--lang` is given). |
+| `skills list \| enable <name> \| disable <name> [--dry-run]` | Optional skills (today `gabito-design`, see [GabitoDesign](#gabitodesign-optional)). Plan, backup and verify like the other agent changes. `install --skill <name>` turns one on at install. |
 | `persona mode [normal\|lite\|full]` | Show or set how short your chat replies are (personal, chat only). |
 | `context add \| report --tokens N \| check [--json] \| checkpoint` | Context budget (75% rule): one compact line, never fails. `checkpoint` saves progress and a session summary to memory. `context hook` is called by the host, not by you. |
 | `stats [--json] [--since 7d]` | Per person: context use and checkpoints, bytes and estimated tokens kept out of the context by `run` and `memory context`, the always-on cost per chat and the code index status. Missing data counts as zero; it never fails. |
@@ -133,8 +211,13 @@ Both providers are available on every machine and the choice is **per project**,
 `provider` field of `.gabitotl/memory.md`: a solo project uses Engram, a team project uses the
 shared server. The installer registers the same bridge entry for everyone (plus Engram's own
 `engram mcp` entry when the binary is on `PATH`) and reports each provider separately; a missing
-Engram or an unreachable server never fails an install. GabitoTL never installs Engram: get it
-from https://github.com/Gentleman-Programming/engram.
+Engram or an unreachable server never fails an install. When the chosen memory is Engram and the
+`engram` program is missing, GabitoTL installs it: a pinned release (3.5.2) of the official repository
+https://github.com/Gentleman-Programming/engram, downloaded over https and checked against its
+SHA-256 (a mismatch installs nothing). It goes to `%LOCALAPPDATA%\Programs\engram` on Windows
+(added to your user PATH) and to `~/.local/bin` on Linux and macOS (GabitoTL warns if that folder is
+not on your PATH). An Engram you already have, of any version, is used as it is and never replaced.
+The Manager's Memory screen and the Doctor show whether it is installed and offer "Install Engram".
 
 The provider is chosen by one question, never by a command: "Do you work on this project alone or
 with other people?" (`init` and the installer). Alone means Engram; with other people means the
@@ -609,6 +692,43 @@ Gabito: Falló por el escapado. No reintento: escribo .gabitotl/tmp/find_names.p
 - Every skill carries `metadata.author: gabitotl`, and a test fails if a skill mentions a `gabitotl` command that
   does not exist, so the skills cannot drift from the binary.
 
+## GabitoDesign (optional)
+
+`gabito-design` is an optional skill: design judgment for any visual task. It is **off by default** and nothing is
+installed for it until you turn it on. Your agent loads it by itself on UI and web pages, Word, PowerPoint, PDF,
+spreadsheets and charts, diagrams, images, logos and posters, and on requests such as "design", "critique",
+"polish", "audit" or "make it look better". It is meant to be used next to the skill that produces the file
+(docx, pptx, pdf, xlsx); this one decides how the result should look.
+
+What it contains (all under `gabito-design/` in each agent's skills folder):
+
+- `SKILL.md`: how to pick one of four modes by the surface (Persuade for marketing and decks, Experience for
+  immersive products, Operate for dashboards, tools and forms, Read for long documents), a routing table and a
+  universal quality floor (hierarchy, contrast to WCAG 2.2 AA, spacing scale, grid, type scale, restraint, real
+  content, accessibility).
+- `references/commands.md`: 23 commands you invoke by naming them ("gabito-design critique", "polish this"):
+  context, document, extract, shape, craft, critique, audit, polish, distill, harden, onboard, bolder, quieter,
+  animate, colorize, typeset, layout, delight, overdrive, clarify, adapt, optimize, variants.
+- One module per medium, each with principles, a quality floor and its own list of generic-output tells: web and
+  UI, documents (Word, PDF), presentations, data and charts (spreadsheets), diagrams, images and logos.
+- `references/design-md.md`: a template for a `DESIGN.md` in your project (type scale, color roles, spacing,
+  radii, motion) that the `context` command writes and later tasks reuse.
+
+The references are read only when a task needs them, so the always-on cost is the skill description.
+
+**Turn it on or off**
+
+- Windows setup: Profile step, "Extras", the GabitoDesign card (hover it or press (i) to see what changes).
+- Windows Manager: Integrations, "Optional skills". It shows the plan (the files per agent) before it applies.
+- Linux CLI: `gabitotl skills list`, `gabitotl skills enable gabito-design [--dry-run]`,
+  `gabitotl skills disable gabito-design`, or `gabitotl install --skill gabito-design` (repeatable, added to the
+  ones already on; the TUI takes the same flag). `gabitotl doctor` shows which optional skills are on.
+
+The choice is saved in `~/.gabitotl/skills.md` and applied to every agent GabitoTL manages (Claude Code,
+OpenCode, Kiro). Turning it off removes only the files GabitoTL wrote; a file of yours inside the skill folder
+stays. Each change takes a backup first. `gabito-design` is an original work inspired by Impeccable by Paul Bakaus
+(Apache-2.0, https://impeccable.style); no Impeccable text or code is included.
+
 ## Code index (optional)
 
 An index lets the agent ask "who calls X" in one call instead of reading files. GabitoTL detects one if you have it
@@ -736,9 +856,33 @@ deleted when it is exactly what `origin` has, so nothing unpublished is ever los
 | GitHub | the `gh` CLI (`pr create`, `pr merge`, `pr edit --base`, `pr checks`) | `gh auth login` |
 | GitLab (gitlab.com and self-managed) | the `glab` CLI (`mr create`, `mr merge`, `mr update`, `mr view`) | `glab auth login` |
 | Bitbucket **Cloud** | the REST API 2.0 over HTTPS | a token in an environment variable |
+| Bitbucket **Server / Data Center** (your own server) | the REST API 1.0 over HTTPS | `gabitotl vcs login --url ...` |
 
-Bitbucket Server and Data Center are **not supported**; `vcs login` and `vcs status` say so. Azure DevOps and
-a generic Git host have no pull request support yet.
+Azure DevOps and a generic Git host have no pull request support yet.
+
+**Your own Bitbucket Data Center.** Register the server once and store an HTTP access token (Bitbucket >
+Profile > Personal access tokens, with project and repository write):
+
+```
+export BITBUCKET_SERVER_TOKEN=...          # or: --token-env NAME, or pipe the token with --token-stdin
+gabitotl vcs login --url https://bitbucket.personal.corp:8443
+gabitotl vcs test --host bitbucket.personal.corp   # re-check the stored token any time
+```
+
+The token is verified against the server first; only then is the server written to the non-secret
+`~/.gabitotl/vcs-hosts.json` (host, platform, web URL with port and context path) and the token to your
+credential store under the host name (without port). A project whose `origin` is on that host (https
+`.../scm/PROJ/repo.git`, `ssh://git@host:7999/proj/repo.git` or `git@host:proj/repo.git`) then uses
+`bitbucket-server` automatically; the API address always comes from the registry, never from the SSH port.
+Certificates are checked with your operating system's trust store (install your corporate CA there); there
+is no option to skip the check, and an untrusted certificate is reported as such. `vcs login --url` also
+accepts `--platform github` or `--platform gitlab` for GitHub Enterprise and self-managed GitLab.
+
+The address must be `https://` (plain `http://` only for localhost; `--allow-insecure-http` overrides it for a
+trusted network and sends the token in clear text). One host name holds one server and one token: registering
+a different address under a known host name is refused unless you pass `--replace`. If the server's Git
+remotes use another host name than its web address, add it with `--ssh-host ssh.example.com` (repeatable); the
+token is still only sent to the web address.
 
 `gabitotl vcs login` detects the platform (the one in `vcs.md`, else the one `origin` points at):
 
@@ -750,9 +894,20 @@ a generic Git host have no pull request support yet.
   (default `BITBUCKET_TOKEN`; a plain token is sent as a Bearer token, `user:app-password` as Basic),
   verifies it with `GET /2.0/user`, and saves the reference `auth: env:NAME` in your own
   git-ignored `.gabitotl/local/users/<id>/vcs.md`. With `--store-token` (or by answering yes on a
-  terminal) it also copies the token into the same 0600 secrets file the team-memory token uses
-  (`~/.gabitotl/secrets/memory-client.env`), so runtimes that start without your shell can use it.
+  terminal) it also stores the token in your user credential store under `bitbucket.org` (Windows
+  Credential Manager, target `gabitotl:vcs:bitbucket.org`; elsewhere a 0600 file at
+  `~/.gabitotl/secrets/vcs-credentials`), so runtimes that start without your shell can use it. The
+  token is looked up in the process environment and the `env:NAME` reference first, then in the store.
   The token is never written under `.gabitotl/`, never printed and never part of an error message.
+
+**Global defaults and credentials.** GabitoTL is installed once per user, so delivery defaults live in
+`~/.gabitotl/vcs.md` (same format as a project's `vcs.md`; settings only, never a token or an `auth`
+reference). A project's settings are layered: built-in defaults, then that global file, then the
+project's team `.gabitotl/vcs.md`, then your own local file; the later layer wins per key, so projects
+that already have a `vcs.md` behave as before. The provider still comes from the project's remote.
+Tokens per platform host (`github.com`, `gitlab.com`, `bitbucket.org` or a custom host) are kept in the
+OS credential store; the Manager verifies a token against the platform API before storing it and never
+shows it again.
 
 Flags for scripts: `--token-env NAME`, `--store-token`, `--check` (only verify; never log in or change
 anything). `vcs status` shows an `auth:` line (`ok`, what is missing with the exact fix, or `n/a`) and

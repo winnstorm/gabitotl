@@ -42,7 +42,10 @@ type Options struct {
 	PreserveEngram   bool // informational: Engram is always adopted, never copied
 	// PersonaLang is the language of Gabito's chat voice, es | en (D54). Empty: the
 	// choice saved by a previous install, else es.
-	PersonaLang  string
+	PersonaLang string
+	// CodeGraph registers the CodeGraph MCP server in the agents even before the
+	// binary exists (the setup installs it in the same run). Windows only.
+	CodeGraph    bool
 	NoGuardHooks bool // do not install the authorship guard Git hooks (remembered in workflow.md)
 	DryRun       bool
 
@@ -57,6 +60,11 @@ type Options struct {
 	ServerPort     int      // host: published loopback port (0: automatic)
 	ServerInstance string   // host: named instance of the managed server
 	ImportEngram   bool     // host: import the Engram memory into the team memory (needs the safety export)
+
+	// OptionalSkills are the optional skills to install (D62); only meaningful
+	// with SetOptionalSkills. Without it the selection saved earlier stays.
+	OptionalSkills    []string
+	SetOptionalSkills bool
 
 	// Delivery holds the answers to the delivery questions (commit, push, PR, merge),
 	// asked once and saved in vcs.md (docs/DECISIONS.md D33).
@@ -127,10 +135,16 @@ type Plan struct {
 	ProjectFiles []string       // .gabitotl files Init would create (absolute paths)
 	Memory       rt.MemoryMCP   // the bridge: it routes by the provider of each project
 	MemoryExtra  []rt.MemoryMCP // Engram's own entry, when its binary is present
+	Tools        []rt.MemoryMCP // CodeGraph's MCP entry (Windows)
 	RetireMemory []string       // memory MCP entries that are obsolete (Engram's entry once its binary is gone)
 	Team         *TeamPlan
-	MemoryChoice string
-	GentleArgs   []string // gentle-ai uninstall arguments, nil when not retiring
+	// skills and retireSkills are the skill assets this plan installs and the
+	// unselected optional skills it removes; optionalSkills is the selection.
+	skills         []rt.Asset
+	retireSkills   []string
+	optionalSkills []string
+	MemoryChoice   string
+	GentleArgs     []string // gentle-ai uninstall arguments, nil when not retiring
 	// GentleKiro is Gentle AI's footprint in the Kiro trees of the selected
 	// runtimes; nil when there is none. Presenters ask about it and doctor reports it.
 	GentleKiro *GentleKiroInventory
@@ -235,7 +249,8 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		pl.note(NoteNoRuntimes, "")
 	}
 
-	// Memory: adopt what exists. A missing Engram is never installed here.
+	// Memory: adopt what exists. A missing Engram is not installed by the plan
+	// itself: the front end does it first (EnsureEngram) and plans again.
 	pl.MemoryChoice = opts.Memory
 	l := gabitotl.NewLayout(env.ProjectRoot)
 	if pl.MemoryChoice == "" && inv.Project.Exists {
@@ -264,6 +279,7 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 	// Both providers are available on every machine; the choice only decides what
 	// this project's memory.md says. A missing Engram is a hint, never a failure.
 	pl.Memory, pl.MemoryExtra, pl.RetireMemory = rt.MemoryFor(pl.MemoryChoice, inv.Memory.HasBinary)
+	pl.Tools = CodeGraphTools(env.RT(), opts.CodeGraph)
 	if !inv.Memory.HasBinary {
 		pl.note(NoteEngramMissing, "")
 	}
@@ -308,9 +324,15 @@ func BuildPlan(ctx context.Context, env Env, inv Inventory, opts Options) (Plan,
 		}
 	}
 
+	pl.optionalSkills = gabitotl.LoadOptionalSkills(env.Home)
+	if opts.SetOptionalSkills {
+		pl.optionalSkills = SelectedSkills(opts.OptionalSkills)
+	}
+	pl.skills, pl.retireSkills = SkillSet(pl.optionalSkills)
+
 	// Runtime actions, split into install-time and retire-time (invariant b).
 	renv := env.RT()
-	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(lang), Skills: SkillAssets(), Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
+	ropts := rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(lang), Skills: pl.skills, RetireSkills: pl.retireSkills, Memory: pl.Memory, MemoryExtra: pl.MemoryExtra, Tools: pl.Tools, RetireMemory: pl.RetireMemory, MigrateGentleman: opts.MigratePersona, Version: env.Version}
 	for _, name := range pl.RuntimeOrder {
 		a, _ := env.Runtimes.Get(name)
 		acts, err := a.Plan(renv, ropts)

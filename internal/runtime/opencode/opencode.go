@@ -98,6 +98,9 @@ func personaPath(env rt.Env, s rt.Scope) (path, ref string) {
 	return p, filepath.ToSlash(p)
 }
 
+// SkillsDir is the exported skills directory of the adapter.
+func (*Adapter) SkillsDir(env rt.Env, s rt.Scope) string { return skillsDir(env, s) }
+
 // skillsDir is where OpenCode skills live (see the ASSUMPTION in the package doc).
 func skillsDir(env rt.Env, s rt.Scope) string {
 	if s == rt.ScopeProject && env.ProjectRoot != "" {
@@ -199,6 +202,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, cfg, []string{"mcp"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, Name, skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanRetireSkills(env, Name, skillsDir(env, opts.Scope), opts.RetireSkills)...)
 	if opts.Model != "" { // the user chose it in runtime.md: replace the existing selection
 		val, _ := json.Marshal(opts.Model)
 		plan = append(plan, engine.PlanKey(Name, cfg, []string{"model"}, val, true))

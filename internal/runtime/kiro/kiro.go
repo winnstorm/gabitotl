@@ -87,6 +87,10 @@ func (Core) ForeignAssetRoots(env rt.Env) []string {
 func (c Core) steeringPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "steering", "gabitotl.md")
 }
+
+// SkillsDir is the exported skills directory of the adapter.
+func (c Core) SkillsDir(env rt.Env, s rt.Scope) string { return c.skillsDir(env, s) }
+
 func (c Core) skillsDir(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "skills")
 }
@@ -206,6 +210,7 @@ func (c Core) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, c.name, c.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, c.name, c.skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanRetireSkills(env, c.name, c.skillsDir(env, opts.Scope), opts.RetireSkills)...)
 	plan = append(plan, engine.PlanFile(env, c.name, c.hooksPath(env), hooksJSON(env)))
 	return plan, nil
 }

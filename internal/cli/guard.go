@@ -366,6 +366,11 @@ func installHooksTo(w io.Writer, root, dir string) error {
 	if err != nil {
 		return err
 	}
+	return installHooksBin(w, root, dir, bin)
+}
+
+// installHooksBin installs the hooks calling bin, which must be the gabitotl CLI.
+func installHooksBin(w io.Writer, root, dir, bin string) error {
 	st, err := guard.InstallHooks(dir, bin)
 	if err != nil {
 		return err
