@@ -199,6 +199,7 @@ function seedForms(st) {
 
 function goTo(screen) {
   S.m.screen = screen;
+  S.m.statOpen = '';
   S.error = '';
   loadScreen();
 }
@@ -557,15 +558,57 @@ function counts(rep) {
 
 var STAT_ICON = { 'gui.doc.ok': ['ok', 'check'], 'gui.doc.warn': ['warn', 'warn'], 'gui.doc.todo': ['todo', 'info'], 'gui.doc.error': ['err', 'error'] };
 
+var STAT_STATUS = { 'gui.doc.ok': 'ok', 'gui.doc.warn': 'warn', 'gui.doc.todo': 'todo', 'gui.doc.error': 'error' };
+
+// stat is one summary card. With a count it is a button that opens the checks
+// of that status right below the cards (statLines).
 function stat(n, key) {
   var s = STAT_ICON[key] || ['todo', 'info'];
-  return '<div class="stat s-' + s[0] + '">' + UI.icon(s[1]) + '<b>' + esc(n) + '</b>' + esc(t(key)) + '</div>';
+  var st = STAT_STATUS[key];
+  var inner = UI.icon(s[1]) + '<b>' + esc(n) + '</b>' + esc(t(key));
+  if (!n) return '<div class="stat s-' + s[0] + '">' + inner + '</div>';
+  var open = S.m.statOpen === st;
+  return '<button type="button" class="stat btnstat s-' + s[0] + (open ? ' open' : '') + '" data-act="statopen" data-val="' + st + '" data-k="stat-' + st + '" aria-expanded="' + open + '" title="' + esc(t(open ? 'gui.doc.stat.hide' : 'gui.doc.stat.show')) + '">' + inner + '</button>';
 }
+
+// stats renders the four cards; with withList the checks of the opened card
+// follow them (the Diagnostics screen filters its own list instead).
+function stats(rep, withList) {
+  var c = counts(rep);
+  return '<div class="stats">' + stat(c.ok, 'gui.doc.ok') + stat(c.warn, 'gui.doc.warn') + stat(c.todo, 'gui.doc.todo') + stat(c.error, 'gui.doc.error') + '</div>' + (withList ? statLines(rep) : '');
+}
+
+// docRow is one doctor check, with its fix button when it has one.
+function docRow(l, si, li) {
+  var ic = ICONS[l.status] || ICONS.ok;
+  return '<div class="row"><span class="ic ' + ic[0] + '" role="img" aria-label="' + esc(t(ic[2])) + '">' + UI.icon(ic[1]) + '</span><span>' + esc(l.message) + '</span><span class="sp"></span>' +
+    (l.detail && l.detail !== l.message ? '<span class="mono">' + esc(l.detail) + '</span>' : '') +
+    (l.fix ? '<button type="button" class="btn xs" data-act="fix" data-s="' + si + '" data-l="' + li + '" data-k="fix-' + si + '-' + li + '">' + esc(l.fix.label) + '</button>' : '') + '</div>';
+}
+
+// statLines lists the checks of the opened card, grouped by section.
+function statLines(rep) {
+  var want = S.m.statOpen;
+  if (!want || !rep) return '';
+  var out = '';
+  rep.sections.forEach(function (sec, si) {
+    var rows = '';
+    sec.lines.forEach(function (l, li) { if (l.status === want) rows += docRow(l, si, li); });
+    if (rows) out += '<div class="sec">' + esc(sec.title) + '</div>' + rows;
+  });
+  return out ? '<div class="list statlist enter-fade">' + out + '</div>' : '';
+}
+
+actions.statopen = function (el) {
+  var v = el.getAttribute('data-val');
+  S.m.statOpen = S.m.statOpen === v ? '' : v;
+  render();
+};
 
 function cgSummary() {
   var g = S.m.cg;
   if (!g) return t('gui.windows.codegraph.checking');
-  return codegraphLines().text;
+  return codegraphLines(S.m.cg).text;
 }
 
 function deliverySummary() {
@@ -576,13 +619,12 @@ function deliverySummary() {
 }
 
 function screenOverview() {
-  var c = counts(S.m.doctor);
   var ints = S.m.integrations || [];
   var managed = ints.filter(function (i) { return i.managed; }).length;
   var stored = (S.cred.list || []).filter(function (x) { return x.stored; }).length;
   var recent = (S.m.projects || []).slice(0, 5);
   var out = head('overview') + busyLine() +
-    '<div class="stats">' + stat(c.ok, 'gui.doc.ok') + stat(c.warn, 'gui.doc.warn') + stat(c.todo, 'gui.doc.todo') + stat(c.error, 'gui.doc.error') + '</div>' +
+    stats(S.m.doctor, true) +
     '<dl class="sum"><dt>' + esc(t('gui.ov.version')) + '</dt><dd>' + esc(S.info.version) + '</dd>' +
     '<dt>' + esc(t('gui.mgr.nav.integrations')) + '</dt><dd>' + esc(t('gui.ov.connected', { n: managed, total: ints.length })) + '</dd>' +
     '<dt>' + esc(t('gui.ov.codegraph')) + '</dt><dd>' + esc(cgSummary()) + '</dd>' +
@@ -660,7 +702,7 @@ function screenCodeGraph() {
   var g = S.m.cg;
   var out = head('codegraph') + busyLine();
   if (!g) return out;
-  var cg = codegraphLines();
+  var cg = codegraphLines(S.m.cg);
   var fix = g.supported && g.needsWork;
   var actKey = !g.installed ? 'gui.cg.act.install' : (g.action === 'upgrade' ? 'gui.cg.act.upgrade' : 'gui.cg.act.repair');
   out += '<div class="box"><div class="row"><span class="oic sm">' + UI.icon('graph') + '</span><b>' + esc(t('gui.cg.version')) + '</b>' + (g.installed ? '<span class="mono">' + esc(g.version) + '</span>' : badge('warn', t('gui.cg.missing'))) + '</div>' +
@@ -894,16 +936,11 @@ function screenDoctor() {
     '<button type="button" class="btn pri" data-act="rerun" data-k="rerun"' + attr('disabled', true, S.m.busy) + '>' + UI.icon('refresh') + esc(t('gui.doc.rerun')) + '</button>';
   var out = head('doctor', btns) + busyLine();
   if (!rep) return out;
-  var c = counts(rep);
-  out += '<div class="stats">' + stat(c.ok, 'gui.doc.ok') + stat(c.warn, 'gui.doc.warn') + stat(c.todo, 'gui.doc.todo') + stat(c.error, 'gui.doc.error') + '</div><div class="list">';
+  out += stats(rep, false) + '<div class="list">';
   rep.sections.forEach(function (sec, si) {
-    out += '<div class="sec">' + esc(sec.title) + '</div>';
-    sec.lines.forEach(function (l, li) {
-      var ic = ICONS[l.status] || ICONS.ok;
-      out += '<div class="row"><span class="ic ' + ic[0] + '" role="img" aria-label="' + esc(t(ic[2])) + '">' + UI.icon(ic[1]) + '</span><span>' + esc(l.message) + '</span><span class="sp"></span>' +
-        (l.detail && l.detail !== l.message ? '<span class="mono">' + esc(l.detail) + '</span>' : '') +
-        (l.fix ? '<button type="button" class="btn xs" data-act="fix" data-s="' + si + '" data-l="' + li + '" data-k="fix-' + si + '-' + li + '">' + esc(l.fix.label) + '</button>' : '') + '</div>';
-    });
+    var rows = '';
+    sec.lines.forEach(function (l, li) { if (!S.m.statOpen || l.status === S.m.statOpen) rows += docRow(l, si, li); });
+    if (rows) out += '<div class="sec">' + esc(sec.title) + '</div>' + rows;
   });
   out += '</div>';
   if (S.m.screen === 'doctor') out += UI.systemsCard(S.m.systems, 'global', S.sysOpen);

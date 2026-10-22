@@ -317,8 +317,9 @@ function serversBlock() {
   return out;
 }
 
-function codegraphLines() {
-  var g = S.cg;
+// codegraphLines describes a CodeGraph status: the wizard passes S.cg, the
+// Manager S.m.cg.
+function codegraphLines(g) {
   if (!g) return { text: t('gui.windows.codegraph.checking'), shadow: '' };
   var text;
   if (!g.supported) text = t('gui.windows.codegraph.unsupported') + (g.hint ? ' ' + g.hint : '');
@@ -336,7 +337,7 @@ function stepWindows() {
     var on = !!get(path);
     return '<div class="tog' + (o.disabled ? ' off' : '') + (on ? ' sel' : '') + '"' + UI.popAttr(pop) + ' data-pk="' + path + '"><label class="tgl"><input type="checkbox" data-bind="' + path + '" data-k="' + path + '"' + attr('checked', true, on) + attr('disabled', true, !!o.disabled) + '><span class="oic sm">' + UI.icon(ic) + '</span><b>' + esc(title) + '</b><span>' + esc(desc) + '</span></label>' + UI.infoBtn(pop) + '</div>';
   };
-  var cg = codegraphLines();
+  var cg = codegraphLines(S.cg);
   return stepHead(t('gui.windows.title'), supported ? t('gui.windows.lead') : t('gui.windows.unsupported')) +
     '<div class="hrow">' + field('a.win.installDir', t('gui.windows.dir'), { mono: true, style: 'flex:1', disabled: !supported }) +
     '<button type="button" class="btn sm" data-act="browse"' + attr('disabled', true, !supported) + '>' + UI.icon('folder') + esc(t('gui.btn.browse')) + '</button></div>' +

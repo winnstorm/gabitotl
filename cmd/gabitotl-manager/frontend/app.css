@@ -153,6 +153,8 @@ h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em}
 .stat b{font-size:22px;color:var(--ink)}
 .stat .i{position:absolute;top:12px;right:12px;width:18px;height:18px}
 .stat.s-ok .i{color:var(--ok-fg)}.stat.s-warn .i{color:var(--warn-fg)}.stat.s-todo .i{color:var(--todo-fg)}.stat.s-err .i{color:var(--err-fg)}
+.btnstat{font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:border-color .15s,transform .15s}.btnstat:hover{border-color:var(--line2);transform:translateY(-1px)}.btnstat:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.btnstat.open{border-color:currentColor}.btnstat.s-ok.open{color:var(--ok-fg)}.btnstat.s-warn.open{color:var(--warn-fg)}.btnstat.s-todo.open{color:var(--todo-fg)}.btnstat.s-err.open{color:var(--err-fg)}.btnstat.open b{color:var(--ink)}
+.statlist{margin-top:10px}
 .list{border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:var(--surf)}
 .list .sec{background:var(--bg2);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:7px 14px;border-bottom:1px solid var(--line)}
 .list .row b{width:auto}
