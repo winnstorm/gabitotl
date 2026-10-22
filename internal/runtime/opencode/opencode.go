@@ -98,6 +98,9 @@ func personaPath(env rt.Env, s rt.Scope) (path, ref string) {
 	return p, filepath.ToSlash(p)
 }
 
+// SkillsDir is the exported skills directory of the adapter.
+func (*Adapter) SkillsDir(env rt.Env, s rt.Scope) string { return skillsDir(env, s) }
+
 // skillsDir is where OpenCode skills live (see the ASSUMPTION in the package doc).
 func skillsDir(env rt.Env, s rt.Scope) string {
 	if s == rt.ScopeProject && env.ProjectRoot != "" {

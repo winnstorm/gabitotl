@@ -3,6 +3,7 @@ package installer
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -18,6 +19,7 @@ var ErrUnknownSkill = fmt.Errorf("not an optional skill (known: %s)", strings.Jo
 type SkillChange struct {
 	Runtime string
 	Label   string
+	Dirs    []string    // the agent's skills directories
 	Actions []rt.Action // only the skill files; CREATE/MODIFY/REMOVE-AFTER-VERIFY/NO-ACTION
 }
 
@@ -32,14 +34,40 @@ func (c SkillChange) Pending() bool {
 }
 
 // isOptionalSkillFile tells whether path lies in the directory of an optional skill.
-func isOptionalSkillFile(path string) bool {
-	p := filepath.ToSlash(path)
+func isOptionalSkillFile(path string, dirs []string) bool {
 	for _, n := range OptionalSkills() {
-		if strings.Contains(p, "/skills/"+n+"/") {
+		if skillFileOf(path, dirs, n) {
 			return true
 		}
 	}
 	return false
+}
+
+// skillFileOf tells whether path lies inside <dir>/<name>/ for one of the
+// agent skills directories. Only the real directory prefix counts, so a project
+// path that merely contains a /skills/<name>/ segment is never matched.
+func skillFileOf(path string, dirs []string, name string) bool {
+	p := filepath.Clean(path)
+	for _, d := range dirs {
+		prefix := filepath.Clean(filepath.Join(d, name)) + string(filepath.Separator)
+		if len(p) < len(prefix) {
+			continue
+		}
+		head := p[:len(prefix)]
+		if head == prefix || (runtime.GOOS == "windows" && strings.EqualFold(head, prefix)) {
+			return true
+		}
+	}
+	return false
+}
+
+// agentSkillsDirs lists the skills directories (global and project scope) of an adapter.
+func agentSkillsDirs(renv rt.Env, a rt.Adapter) []string {
+	sd, ok := a.(rt.SkillsDirer)
+	if !ok {
+		return nil
+	}
+	return []string{sd.SkillsDir(renv, rt.ScopeGlobal), sd.SkillsDir(renv, rt.ScopeProject)}
 }
 
 // PlanSkillSelection plans the optional skills for the given selection in every
@@ -66,9 +94,9 @@ func PlanSkillSelection(env Env, selected []string) ([]SkillChange, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", a.Name(), err)
 		}
-		c := SkillChange{Runtime: a.Name(), Label: a.Label()}
+		c := SkillChange{Runtime: a.Name(), Label: a.Label(), Dirs: agentSkillsDirs(renv, a)}
 		for _, ac := range acts {
-			if isOptionalSkillFile(ac.Path) {
+			if isOptionalSkillFile(ac.Path, c.Dirs) {
 				c.Actions = append(c.Actions, ac)
 			}
 		}
@@ -133,7 +161,7 @@ func OptionalSkillStates(env Env) ([]OptionalSkillState, error) {
 			ag := SkillAgentState{Runtime: c.Runtime, Label: c.Label}
 			files, settled, leftovers := 0, 0, 0
 			for _, a := range c.Actions {
-				if !strings.Contains(filepath.ToSlash(a.Path), "/skills/"+name+"/") {
+				if !skillFileOf(a.Path, c.Dirs, name) {
 					continue
 				}
 				files++

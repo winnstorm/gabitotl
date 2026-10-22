@@ -34,11 +34,20 @@ type Skill struct {
 	Optional bool
 }
 
-// All returns every embedded skill, sorted by name.
+// All returns every embedded skill, sorted by name. The data is embedded at
+// build time, so any read error is a build defect and panics loudly.
 func All() []Skill {
+	out, err := load()
+	if err != nil {
+		panic("skills: embedded skills unreadable: " + err.Error())
+	}
+	return out
+}
+
+func load() ([]Skill, error) {
 	entries, err := fs.ReadDir(files, "files")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	out := make([]Skill, 0, len(entries))
 	for _, e := range entries {
@@ -48,11 +57,14 @@ func All() []Skill {
 		root := "files/" + e.Name()
 		b, err := files.ReadFile(root + "/" + FileName)
 		if err != nil {
-			continue
+			return nil, err
 		}
 		sk := Skill{Name: e.Name(), Content: string(b), Optional: isOptional(string(b))}
-		_ = fs.WalkDir(files, root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+		err = fs.WalkDir(files, root, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
 				return nil
 			}
 			rel := strings.TrimPrefix(p, root+"/")
@@ -61,7 +73,7 @@ func All() []Skill {
 			}
 			data, err := files.ReadFile(path.Clean(p))
 			if err != nil {
-				return nil
+				return err
 			}
 			if sk.Files == nil {
 				sk.Files = map[string]string{}
@@ -69,10 +81,13 @@ func All() []Skill {
 			sk.Files[rel] = string(data)
 			return nil
 		})
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, sk)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return out, nil
 }
 
 // isOptional reads `optional: "true"` from the metadata block of a SKILL.md.

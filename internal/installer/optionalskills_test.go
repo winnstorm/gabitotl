@@ -170,3 +170,18 @@ func TestSkillSelectionPlansAppliesAndReports(t *testing.T) {
 		t.Error("an unknown skill must be refused")
 	}
 }
+
+func TestOptionalSkillFileMatchesOnlyTheAgentSkillsDir(t *testing.T) {
+	dirs := []string{filepath.Join("home", "u", ".claude", "skills")}
+	in := filepath.Join(dirs[0], optName, "SKILL.md")
+	if !isOptionalSkillFile(in, dirs) {
+		t.Fatalf("%s must match", in)
+	}
+	trap := filepath.Join("work", "skills", optName, "app", ".claude", "other", "SKILL.md")
+	if isOptionalSkillFile(trap, dirs) {
+		t.Fatalf("%s lies outside the agent skills dir and must not match", trap)
+	}
+	if isOptionalSkillFile(filepath.Join(dirs[0], optName+"-x", "SKILL.md"), dirs) {
+		t.Fatal("a sibling directory with the same prefix must not match")
+	}
+}

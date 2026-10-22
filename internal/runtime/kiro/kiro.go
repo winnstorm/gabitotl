@@ -87,6 +87,10 @@ func (Core) ForeignAssetRoots(env rt.Env) []string {
 func (c Core) steeringPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "steering", "gabitotl.md")
 }
+
+// SkillsDir is the exported skills directory of the adapter.
+func (c Core) SkillsDir(env rt.Env, s rt.Scope) string { return c.skillsDir(env, s) }
+
 func (c Core) skillsDir(env rt.Env, s rt.Scope) string {
 	return filepath.Join(c.base(env, s), "skills")
 }

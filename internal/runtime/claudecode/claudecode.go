@@ -90,6 +90,9 @@ func (*Adapter) mcpPath(env rt.Env, s rt.Scope) string {
 	return filepath.Join(env.Home, ".claude.json")
 }
 
+// SkillsDir is the exported skills directory of the adapter.
+func (a *Adapter) SkillsDir(env rt.Env, s rt.Scope) string { return a.skillsDir(env, s) }
+
 func (a *Adapter) skillsDir(env rt.Env, s rt.Scope) string {
 	if s == rt.ScopeProject && env.ProjectRoot != "" {
 		return filepath.Join(env.ProjectRoot, ".claude", "skills")

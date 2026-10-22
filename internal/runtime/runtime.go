@@ -373,6 +373,12 @@ type Adapter interface {
 	ListModels(env Env) ([]string, error)
 }
 
+// SkillsDirer is implemented by adapters that install skills; it names the
+// directory that holds <skill>/SKILL.md for a scope.
+type SkillsDirer interface {
+	SkillsDir(env Env, s Scope) string
+}
+
 // AttributionState is the read-only state of a runtime's own attribution
 // setting (the line a coding tool adds to commits and pull requests).
 type AttributionState struct {

@@ -248,3 +248,22 @@ func TestOriginalWorkMentionsItsInspirationOnlyInTheCredit(t *testing.T) {
 		t.Error("SKILL.md must carry the credit line")
 	}
 }
+
+func TestEmbeddedSkillInventoryIsPinned(t *testing.T) {
+	if _, err := load(); err != nil {
+		t.Fatalf("embedded skills must load: %v", err)
+	}
+	if n := len(Required()); n != 8 {
+		t.Fatalf("required skills = %d, want 8", n)
+	}
+	for _, s := range All() {
+		if s.Name != "gabito-design" {
+			continue
+		}
+		if got := 1 + len(s.Files); got != 11 {
+			t.Fatalf("gabito-design files = %d (SKILL.md + references), want 11", got)
+		}
+		return
+	}
+	t.Fatal("gabito-design is not embedded")
+}
