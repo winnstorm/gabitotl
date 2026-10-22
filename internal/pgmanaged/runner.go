@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Call is one invocation of the engine CLI.
@@ -76,7 +78,7 @@ func (r ExecRunner) Run(ctx context.Context, c Call) (Result, error) {
 	if r.Environ != nil {
 		environ = r.Environ
 	}
-	cmd := exec.CommandContext(ctx, c.Bin, c.Args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, c.Bin, c.Args...))
 	cmd.Env = append(FilteredEnv(environ()), c.Env...)
 	var out, errb bytes.Buffer
 	if c.Stdout != nil {

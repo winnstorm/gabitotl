@@ -96,6 +96,7 @@ func (s *Service) DesktopStatus() DesktopStatus {
 
 // applyDesktop runs the Windows integration, reporting each step.
 func (s *Service) applyDesktop(o desktop.Options, p Progress, from, to int) StepResult {
+	m := ui.Active("")
 	steps, supported, err := s.desktopSteps(o)
 	switch {
 	case err != nil:
@@ -105,7 +106,7 @@ func (s *Service) applyDesktop(o desktop.Options, p Progress, from, to int) Step
 	}
 	n := 0
 	err = s.d.Desktop.Apply(o, func(st desktop.Step) {
-		p.emit("desktop."+st.ID, "running", st.Title, from+(to-from)*n/max(len(steps), 1))
+		p.emit("desktop."+st.ID, "running", desktopTitle(m, st), from+(to-from)*n/max(len(steps), 1))
 		n++
 	})
 	if err != nil {
@@ -120,6 +121,22 @@ func (s *Service) applyDesktop(o desktop.Options, p Progress, from, to int) Step
 	return StepResult{ID: "desktop", Status: StatusOK}
 }
 
+// desktopTitle is the localized title of a desktop step, or its English title
+// when the catalogue has no entry for it.
+func desktopTitle(m ui.Messages, st desktop.Step) string {
+	if st.ID == desktop.StepClose {
+		if st.Count == 1 {
+			return m.Format("gui.step.close-copies.one")
+		}
+		return m.Format("gui.step.close-copies.many", "count", strconv.Itoa(st.Count))
+	}
+	key := "gui.desktop.step." + st.ID
+	if _, ok := m[key]; !ok {
+		return st.Title
+	}
+	return m.Format(key, "dir", st.Dir)
+}
+
 // desktopPlanSteps maps desktop steps to plan steps. The "close running copies"
 // step gets its localized title and a note that unsaved work in those copies is
 // lost; the other titles pass through.
@@ -127,7 +144,7 @@ func (s *Service) desktopPlanSteps(m ui.Messages, o desktop.Options, ds []deskto
 	var steps []PlanStep
 	var notes []Note
 	for _, d := range ds {
-		st := PlanStep{ID: "desktop." + d.ID, Title: d.Title}
+		st := PlanStep{ID: "desktop." + d.ID, Title: desktopTitle(m, d)}
 		if d.ID == desktop.StepClose && s.d.Desktop != nil {
 			n := len(s.d.Desktop.RunningCopies(o))
 			key := "gui.step.close-copies.many"

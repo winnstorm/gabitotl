@@ -36,6 +36,7 @@ import (
 
 	"github.com/winnstorm/gabitotl/internal/codegraph"
 	"github.com/winnstorm/gabitotl/internal/desktop"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Pinned release. Hashes come from the release's checksums file:
@@ -605,7 +606,7 @@ func writeBinary(src io.Reader, size int64, dst string) error {
 func runCmd(ctx context.Context, bin string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, bin, args...))
 	cmd.WaitDelay = 2 * time.Second
 	out, err := cmd.CombinedOutput()
 	return string(out), err

@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Defaults for Options.
@@ -421,7 +423,7 @@ func firstLines(p string, n int) string {
 
 // gitLog reads the last n commits; it fails (callers tolerate it) outside a repository.
 func gitLog(ctx context.Context, root string, n int) ([]Commit, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", root, "log", "-n", strconv.Itoa(n), "--date=short", "--pretty=format:%h\x1f%ad\x1f%s")
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, "git", "-C", root, "log", "-n", strconv.Itoa(n), "--date=short", "--pretty=format:%h\x1f%ad\x1f%s"))
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err

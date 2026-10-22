@@ -549,7 +549,7 @@ func (s *Service) Uninstall(ctx context.Context, o UninstallOptions, planID stri
 	if o.Desktop && s.d.Desktop != nil {
 		r := StepResult{ID: "desktop", Status: StatusOK}
 		err := s.d.Desktop.Uninstall(desktop.Options{InstallDir: o.InstallDir}, func(st desktop.Step) {
-			p.emit("desktop."+st.ID, "running", st.Title, 85)
+			p.emit("desktop."+st.ID, "running", desktopTitle(msgs(env, ""), st), 85)
 		})
 		switch {
 		case isUnsupported(err):

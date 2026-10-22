@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Runner executes an external command in dir and returns its trimmed stdout.
@@ -43,7 +45,7 @@ type ExecRunner struct {
 
 // Run implements Runner. Git never prompts for credentials.
 func (r ExecRunner) Run(ctx context.Context, dir, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, name, args...))
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
 	cmd.Env = append(cmd.Env, r.Env...)

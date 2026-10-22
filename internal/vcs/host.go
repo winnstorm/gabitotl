@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/winnstorm/gabitotl/internal/procattr"
 	"github.com/winnstorm/gabitotl/internal/vcshosts"
 )
 
@@ -140,7 +141,7 @@ type ExecTTY struct{}
 
 // RunTTY implements TTYRunner.
 func (ExecTTY) RunTTY(ctx context.Context, dir, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, name, args...))
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()

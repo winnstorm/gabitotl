@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/codeindex"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 func runIndex(env Env, args []string) int {
@@ -89,7 +90,7 @@ func runIndexSetup(env Env, args []string) int {
 		fmt.Fprintf(env.Stdout, "would run (in %s): %s\nrun again with --yes to do it\n", r, strings.Join(argv, " "))
 		return ExitOK
 	}
-	cmd := exec.Command(argv[0], argv[1:]...) // argument list, no shell
+	cmd := procattr.NoWindow(exec.Command(argv[0], argv[1:]...)) // argument list, no shell
 	cmd.Dir, cmd.Stdout, cmd.Stderr = r, env.Stdout, env.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(env.Stderr, "gabitotl index setup: %s failed: %v\n", argv[0], err)

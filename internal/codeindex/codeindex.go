@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Status is what Detect found for one backend in one project.
@@ -60,7 +62,7 @@ func (t tool) Detect(root string) Status {
 func version(bin string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "--version").Output()
+	out, err := procattr.NoWindow(exec.CommandContext(ctx, bin, "--version")).Output()
 	if err != nil {
 		return ""
 	}

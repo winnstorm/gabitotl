@@ -25,11 +25,13 @@ package installer
 import (
 	"bytes"
 	"context"
-	"github.com/winnstorm/gabitotl/internal/engraminstall"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/winnstorm/gabitotl/internal/engraminstall"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
 	"github.com/winnstorm/gabitotl/internal/memory"
@@ -49,7 +51,7 @@ type ExecRunner struct{}
 
 // Run implements Runner.
 func (ExecRunner) Run(ctx context.Context, dir, name string, args ...string) ([]byte, []byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, name, args...))
 	cmd.Dir = dir
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb

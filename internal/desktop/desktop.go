@@ -43,7 +43,9 @@ type Options struct {
 // review screen and ticks them off as Apply progresses.
 type Step struct {
 	ID    string
-	Title string
+	Title string // English fallback; the GUI localizes by ID
+	Dir   string // the folder the title names, if any
+	Count int    // the number the title names, if any
 }
 
 // Step IDs.
@@ -344,7 +346,7 @@ func (in *Installer) installActions(o Options) []action {
 
 	if procs := in.runningCopies(dir); len(procs) > 0 {
 		as = append(as, action{
-			Step: Step{StepClose, closeTitle(len(procs))},
+			Step: Step{ID: StepClose, Title: closeTitle(len(procs)), Count: len(procs)},
 			do:   func() error { return in.stopAll(procs, true) },
 		})
 	}
@@ -352,7 +354,7 @@ func (in *Installer) installActions(o Options) []action {
 	var existed bool
 	var b backups
 	as = append(as, action{
-		Step: Step{StepCopy, "Copy the app to " + dir},
+		Step: Step{ID: StepCopy, Title: "Copy the app to " + dir, Dir: dir},
 		do: func() error {
 			existed = in.FS.Exists(dir)
 			b = backups{fs: in.FS, saved: map[string]string{}}
@@ -381,7 +383,7 @@ func (in *Installer) installActions(o Options) []action {
 		var before string
 		var changed bool
 		as = append(as, action{
-			Step: Step{StepPath, "Add " + dir + " to your PATH"},
+			Step: Step{ID: StepPath, Title: "Add " + dir + " to your PATH", Dir: dir},
 			do: func() error {
 				cur, err := in.Path.Get()
 				if err != nil {
@@ -405,7 +407,7 @@ func (in *Installer) installActions(o Options) []action {
 
 	link := func(id, title, lnk string) action {
 		return action{
-			Step: Step{id, title},
+			Step: Step{ID: id, Title: title},
 			do: func() error {
 				return in.Links.Create(lnk, Shortcut{
 					Target: manager, WorkDir: dir, Icon: manager, Description: AppName,
@@ -424,7 +426,7 @@ func (in *Installer) installActions(o Options) []action {
 	}
 
 	as = append(as, action{
-		Step: Step{StepRegister, "Register in Windows Apps & features"},
+		Step: Step{ID: StepRegister, Title: "Register in Windows Apps & features"},
 		do: func() error {
 			date := ""
 			if in.Env.Today != nil {
@@ -561,13 +563,13 @@ func (in *Installer) UninstallPlan(o Options) ([]Step, error) {
 func (in *Installer) uninstallSteps(o Options) []Step {
 	var ss []Step
 	if n := len(in.runningCopies(in.dir(o))); n > 0 {
-		ss = append(ss, Step{StepClose, closeTitle(n)})
+		ss = append(ss, Step{ID: StepClose, Title: closeTitle(n), Count: n})
 	}
 	return append(ss,
-		Step{StepUnlink, "Remove the shortcuts"},
-		Step{StepUnpath, "Remove " + in.dir(o) + " from your PATH"},
-		Step{StepUnreg, "Remove the Apps & features entry"},
-		Step{StepRemove, "Delete the GabitoTL files in " + in.dir(o) + " once this window closes"},
+		Step{ID: StepUnlink, Title: "Remove the shortcuts"},
+		Step{ID: StepUnpath, Title: "Remove " + in.dir(o) + " from your PATH", Dir: in.dir(o)},
+		Step{ID: StepUnreg, Title: "Remove the Apps & features entry"},
+		Step{ID: StepRemove, Title: "Delete the GabitoTL files in " + in.dir(o) + " once this window closes", Dir: in.dir(o)},
 	)
 }
 

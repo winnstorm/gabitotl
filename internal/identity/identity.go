@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/winnstorm/gabitotl/internal/gabitotl"
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // EnvUser overrides the identity derived from the OS user.
@@ -149,7 +150,7 @@ func Load(root, id string) (User, error) {
 
 // gitName returns `git config user.name` as seen from dir, or "".
 func gitName(dir string) string {
-	cmd := exec.Command("git", "config", "user.name")
+	cmd := procattr.NoWindow(exec.Command("git", "config", "user.name"))
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

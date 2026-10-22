@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Signals are the facts DetectKind looks at (spec section 11).
@@ -62,7 +64,7 @@ func DetectSignals(root string) (Signals, error) {
 // gitListing lists tracked plus untracked-not-ignored files (honouring
 // .gitignore without walking directories); ok is false outside a repository.
 func gitListing(root string) ([]string, bool) {
-	out, err := exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
+	out, err := procattr.NoWindow(exec.Command("git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")).Output()
 	if err != nil {
 		return nil, false
 	}
@@ -136,7 +138,7 @@ func hasGitHistory(root string) bool {
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		return false
 	}
-	cmd := exec.Command("git", "-C", root, "rev-list", "-n", "1", "HEAD")
+	cmd := procattr.NoWindow(exec.Command("git", "-C", root, "rev-list", "-n", "1", "HEAD"))
 	return cmd.Run() == nil
 }
 
@@ -163,7 +165,7 @@ func FindRoot(start string) (string, error) {
 		return "", err
 	}
 	root := abs
-	cmd := exec.Command("git", "-C", abs, "rev-parse", "--show-toplevel")
+	cmd := procattr.NoWindow(exec.Command("git", "-C", abs, "rev-parse", "--show-toplevel"))
 	if out, err := cmd.Output(); err == nil {
 		if top := strings.TrimSpace(string(out)); top != "" {
 			root = top

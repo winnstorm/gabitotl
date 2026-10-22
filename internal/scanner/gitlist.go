@@ -10,6 +10,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // gitFiles lists the files of the work tree under root the way Git sees them:
@@ -17,7 +19,7 @@ import (
 // monorepos need no directory walk. ok is false outside a repository (or
 // without git); callers then fall back to the walk.
 func gitFiles(ctx context.Context, root string) ([]string, bool) {
-	out, err := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
+	out, err := procattr.NoWindow(exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")).Output()
 	if err != nil {
 		return nil, false
 	}
@@ -77,10 +79,10 @@ func (w *walk) countOnly(rel string) {
 // gitState returns HEAD and a fingerprint of the untracked-not-ignored set.
 // ok is false when root is not a usable Git work tree.
 func gitState(ctx context.Context, root string) (head, untracked string, ok bool) {
-	if out, err := exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "HEAD").Output(); err == nil {
+	if out, err := procattr.NoWindow(exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "HEAD")).Output(); err == nil {
 		head = strings.TrimSpace(string(out))
 	}
-	out, err := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--others", "--exclude-standard").Output()
+	out, err := procattr.NoWindow(exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--others", "--exclude-standard")).Output()
 	if err != nil {
 		return "", "", false
 	}

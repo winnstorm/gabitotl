@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/winnstorm/gabitotl/internal/procattr"
 )
 
 // Downloader fetches one https URL.
@@ -198,7 +200,7 @@ func lookPath(name string) (string, error) { return exec.LookPath(name) }
 func runCmd(ctx context.Context, bin string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := procattr.NoWindow(exec.CommandContext(ctx, bin, args...))
 	cmd.WaitDelay = 2 * time.Second // a hung grandchild must not hold the pipe open
 	out, err := cmd.CombinedOutput()
 	return string(out), err
