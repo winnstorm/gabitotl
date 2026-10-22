@@ -123,8 +123,8 @@ registers in Settings > Apps. No administrator rights are needed. Afterwards the
 (doctor, integrations, settings, backups, uninstall).
 
 A preview build is published as the [v0.3.0-dev pre-release](https://github.com/winnstorm/gabitotl/releases/tag/v0.3.0-dev).
-It includes the Windows Manager, Bitbucket Data Center support and the optional GabitoDesign skill, and it has
-not yet been signed off on a real Windows machine.
+It includes the Windows Manager, Bitbucket Data Center support and the optional GabitoDesign skill. Install,
+the Manager and uninstall have been tried on a real Windows machine; it is still a pre-release.
 
 > Screenshot: to be added once the first signed-off Windows build is published (no mock image on purpose).
 
@@ -231,9 +231,44 @@ Eight skills are installed next to the persona: `gabito-orquestador`, `gabito-re
 one rule, "load the matching skill", so the base prompt stays small. More: [Skills](docs/GUIDE.md#skills),
 [at a glance](docs/GUIDE.md#the-skills-at-a-glance).
 
-A ninth, **optional** skill, `gabito-design`, gives agents design judgment for any visual task (web, Word,
-PowerPoint, PDF, charts, diagrams, images). It is off until you turn it on in the setup, the Manager or with
-`gabitotl skills enable gabito-design`. More: [GabitoDesign](docs/GUIDE.md#gabitodesign-optional).
+A ninth, **optional** skill, `gabito-design`, is described in the next section.
+
+## 🎨 GabitoDesign (optional)
+
+`gabito-design` gives agents design judgment for any visual task, so the result looks intended instead of
+generic. It loads on its own when the agent has to design, restyle, critique or polish something, and it works
+next to the format skills (docx, pptx, pdf, xlsx): those produce the file, GabitoDesign decides how it looks.
+
+| Medium | What it covers |
+|---|---|
+| 🌐 Web and UI | pages, apps, components and CSS |
+| 📄 Documents | Word, PDF, reports, letters and one-pagers |
+| 📊 Presentations | PowerPoint, Keynote and pitch decks |
+| 📈 Data | spreadsheets, charts, dashboards and tables |
+| 🧭 Diagrams | flows, architecture and maps |
+| 🖼️ Images | logos, icons, posters and covers |
+
+- **Four modes**, picked by the surface: *Persuade* (landing pages, decks, posters), *Experience* (onboarding,
+  portfolios, editorial), *Operate* (dashboards, tools, forms) and *Read* (long documents, reports, docs).
+- **23 commands** you invoke by naming them, for example `critique`, `audit`, `polish`, `typeset`, `layout`,
+  `colorize`, `distill`, `harden`, `bolder`, `quieter` and `variants`.
+- **A quality floor and an anti-patterns list per medium**, so typical AI tells (default gradients, everything
+  centered, emoji bullets, unreadable charts) get caught.
+- **`DESIGN.md` per project**: the type scale, color roles and spacing are written down once and reused, so the
+  design stays consistent across sessions.
+
+It is **off by default**. Turn it on in the setup (*Extras* card in the Profile step), in the Manager
+(*Integrations › Optional skills*, shows the plan first) or from the CLI:
+
+```bash
+gabitotl skills list
+gabitotl skills enable gabito-design --dry-run   # see what would change
+gabitotl skills enable gabito-design             # Claude Code, OpenCode and Kiro
+gabitotl skills disable gabito-design            # removes only its own, unedited files
+```
+
+The content is original and Apache-2.0, inspired by [Impeccable](https://impeccable.style) by Paul Bakaus.
+More: [GabitoDesign](docs/GUIDE.md#gabitodesign-optional).
 
 ## 🔎 Code index and 🔄 migration
 
@@ -244,7 +279,7 @@ Gentle-AI? `gabitotl migrate gentle-ai` snapshots, imports, verifies and only th
 ## 🧭 Roadmap and status
 
 V1 is deliberately small: the core is in place, and some paths are tested only against fakes (Kiro, the real Git
-hosts), and Windows is untested. See [Status and limitations](docs/GUIDE.md#status-and-limitations) and
+hosts), and Windows has been tried by hand on one machine. See [Status and limitations](docs/GUIDE.md#status-and-limitations) and
 [docs/ROADMAP.md](docs/ROADMAP.md). Also: [Security](docs/GUIDE.md#security),
 [Project layout](docs/GUIDE.md#project-layout).
 
