@@ -199,9 +199,13 @@ func MemoryFor(provider string, engramPresent bool) (main MemoryMCP, extra []Mem
 // Name is its directory under the runtime's skills directory and Content the
 // SKILL.md text. The installer fills it from package skills (runtime must not
 // import it), so adapters only decide WHERE each asset goes.
+//
+// Files are the other files of the skill directory (references/x.md), keyed by
+// their path relative to it with forward slashes.
 type Asset struct {
 	Name    string
 	Content string
+	Files   map[string]string
 }
 
 // Options drive Plan.
@@ -226,6 +230,9 @@ type Options struct {
 
 	// Skills are the skill files to install under the runtime's skills directory.
 	Skills []Asset
+	// RetireSkills names optional skills that are not selected: an adapter plans
+	// the removal of the files it wrote for them (and only those) after verify.
+	RetireSkills []string
 }
 
 // MemoryServers lists every stdio MCP entry to configure: Memory, MemoryExtra, then Tools.
@@ -259,9 +266,10 @@ const (
 	OpRemoveBlock   = "remove-foreign-block"
 	OpSetKey        = "set-key"
 	OpAddItem       = "add-item"
-	OpRemoveKey     = "remove-key" // remove a managed JSON key (REMOVE-AFTER-VERIFY)
-	OpWriteFile     = "write-file" // write a whole file GabitoTL owns (Edit.Body is the content)
-	OpManual        = "manual"     // nothing is written; the user must act
+	OpRemoveKey     = "remove-key"  // remove a managed JSON key (REMOVE-AFTER-VERIFY)
+	OpRemoveFile    = "remove-file" // remove a whole file GabitoTL wrote (REMOVE-AFTER-VERIFY)
+	OpWriteFile     = "write-file"  // write a whole file GabitoTL owns (Edit.Body is the content)
+	OpManual        = "manual"      // nothing is written; the user must act
 )
 
 // Edit is the executable payload of an Action. Plan builds it, Apply runs it.

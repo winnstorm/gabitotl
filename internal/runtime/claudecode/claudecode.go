@@ -281,6 +281,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, a.mcpPath(env, opts.Scope), []string{"mcpServers"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, Name, a.skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanRetireSkills(env, Name, a.skillsDir(env, opts.Scope), opts.RetireSkills)...)
 	return plan, nil
 }
 

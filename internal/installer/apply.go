@@ -134,7 +134,7 @@ func (r *run) warn(format string, a ...any) {
 }
 
 func (r *run) ropts() rt.Options {
-	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(persona.Lang(r.pl.Options.PersonaLang)), Skills: SkillAssets(), Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, Tools: r.pl.Tools, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
+	return rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(persona.Lang(r.pl.Options.PersonaLang)), Skills: r.pl.skills, RetireSkills: r.pl.retireSkills, Memory: r.pl.Memory, MemoryExtra: r.pl.MemoryExtra, Tools: r.pl.Tools, RetireMemory: r.pl.RetireMemory, MigrateGentleman: r.pl.Options.MigratePersona, Version: r.env.Version}
 }
 
 // Run executes the plan. Order is fixed and enforced here:
@@ -196,6 +196,7 @@ func Run(ctx context.Context, env Env, inv Inventory, pl Plan, obs Observer, hoo
 		return res, err
 	}
 	r.savePersonaLang()
+	r.saveOptionalSkills()
 	return res, nil
 }
 
@@ -211,6 +212,16 @@ func (r *run) savePersonaLang() {
 	}
 	if _, err := gabitotl.SavePersonaLang(r.env.Home, lang); err != nil {
 		r.warn("persona language not saved: %v", err)
+	}
+}
+
+// saveOptionalSkills remembers the optional skills chosen in this run.
+func (r *run) saveOptionalSkills() {
+	if !r.pl.Options.SetOptionalSkills || slices.Equal(gabitotl.LoadOptionalSkills(r.env.Home), r.pl.optionalSkills) {
+		return
+	}
+	if _, err := gabitotl.SaveOptionalSkills(r.env.Home, r.pl.optionalSkills); err != nil {
+		r.warn("optional skills not saved: %v", err)
 	}
 }
 

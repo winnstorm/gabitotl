@@ -141,3 +141,23 @@ func TestTerminalSkillCarriesTheMovedPersonaRules(t *testing.T) {
 		}
 	}
 }
+
+func TestIsOptionalReadsOnlyTheMetadataFlag(t *testing.T) {
+	for content, want := range map[string]bool{
+		"---\nname: a\nmetadata:\n  author: x\n  optional: \"true\"\n---\nbody\n": true,
+		"---\nname: a\nmetadata:\n  optional: \"false\"\n---\n":                   false,
+		"---\nname: a\noptional: \"true\"\n---\n":                                 false, // not under metadata
+		"---\nname: a\nmetadata:\n  author: x\n---\noptional: \"true\"\n":         false, // body text
+		"no front matter\n": false,
+	} {
+		if got := isOptional(content); got != want {
+			t.Errorf("isOptional(%q) = %v, want %v", content, got, want)
+		}
+	}
+}
+
+func TestRequiredAndOptionalPartitionAll(t *testing.T) {
+	if len(Required())+len(OptionalNames()) != len(All()) {
+		t.Fatal("Required and Optional must partition All")
+	}
+}

@@ -241,6 +241,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 	managed := 0
 	plang, _ := gabitotl.LoadPersonaLang(env.Home)
 	mcp, extra, retire := rt.MemoryFor(provider, m.HasBinary)
+	skillSet, retireSkills := SavedSkillSet(env.Home)
 	for _, r := range inv.Runtimes {
 		if r.State == rt.StateNone {
 			continue
@@ -251,7 +252,7 @@ func Doctor(ctx context.Context, env Env) DoctorReport {
 		case isManaged:
 			managed++
 			bad := ""
-			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(plang), Skills: SkillAssets(), Memory: mcp, MemoryExtra: extra, Tools: CodeGraphTools(renv, false), RetireMemory: retire, Version: env.Version}) {
+			for _, c := range a.Verify(renv, rt.Options{Scope: rt.ScopeGlobal, PersonaText: persona.TextFor(plang), Skills: skillSet, RetireSkills: retireSkills, Memory: mcp, MemoryExtra: extra, Tools: CodeGraphTools(renv, false), RetireMemory: retire, Version: env.Version}) {
 				if !c.OK {
 					bad = c.Name + ": " + c.Detail
 					break

@@ -21,8 +21,9 @@ func RuntimeOptions(renv rt.Env, root string, scope rt.Scope, memory string, mig
 		}
 	}
 	mem, extra, retire := rt.MemoryFor(memory, engramPresent)
+	sk, retireSkills := SavedSkillSet(renv.Home)
 	return rt.Options{
-		Scope: scope, PersonaText: persona.TextFor(gabitotl.ActivePersonaLang(renv.Home)), Skills: SkillAssets(),
+		Scope: scope, PersonaText: persona.TextFor(gabitotl.ActivePersonaLang(renv.Home)), Skills: sk, RetireSkills: retireSkills,
 		Memory: mem, MemoryExtra: extra, Tools: CodeGraphTools(renv, false), RetireMemory: retire, MigrateGentleman: migrate,
 	}
 }

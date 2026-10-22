@@ -1,20 +1,20 @@
 package installer
 
 import (
+	"maps"
 	"path/filepath"
 	"testing"
 
-	rt "github.com/winnstorm/gabitotl/internal/runtime"
 	"github.com/winnstorm/gabitotl/internal/skills"
 )
 
 func TestSkillAssetsMirrorTheEmbeddedSkills(t *testing.T) {
-	got, want := SkillAssets(), skills.All()
+	got, want := SkillAssets(), skills.Required()
 	if len(got) == 0 || len(got) != len(want) {
 		t.Fatalf("assets %d, skills %d", len(got), len(want))
 	}
 	for i := range got {
-		if got[i] != (rt.Asset{Name: want[i].Name, Content: want[i].Content}) {
+		if got[i].Name != want[i].Name || got[i].Content != want[i].Content || !maps.Equal(got[i].Files, want[i].Files) {
 			t.Errorf("asset %d differs from skill %s", i, want[i].Name)
 		}
 	}

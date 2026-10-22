@@ -199,6 +199,7 @@ func (a *Adapter) Plan(env rt.Env, opts rt.Options) ([]rt.Action, error) {
 	}
 	plan = append(plan, engine.PlanRetireServers(env, Name, cfg, []string{"mcp"}, kept, opts.RetireMemory)...)
 	plan = append(plan, engine.PlanSkills(env, Name, skillsDir(env, opts.Scope), opts.Skills)...)
+	plan = append(plan, engine.PlanRetireSkills(env, Name, skillsDir(env, opts.Scope), opts.RetireSkills)...)
 	if opts.Model != "" { // the user chose it in runtime.md: replace the existing selection
 		val, _ := json.Marshal(opts.Model)
 		plan = append(plan, engine.PlanKey(Name, cfg, []string{"model"}, val, true))
