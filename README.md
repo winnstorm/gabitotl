@@ -63,7 +63,7 @@ parts that chats and models do not keep.
   </tr>
   <tr>
     <td valign="top">🪟 <b>Windows setup and Manager</b><br>One downloaded <code>.exe</code> opens a bilingual setup wizard, installs per user (no admin) and then becomes the Manager app.</td>
-    <td></td>
+    <td valign="top">🎨 <b>GabitoDesign (optional)</b><br>Design judgment for any visual task: web and UI, Word, PowerPoint, PDF, charts, diagrams and images. Four modes, 23 commands and a per-project <code>DESIGN.md</code>. Off until you turn it on.</td>
     <td></td>
   </tr>
 </table>
@@ -121,6 +121,10 @@ single file: it carries the `gabitotl` CLI inside, installs both under `%LOCALAP
 adds that folder to your user PATH, creates the Start menu entry (and optionally a desktop shortcut) and
 registers in Settings > Apps. No administrator rights are needed. Afterwards the same app is the Manager
 (doctor, integrations, settings, backups, uninstall).
+
+A preview build is published as the [v0.3.0-dev pre-release](https://github.com/winnstorm/gabitotl/releases/tag/v0.3.0-dev).
+It includes the Windows Manager, Bitbucket Data Center support and the optional GabitoDesign skill, and it has
+not yet been signed off on a real Windows machine.
 
 > Screenshot: to be added once the first signed-off Windows build is published (no mock image on purpose).
 
