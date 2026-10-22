@@ -66,7 +66,7 @@ var systemRegistry = []systemDef{
 			{Kind: SigDir, Target: ".claude/commands/sc", Strong: true},
 		}},
 	{ID: "spec-kit", Name: "Spec Kit", URL: "https://github.com/github/spec-kit", Conflict: ConflictLow, Action: ActionCoexist,
-		Global: []SystemSignal{{Kind: SigBinary, Target: "specify", Strong: true}},
+		Global: []SystemSignal{{Kind: SigBinary, Target: "specify"}},
 		Project: []SystemSignal{
 			{Kind: SigDir, Target: ".specify/scripts", Strong: true},
 			{Kind: SigGlob, Target: ".claude/skills/speckit-*"},
@@ -89,7 +89,7 @@ var systemRegistry = []systemDef{
 			{Kind: SigGlob, Target: ".claude/skills/bmad*"},
 		}},
 	{ID: "task-master", Name: "Task Master", URL: "https://github.com/eyaltoledano/claude-task-master", Conflict: ConflictLow, Action: ActionCoexist,
-		Global:  []SystemSignal{{Kind: SigBinary, Target: "task-master", Strong: true}},
+		Global:  []SystemSignal{{Kind: SigBinary, Target: "task-master"}},
 		Project: []SystemSignal{{Kind: SigDir, Target: ".taskmaster", Strong: true}}},
 	{ID: "ruflo", Name: "Ruflo (claude-flow)", URL: "https://github.com/ruvnet/ruflo", Conflict: ConflictLow, Action: ActionCoexist,
 		Global: []SystemSignal{
@@ -101,7 +101,7 @@ var systemRegistry = []systemDef{
 		Global: []SystemSignal{
 			{Kind: SigFile, Target: ".omo/install.json", Strong: true},
 			{Kind: SigFile, Target: ".omo/omo.jsonc", Strong: true},
-			{Kind: SigBinary, Target: "omo", Strong: true},
+			{Kind: SigBinary, Target: "omo"},
 		},
 		Project: []SystemSignal{{Kind: SigFile, Target: ".omo/omo.jsonc", Strong: true}}},
 	{ID: "ccpm", Name: "Claude Code PM (ccpm)", URL: "https://github.com/automazeio/ccpm", Conflict: ConflictLow, Action: ActionCoexist,
@@ -195,8 +195,7 @@ func checkSignal(env Env, root string, s SystemSignal) SignalResult {
 		r.Found = isFile(r.Path)
 	case SigGlob:
 		r.Path = systemPath(env, root, s.Target)
-		m, _ := filepath.Glob(r.Path)
-		r.Found = len(m) > 0
+		r.Found = globLiteralDir(r.Path)
 	case SigAllDir:
 		r.Found = true
 		var looked []string
@@ -239,6 +238,9 @@ func lookSystemBinary(env Env, name string) (string, bool) {
 
 // fileHasMarker reports whether the first markerScanLimit bytes of path hold marker.
 func fileHasMarker(path, marker string) bool {
+	if fi, err := os.Lstat(path); err != nil || !fi.Mode().IsRegular() {
+		return false
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return false
@@ -246,4 +248,23 @@ func fileHasMarker(path, marker string) bool {
 	defer f.Close()
 	b, err := io.ReadAll(io.LimitReader(f, markerScanLimit))
 	return err == nil && strings.Contains(string(b), marker)
+}
+
+// globLiteralDir matches only the base name of path as a pattern; the directory
+// part (project root, home) is literal, so "[", "]", "*" or "?" in it are safe.
+func globLiteralDir(path string) bool {
+	pat := filepath.Base(path)
+	if _, err := filepath.Match(pat, ""); err != nil {
+		return false
+	}
+	ents, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		return false
+	}
+	for _, e := range ents {
+		if ok, _ := filepath.Match(pat, e.Name()); ok {
+			return true
+		}
+	}
+	return false
 }

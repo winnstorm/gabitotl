@@ -62,11 +62,12 @@ func TestGlobalSystemsAreAlwaysListedWhenNoneIsFound(t *testing.T) {
 func TestGlobalBinaryDetectors(t *testing.T) {
 	for id, bin := range map[string]string{"superclaude": "superclaude", "spec-kit": "specify", "openspec": "openspec", "task-master": "task-master", "ruflo": "claude-flow", "omo": "omo"} {
 		l := DetectSystems(sysEnv(t, "linux", map[string]string{bin: "/usr/bin/" + bin}))
-		if s := sysByID(t, l, id); !s.Found || s.Possible {
-			t.Fatalf("%s via %s: %+v", id, bin, s)
+		weak := bin == "specify" || bin == "task-master" || bin == "omo"
+		if s := sysByID(t, l, id); s.Found == weak || s.Possible != weak {
+			t.Fatalf("%s via %s (weak=%v): %+v", id, bin, weak, s)
 		}
 		for _, o := range l {
-			if o.ID != id && o.Found {
+			if o.ID != id && (o.Found || o.Possible) {
 				t.Fatalf("%s must not light up %s", bin, o.ID)
 			}
 		}
@@ -76,10 +77,10 @@ func TestGlobalBinaryDetectors(t *testing.T) {
 func TestWindowsCmdShimIsFound(t *testing.T) {
 	env := sysEnv(t, "windows", map[string]string{"task-master.cmd": `C:\Users\u\AppData\Roaming\npm\task-master.cmd`})
 	s := sysByID(t, DetectSystems(env), "task-master")
-	if !s.Found || !strings.HasSuffix(s.Signals[0].Path, "task-master.cmd") {
+	if s.Found || !s.Possible || !strings.HasSuffix(s.Signals[0].Path, "task-master.cmd") {
 		t.Fatalf("%+v", s)
 	}
-	if s := sysByID(t, DetectSystems(sysEnv(t, "linux", map[string]string{"task-master.cmd": "x"})), "task-master"); s.Found {
+	if s := sysByID(t, DetectSystems(sysEnv(t, "linux", map[string]string{"task-master.cmd": "x"})), "task-master"); s.Found || s.Possible {
 		t.Fatal("the .cmd retry is Windows only")
 	}
 }
@@ -179,5 +180,22 @@ func TestProjectWeakSignalsArePossible(t *testing.T) {
 	put(t, filepath.Join(root, "AGENTS.md"), "<!-- OPENSPEC:START -->")
 	if s := sysByID(t, DetectProjectSystems(env, root), "openspec"); !s.Found || s.Possible {
 		t.Fatalf("marker is strong: %+v", s)
+	}
+}
+
+func TestGenericBinaryNeedsCorroboration(t *testing.T) {
+	env := sysEnv(t, "linux", map[string]string{"omo": "/usr/bin/omo"})
+	put(t, filepath.Join(env.Home, ".omo/install.json"), "{}")
+	if s := sysByID(t, DetectSystems(env), "omo"); !s.Found {
+		t.Fatalf("binary plus config is found: %+v", s)
+	}
+}
+
+func TestGlobIgnoresPatternSyntaxInRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "proj[1]")
+	put(t, filepath.Join(root, ".claude/skills/speckit-plan/SKILL.md"), "")
+	s := sysByID(t, DetectProjectSystems(sysEnv(t, "linux", nil), root), "spec-kit")
+	if !s.Possible {
+		t.Fatalf("a root named proj[1] must still match: %+v", s)
 	}
 }
